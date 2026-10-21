@@ -3,8 +3,9 @@ Expected values are computed by hand (reference output: harness_7.py in baseline
 import pytest
 
 from toy_pools import add, base_squad, chip_gws, fill, toy_pool, weights
-from fpl_v2 import (CHIP_TIEBREAK, CHIPS, plan_points, plan_squad, poisson_binomial_tail,
-                    solve_plan, squad_value)
+from fplopt.chips import plan_points, squad_value
+from fplopt.milp import CHIP_TIEBREAK, plan_squad, poisson_binomial_tail, solve_plan
+from fplopt.rules import CHIPS
 
 H3 = [8, 9, 10]
 W3 = weights(H3)                                   # 1, 0.85, 0.7225

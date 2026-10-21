@@ -1,9 +1,10 @@
 """Acceptance check of a change to the xP model (roadmap, permanent criterion, decision 2026-10-20).
-Usage (next to fpl_v2.py and calibrate_xp.py):
-    python check_acceptance.py <baseline> [<candidate>] [--season 2024-25]
-A version is a module name (a .py file in this folder, e.g. fpl_v2_base for a copy of the
-previous fpl_v2.py), optionally with constants overridden: fpl_v2@PRICE_PRIOR_EXPONENT=1.0,...
-The candidate defaults to fpl_v2.
+Usage (from the repository root):
+    cp src/fplopt/xp_model.py xp_model_base.py           (before the change)
+    python scripts/check_acceptance.py xp_model_base.py [<candidate>] [--season 2024-25]
+A version is a .py file that defines the xP model (a copy of src/fplopt/xp_model.py, or an older
+single-file version such as fpl_v2.py) or 'current' (the installed fplopt.xp_model), optionally
+with constants overridden: current@PRICE_PRIOR_EXPONENT=1.0,... The candidate defaults to 'current'.
 Criterion, in EACH season (2024-25 and 2025-26):
   (1) RMSE (calibrate_xp tuning score) of the candidate < RMSE of the baseline, and
   (2) |gap| of the best XI + captain (mean over GWs of predicted - actual, calibrate_xp.top11)
@@ -18,14 +19,19 @@ import sys
 import numpy as np
 import calibrate_xp as C
 
-HERE = os.path.dirname(os.path.abspath(__file__))
 SEASONS = ('2024-25', '2025-26')
 
 
 def load_version(spec):
-    """'<module>' or '<module>@NAME=value,NAME=value' -> an independent copy of that module."""
+    """'<file.py>' / 'current', optionally '@NAME=value,NAME=value' -> an independent copy of that module."""
     name, _, overrides = spec.partition('@')
-    loader = importlib.util.spec_from_file_location(f"version_{abs(hash(spec))}", os.path.join(HERE, name + '.py'))
+    if name == 'current':
+        path = importlib.util.find_spec('fplopt.xp_model').origin     # the file of the installed package
+    else:
+        path = name if name.endswith('.py') else name + '.py'
+    if not os.path.isfile(path):
+        sys.exit(f"[ERROR] {path} not found")
+    loader = importlib.util.spec_from_file_location(f"version_{abs(hash(spec))}", path)
     mod = importlib.util.module_from_spec(loader)   # a new module object: overrides stay local to it
     loader.loader.exec_module(mod)                   # runs the file (its __main__ block does not run)
     for item in filter(None, overrides.split(',')):
@@ -47,9 +53,9 @@ def backtest(mod, data):
 
 
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser(description="Acceptance check: candidate vs baseline version of fpl_v2")
+    ap = argparse.ArgumentParser(description="Acceptance check: candidate vs baseline version of the xP model")
     ap.add_argument('baseline')
-    ap.add_argument('candidate', nargs='?', default='fpl_v2')
+    ap.add_argument('candidate', nargs='?', default='current')
     ap.add_argument('--season', choices=SEASONS, default=None, help="one season only (default: both)")
     args = ap.parse_args()
     base, cand = load_version(args.baseline), load_version(args.candidate)

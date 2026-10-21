@@ -1,8 +1,22 @@
-"""Shared fixtures: the synthetic season and a fake FPL API (no network)."""
+"""Shared fixtures: the synthetic season and a fake FPL client (no network)."""
+import logging
+
 import pytest
 
-import fpl_v2 as F
+from fplopt.api import FplClient
 from fpl_fake import FakeApi, Season, build_manager
+
+
+class FakeClient(FplClient):
+    """An FplClient whose requests are answered by a FakeApi instead of the network. Only get()
+    is replaced, so everything built on it (endpoint methods, cache) runs as in production."""
+
+    def __init__(self, api, **kw):
+        super().__init__(**kw)
+        self.api = api
+
+    def get(self, path):
+        return self.api.respond(path)
 
 
 @pytest.fixture(scope="session")
@@ -12,11 +26,15 @@ def season():
 
 
 @pytest.fixture
-def fake_api(monkeypatch, season):
-    """Factory: fake_api(**manager options) -> FakeApi, and every API request of the optimizer
-    is answered by it for the rest of the test."""
+def fake_client(season):
+    """Factory: fake_client(**manager options) -> FakeClient for the test manager."""
     def make(**manager_kw):
-        api = FakeApi(season, build_manager(season, **manager_kw))
-        monkeypatch.setattr(F, 'fetch_fpl_api', lambda url: api.respond(url.replace(F.FPL_API, '')))
-        return api
+        return FakeClient(FakeApi(season, build_manager(season, **manager_kw)))
     return make
+
+
+@pytest.fixture
+def messages(caplog):
+    """The messages the package logged during the test, in order (text as printed on stderr)."""
+    caplog.set_level(logging.INFO, logger='fplopt')
+    return lambda: [r.getMessage() for r in caplog.records if r.name.startswith('fplopt')]

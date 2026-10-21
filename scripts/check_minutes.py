@@ -1,8 +1,8 @@
 """Chat 8c: calibration of the minutes model (P(appear), P(60+), E[minutes]) and fit of its shrinkage.
-Usage (next to fpl_v2.py and calibrate_xp.py):  python check_minutes.py [measure|fit|verify|recency]
+Usage (from the repository root):  python scripts/check_minutes.py [measure|fit|verify|recency]
 Data: the same vaastav files and data_cache/ as calibrate_xp.py.
 
-Walk-forward: for every GW t = 2..38 the sums behind the model (fpl_v2.minutes_sums) are built
+Walk-forward: for every GW t = 2..38 the sums behind the model (xp_model.minutes_sums) are built
 from GWs < t only, and compared with what the player did in GW t.
 Sample = the rows calibrate_xp.score() uses: GWs where the dataset has FPL's projection and
 the player is not flagged out (FPL ep of that GW > 0, the availability proxy of notes_08a 5.1),
@@ -12,7 +12,7 @@ P(60+) and minutes are judged on single-match GWs only (in a DGW the model works
 import sys
 import numpy as np
 import pandas as pd
-import fpl_v2 as F
+from fplopt import xp_model as F
 from calibrate_xp import load
 
 SEASONS = ('2024-25', '2025-26')
@@ -267,7 +267,7 @@ def fit_per_position(recency=None):
 
 
 def verify():
-    """The production code (fpl_v2.shrink_minutes) must equal the formulas used by the fit, and
+    """The production code (xp_model.shrink_minutes) must equal the formulas used by the fit, and
     the consistency inequalities must hold on every row of the walk-forward sample."""
     a, m = F.APP_PRIOR_WEIGHT, F.APP_PRIOR_MEAN
     b, mq, c, mu = F.P60_PRIOR_WEIGHT, F.P60_PRIOR_MEAN, F.MIN_PRIOR_WEIGHT, F.MIN_PRIOR_MEAN
