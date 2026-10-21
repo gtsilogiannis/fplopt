@@ -15,6 +15,7 @@ from . import xp_model as xpm
 from .chips import advise, chip_report
 from .data import build_fixture_map, fetch_history, get_current_gw
 from .errors import SolverError, UserActionError
+from .messages import collect
 from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_3
 from .predictions import PREDICTIONS_FILE, log_predictions
 from .rules import HIT_COST
@@ -197,33 +198,11 @@ class OptimizeResult:
     state: EngineState = field(repr=False, default=None)
 
 
-class _MessageCollector(logging.Handler):
-    """Keeps every warning (and every message logged with a 'code') of a run, for the JSON."""
-
-    def __init__(self):
-        super().__init__(level=logging.DEBUG)
-        self.items = []
-
-    def emit(self, record):
-        code = getattr(record, 'code', None)
-        if record.levelno >= logging.WARNING or code:
-            msg = record.getMessage()
-            for prefix in ('[WARNING] ', '[INFO] ', '[*] '):
-                if msg.startswith(prefix):
-                    msg = msg[len(prefix):]
-            self.items.append({'code': code or 'warning', 'message': msg})
-
-
 def optimize(client, opts):
     """Runs the optimizer for opts.team_id with data from client (api.FplClient or a fake)."""
     require_pulp_3()
-    collector = _MessageCollector()
-    package_log = logging.getLogger('fplopt')
-    package_log.addHandler(collector)
-    try:
-        return _optimize(client, opts, collector.items)
-    finally:
-        package_log.removeHandler(collector)
+    with collect() as warnings:
+        return _optimize(client, opts, warnings)
 
 
 def _optimize(client, opts, warnings):

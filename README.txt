@@ -36,6 +36,12 @@ Options:
   --override-budget X    selling value of the squad + bank, as shown in the app (e.g. 100.1)
   --explain "A,B"        print the xP components of these players (web names); the minutes model is
                          shown shrunk, with the raw estimate in brackets
+  --json                 print the whole result as one JSON document (UTF-8) on stdout instead of text
+                         (for the C frontend and the website; schema in claude/notes_09a_refactor.md)
+
+Exit status: 0 OK, 1 internal error, 2 invalid argument, 3 network / FPL API, 4 not found (team id or
+GW), 5 no plan found, 6 action needed by you (the message says which), 7 missing data file,
+130 interrupted. With --json an error is also a JSON document: {"ok": false, "error": {...}}.
 
 Examples:
   python -m fplopt --team 10248663 --chip WC
