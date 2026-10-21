@@ -74,6 +74,10 @@ def build_parser():
                              f"(Default: {SOLVER_TIME_LIMIT})")  # M7/M10
     parser.add_argument("--solver", type=str, choices=['highs', 'cbc'], default=None,
                         help="MIP solver (Default: highs if highspy is installed, else cbc)")  # M10
+    # notes_07 §15, finding 3: the log keeps one run per GW (the last one), so comparison runs
+    # made after the decision run would replace its predictions
+    parser.add_argument("--no-log", action="store_true",
+                        help="Do not write this run's predictions to predictions_log.csv (comparison runs)")
     parser.add_argument("--refresh-cache", action="store_true",
                         help=f"Download the cached live data of final GWs again ({CACHE_DIR}/fpl_live/)")
     parser.add_argument("--json", action="store_true",
@@ -152,7 +156,8 @@ def main(argv=None):
                 opts = Options(team_id=args.team, ft=args.ft, chip=args.chip, min_chance=args.min_chance,
                                lookahead=args.lookahead, override_budget=args.override_budget,
                                max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
-                               solver=args.solver, chip_report=not args.no_chip_report)
+                               solver=args.solver, chip_report=not args.no_chip_report,
+                               write_log=not args.no_log)
                 result = optimize(client, opts)
                 if want_json:
                     print(jsonout.dumps(jsonout.optimize_to_dict(result)))
