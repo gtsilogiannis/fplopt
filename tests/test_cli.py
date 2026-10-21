@@ -48,7 +48,8 @@ def test_invalid_arguments(argv, message, capsys):
 def cli_client(monkeypatch, season):
     """The command line talks to the synthetic season instead of the FPL API."""
     def use(client_class=FakeClient):
-        monkeypatch.setattr(cli, 'FplClient', lambda base_url: client_class(FakeApi(season, build_manager(season))))
+        monkeypatch.setattr(cli, 'FplClient',
+                            lambda base_url, **kw: client_class(FakeApi(season, build_manager(season))))
     return use
 
 
@@ -106,7 +107,7 @@ def test_api_errors(cli_client, capsys, client_class, status, kind):
 def test_ft_mismatch_needs_the_user(monkeypatch, season, capsys):
     manager = build_manager(season)
     manager['current'][2]['event_transfers'] = 3      # GW3: 3 transfers with 2 FT, but cost 0 in the API
-    monkeypatch.setattr(cli, 'FplClient', lambda base_url: FakeClient(FakeApi(season, manager)))
+    monkeypatch.setattr(cli, 'FplClient', lambda base_url, **kw: FakeClient(FakeApi(season, manager)))
     code, out, err = run_cli(['--team', '1', '--json'], capsys)
     doc = json.loads(out)
     assert code == 6 and doc['error']['type'] == 'user_action'

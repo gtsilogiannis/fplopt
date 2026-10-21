@@ -24,7 +24,7 @@ def test_retries_server_errors_then_succeeds(api, messages):
         client, waits = client_for(url)
         assert len(client.fixtures()) == 380
         assert waits == [1.0, 2.0]
-        assert client.stats == {'requests': 3, 'retries': 2}
+        assert (client.stats['requests'], client.stats['retries']) == (3, 2)
     assert messages() == ["[WARNING] FPL API: HTTP 503 for /fixtures/; retry 1/3 in 1 s",
                           "[WARNING] FPL API: HTTP 502 for /fixtures/; retry 2/3 in 2 s"]
 

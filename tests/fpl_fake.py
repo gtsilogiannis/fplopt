@@ -29,7 +29,9 @@ def sell_rule(purchase, now):
 class Season:
     """Players, prices, fixtures and per-GW live data of the synthetic season."""
 
-    def __init__(self, big=False, chips=True):
+    def __init__(self, big=False, chips=True, data_checked=None):
+        """data_checked: None = field absent from the gameweeks (as in the harness), True/False = set
+        for the finished ones (the cache stores only finished AND data_checked gameweeks)."""
         rng = random.Random(7)             # same sequence as random.seed(7) in the harness
         self.big = big
         self.with_chips = chips
@@ -53,6 +55,9 @@ class Season:
                         'deadline_time': (pd.Timestamp('2026-08-15T10:00:00Z')
                                           + pd.Timedelta(days=7 * (g - 1))).isoformat()}
                        for g in range(1, 39)]
+        if data_checked is not None:
+            for e in self.events:
+                e['data_checked'] = bool(data_checked) and e['finished']
         self.teams = [{'id': t, 'short_name': f"T{t}"} for t in TEAMS]
         self.fixtures = []
         for g in range(1, 39):

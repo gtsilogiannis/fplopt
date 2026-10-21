@@ -46,6 +46,8 @@ def fetch_history(client, bootstrap, all_fixtures, current_gw):
                 n_matches[(t, f['event'])] = n_matches.get((t, f['event']), 0) + 1
     rows = []
     missing = set()
+    stats = getattr(client, 'stats', {})
+    hits_before = stats.get('cache_hits', 0)
     for gw in gws:
         live = client.event_live(gw, event_of.get(gw))
         for el in live['elements']:
@@ -67,4 +69,7 @@ def fetch_history(client, bootstrap, all_fixtures, current_gw):
         log.warning(f"[WARNING] Live endpoint lacks fields {sorted(missing)}; treated as 0.",
                     extra={'code': 'live_fields_missing'})
     log.info(f"[*] History: {len(gws)} finished GWs, {len(rows)} player-GW rows")
+    hits = stats.get('cache_hits', 0) - hits_before
+    if hits:
+        log.info(f"[*] Live data of {hits} final GW(s) read from the cache (--refresh-cache downloads them again)")
     return pd.DataFrame(rows, columns=HIST_COLS), gws

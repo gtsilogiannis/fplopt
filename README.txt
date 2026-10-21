@@ -36,6 +36,8 @@ Options:
   --override-budget X    selling value of the squad + bank, as shown in the app (e.g. 100.1)
   --explain "A,B"        print the xP components of these players (web names); the minutes model is
                          shown shrunk, with the raw estimate in brackets
+  --refresh-cache        download the live data of final GWs again instead of reading data_cache/fpl_live/
+                         (the cache keeps only GWs that the API marks finished AND data_checked)
   --json                 print the whole result as one JSON document (UTF-8) on stdout instead of text
                          (for the C frontend and the website; schema in claude/notes_09a_refactor.md)
 
