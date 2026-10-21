@@ -72,6 +72,16 @@ def test_optimize_json(cli_client, capsys, monkeypatch, tmp_path):
     assert "[*] Solved with" in err             # progress stays on stderr
 
 
+def test_no_log(cli_client, capsys, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    cli_client()
+    status, out, err = run_cli(['--team', '1', '--lookahead', '1', '--no-chip-report', '--no-log', '--json'], capsys)
+    assert status == 0
+    assert json.loads(out)['predictions_log'] is None
+    assert not (tmp_path / 'predictions_log.csv').exists()
+    assert "[*] Predictions not written to predictions_log.csv (--no-log)." in err
+
+
 def test_optimize_text(cli_client, capsys, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     cli_client()

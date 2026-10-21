@@ -542,6 +542,8 @@ def _optimize(client, opts, warnings):
     if opts.write_log:
         log_predictions(current_gw, players, {r.id: r.role for r in squad_rows}, opts.log_path)  # V1: whole pool
         log_written = opts.log_path
+    else:
+        log.info(f"[*] Predictions not written to {opts.log_path} (--no-log).")
 
     return OptimizeResult(
         options=opts, current_gw=current_gw, horizon=horizon, weights=gw_weight, history_gws=history_gws,
