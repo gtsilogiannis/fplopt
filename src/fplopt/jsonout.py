@@ -96,6 +96,7 @@ def optimize_to_dict(r):
         'predictions_log': r.log_written,
         'warnings': list(r.warnings),
         'timings': dict(r.timings),
+        'api': dict(r.api_stats),
     })
     return doc
 

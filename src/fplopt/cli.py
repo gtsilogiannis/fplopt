@@ -26,6 +26,9 @@ log = logging.getLogger('fplopt')
 # Base URL of the FPL API. Overridden only by the environment variable FPLOPT_API_URL, which the
 # tests use to point the program at a local fake server; normal runs never set it.
 API_URL_ENV = "FPLOPT_API_URL"
+# Folder for the downloaded data, relative to the working directory (shared with scripts/calibrate_xp.py,
+# which keeps the vaastav files there; the FPL live data go to its subfolder fpl_live/).
+CACHE_DIR = "data_cache"
 
 
 class _Parser(argparse.ArgumentParser):
@@ -71,6 +74,8 @@ def build_parser():
                              f"(Default: {SOLVER_TIME_LIMIT})")  # M7/M10
     parser.add_argument("--solver", type=str, choices=['highs', 'cbc'], default=None,
                         help="MIP solver (Default: highs if highspy is installed, else cbc)")  # M10
+    parser.add_argument("--refresh-cache", action="store_true",
+                        help=f"Download the cached live data of final GWs again ({CACHE_DIR}/fpl_live/)")
     parser.add_argument("--json", action="store_true",
                         help="Print the result as one JSON document (UTF-8) on stdout instead of text")
     return parser
@@ -135,7 +140,8 @@ def main(argv=None):
             args = build_parser().parse_args(argv)
             mode = args.mode
             check_args(args)
-            client = FplClient(base_url=os.environ.get(API_URL_ENV) or FPL_API)
+            client = FplClient(base_url=os.environ.get(API_URL_ENV) or FPL_API, cache_dir=CACHE_DIR,
+                               refresh_cache=args.refresh_cache)
             if args.mode == 'evaluate':
                 result = evaluate(client, args.gw)
                 if want_json:

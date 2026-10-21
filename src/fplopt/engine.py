@@ -195,6 +195,7 @@ class OptimizeResult:
     log_written: Optional[str]      # path of the predictions log, None if not written
     warnings: list                  # [{'code', 'message'}]
     timings: dict                   # data_s, solve_s, chips_s, total_s
+    api_stats: dict                 # requests, retries, cache_hits, cache_writes of the client
     state: EngineState = field(repr=False, default=None)
 
 
@@ -553,6 +554,7 @@ def _optimize(client, opts, warnings):
         log_written=log_written, warnings=warnings,
         timings={'data_s': t_solve - t_start, 'solve_s': res['seconds'], 'chips_s': chips_s,
                  'total_s': time.time() - t_start},
+        api_stats=dict(getattr(client, 'stats', {})),
         state=EngineState(pool=pool, plan_result=res, horizon=horizon, weights=gw_weight, start_squad=start_squad,
                           budget=total_budget, ft0=ft0, players=players))
 
