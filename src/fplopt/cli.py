@@ -1,25 +1,43 @@
 """Command line: python -m fplopt (or the 'fplopt' command after pip install).
 
-Results go to stdout, progress and warnings to stderr. Errors raised by the library
-(errors.FplError) are printed as '[ERROR] ...' and end the program with a non-zero status.
+Streams:  results on stdout (text, or one JSON document with --json), progress and warnings
+          on stderr, both UTF-8 on every platform.
+Status:   0 success, otherwise the exit code of the error class (errors.py): 1 internal error,
+          2 invalid argument, 3 network/API, 4 not found (404), 5 no plan, 6 user action needed,
+          7 missing data file, 130 interrupted.
 """
 import argparse
 import logging
+import os
 import sys
+import traceback
 
-from . import report
-from .api import FplClient
+from . import jsonout, report
+from .api import FPL_API, FplClient
 from .engine import Options, optimize
-from .errors import FplError, InputError, UserActionError
+from .errors import EXIT_INTERNAL, EXIT_INTERRUPTED, FplError, InputError, UserActionError
+from .messages import collect
 from .milp import SOLVER_TIME_LIMIT, highspy
 from .predictions import evaluate
 from .rules import MAX_FT
 
 log = logging.getLogger('fplopt')
 
+# Base URL of the FPL API. Overridden only by the environment variable FPLOPT_API_URL, which the
+# tests use to point the program at a local fake server; normal runs never set it.
+API_URL_ENV = "FPLOPT_API_URL"
+
+
+class _Parser(argparse.ArgumentParser):
+    """argparse prints its errors and exits with status 2 by itself; raising InputError instead
+    lets main() report them like every other error (status 2, and JSON with --json)."""
+
+    def error(self, message):
+        raise InputError(message)
+
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="fplopt", description="FPL squad optimizer (multi-period MILP)")
+    parser = _Parser(prog="fplopt", description="FPL squad optimizer (multi-period MILP)")
     parser.add_argument("--mode", type=str, choices=['optimize', 'evaluate'], default='optimize',
                         help="Execution mode (Default: optimize)")
     parser.add_argument("--team", type=int, help="Official FPL Team ID (Required for optimize)")
@@ -32,7 +50,7 @@ def build_parser():
     parser.add_argument("--no-chip-report", action="store_true",
                         help="Skip the Chip suggestions section (saves its solve time)")   # C10
     parser.add_argument("--min-chance", type=int, default=75,
-                        help="Minimum availability probability percentage (Default: 75)")
+                        help="Minimum availability probability percentage, 0-100 (Default: 75)")
     # M7: default 5. Timing on the offline harness (700 players, 2 cores): lookahead 3 ->
     # 10 s, 5 -> 88 s (proven optimal), 8 -> 244 s with a 0.45-point gap left (notes_06b §9).
     parser.add_argument("--lookahead", type=int, default=5,
@@ -53,6 +71,8 @@ def build_parser():
                              f"(Default: {SOLVER_TIME_LIMIT})")  # M7/M10
     parser.add_argument("--solver", type=str, choices=['highs', 'cbc'], default=None,
                         help="MIP solver (Default: highs if highspy is installed, else cbc)")  # M10
+    parser.add_argument("--json", action="store_true",
+                        help="Print the result as one JSON document (UTF-8) on stdout instead of text")
     return parser
 
 
@@ -61,17 +81,38 @@ def check_args(args):
     if args.mode == 'evaluate':
         if not args.gw:
             raise InputError("Evaluation mode requires target Gameweek. Example: --mode evaluate --gw 5")
+        if not 1 <= args.gw <= 38:
+            raise InputError("--gw must be between 1 and 38.")
         return
     if not args.team:
         raise InputError("Optimization mode requires --team ID. Example: --team 10248663")
+    if args.team < 1:
+        raise InputError("--team must be a positive team ID.")
     if args.max_hits is not None and args.max_hits < 0:  # H: negative cap -> infeasible
         raise InputError("--max-hits must be 0 or greater.")
     if args.ft is not None and not 1 <= args.ft <= MAX_FT:  # M8: FPL stores 1 to 5
         raise InputError(f"--ft must be between 1 and {MAX_FT}.")
     if args.lookahead < 1:
         raise InputError("--lookahead must be 1 or greater.")
+    if not 0 <= args.min_chance <= 100:
+        raise InputError("--min-chance must be between 0 and 100.")
+    if args.time_limit < 1:
+        raise InputError("--time-limit must be 1 second or more.")
+    if args.override_budget is not None and args.override_budget <= 0:
+        raise InputError("--override-budget must be a positive amount in GBPm (e.g. 100.9).")
     if args.solver == 'highs' and highspy is None:  # M10
         raise UserActionError("--solver highs needs the highspy package: pip install highspy")
+
+
+def use_utf8_streams():
+    """Text and JSON are written as UTF-8 on every platform. Without this, on Windows the output
+    to a pipe (which is what a frontend reads) uses the ANSI code page (e.g. cp1252): '£' is
+    changed and a name such as 'Horníček' can stop the program with UnicodeEncodeError."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8')
+        except (AttributeError, ValueError, OSError):   # not a text file (e.g. replaced by a test)
+            pass
 
 
 def configure_logging():
@@ -80,25 +121,52 @@ def configure_logging():
     handler.setFormatter(logging.Formatter("%(message)s"))
     log.handlers[:] = [handler]
     log.setLevel(logging.INFO)
-    log.propagate = False
 
 
 def main(argv=None):
     """Entry point; returns the exit status."""
+    use_utf8_streams()
     configure_logging()
-    args = build_parser().parse_args(argv)
-    try:
-        check_args(args)
-        client = FplClient()
-        if args.mode == 'evaluate':
-            report.print_evaluate(evaluate(client, args.gw))
-        else:
-            opts = Options(team_id=args.team, ft=args.ft, chip=args.chip, min_chance=args.min_chance,
-                           lookahead=args.lookahead, override_budget=args.override_budget,
-                           max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
-                           solver=args.solver, chip_report=not args.no_chip_report)
-            report.print_optimize(optimize(client, opts))
-    except FplError as e:
-        log.error(f"[ERROR] {e}")
-        return 1
-    return 0
+    argv = sys.argv[1:] if argv is None else list(argv)
+    want_json = '--json' in argv              # known before parsing, so parse errors are JSON too
+    mode = 'evaluate' if 'evaluate' in argv else 'optimize'
+    with collect() as warnings:
+        try:
+            args = build_parser().parse_args(argv)
+            mode = args.mode
+            check_args(args)
+            client = FplClient(base_url=os.environ.get(API_URL_ENV) or FPL_API)
+            if args.mode == 'evaluate':
+                result = evaluate(client, args.gw)
+                if want_json:
+                    print(jsonout.dumps(jsonout.evaluate_to_dict(result, warnings)))
+                else:
+                    report.print_evaluate(result)
+            else:
+                opts = Options(team_id=args.team, ft=args.ft, chip=args.chip, min_chance=args.min_chance,
+                               lookahead=args.lookahead, override_budget=args.override_budget,
+                               max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
+                               solver=args.solver, chip_report=not args.no_chip_report)
+                result = optimize(client, opts)
+                if want_json:
+                    print(jsonout.dumps(jsonout.optimize_to_dict(result)))
+                else:
+                    report.print_optimize(result)
+            return 0
+        except FplError as e:
+            log.error(f"[ERROR] {e}")
+            return _fail(e, mode, want_json, warnings, e.exit_code)
+        except KeyboardInterrupt:
+            log.error("[ERROR] Interrupted.")
+            return _fail(KeyboardInterrupt("Interrupted."), mode, want_json, warnings, EXIT_INTERRUPTED)
+        except Exception as e:          # a bug: full traceback on stderr, status 1
+            traceback.print_exc(file=sys.stderr)
+            return _fail(e, mode, want_json, warnings, EXIT_INTERNAL)
+
+
+def _fail(exc, mode, want_json, warnings, status):
+    if want_json:
+        doc = jsonout.error_to_dict(exc, mode, warnings)
+        doc['error']['exit_code'] = status
+        print(jsonout.dumps(doc))
+    return status
