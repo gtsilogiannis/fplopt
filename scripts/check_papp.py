@@ -2,7 +2,7 @@
 Since 8c the same shrinkage is applied in build_features (a = 0.4, m = 0.45 unchanged) and
 check_minutes.py measures and fits P(appear), P(60+) and E[minutes] together; this script
 stays as the original, simpler P(appear) check.
-Usage (next to fpl_v2.py and calibrate_xp.py): python check_papp.py
+Usage (from the repository root): python scripts/check_papp.py
 Data: the same vaastav files and data_cache/ as calibrate_xp.py.
 Walk-forward, same estimator as build_features: Papp = recency-weighted share
 (MINUTES_RECENCY^(age)) of the player's team-match GWs before t in which he played.
@@ -11,7 +11,7 @@ Availability proxy (notes_08a 5.1): FPL xP of row t-1 (= FPL estimate for GW t,
 made after GW t-1) > 0; rows with xP(t-1) == 0 correspond to players flagged out."""
 import numpy as np
 import pandas as pd
-import fpl_v2 as F
+from fplopt import xp_model as F
 from calibrate_xp import download   # same download + cache as the xP backtest
 
 R = F.MINUTES_RECENCY

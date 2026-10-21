@@ -8,7 +8,7 @@ and player ids only where the choice is unique."""
 import pytest
 
 from toy_pools import add, base_squad, fill, toy_pool, weights
-from fpl_v2 import solve_plan
+from fplopt.milp import solve_plan
 
 H3 = [8, 9, 10]
 W3 = weights(H3)                       # 1, 0.85, 0.7225

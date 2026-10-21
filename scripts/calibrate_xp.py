@@ -1,13 +1,13 @@
 """
-Walk-forward backtest of the xP model in fpl_v2.py on past seasons.
+Walk-forward backtest of the xP model (fplopt.xp_model) on past seasons.
 
 For every gameweek t, the model sees only data from GWs < t (as in a live run),
 predicts each player's points for GW t, and the prediction is compared with the
 actual points. Data: github.com/vaastav/Fantasy-Premier-League (per-match rows).
 
-Usage:
-  python calibrate_xp.py --season 2025-26
-  python calibrate_xp.py --season 2024-25 --tune     # grid search of the [tuned] constants (slow, ~10 min)
+Usage (from the repository root; downloads into data_cache/):
+  python scripts/calibrate_xp.py --season 2025-26
+  python scripts/calibrate_xp.py --season 2024-25 --tune     # grid search of the [tuned] constants (slow, ~10 min)
 """
 import argparse
 import itertools
@@ -15,7 +15,7 @@ import os
 import numpy as np
 import pandas as pd
 import requests
-import fpl_v2 as F
+from fplopt import xp_model as F
 
 DATA_URL = "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/{season}/{path}"
 CACHE_DIR = "data_cache"
@@ -35,7 +35,7 @@ def download(season, path):
 
 
 def load(season):
-    """Per-match rows -> the same per-(player, GW) table that fetch_history() builds live."""
+    """Per-match rows -> the same per-(player, GW) table that fplopt.data.fetch_history() builds live."""
     d = pd.read_csv(download(season, 'gws/merged_gw.csv'))
     teams = pd.read_csv(download(season, 'teams.csv'))
     d = d[d['position'].isin(POS)].copy()
@@ -218,7 +218,7 @@ def tune(d, hist, pos_of):
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Walk-forward backtest of the fpl_v2.py xP model")
+    ap = argparse.ArgumentParser(description="Walk-forward backtest of the fplopt xP model")
     ap.add_argument("--season", default="2025-26", help="e.g. 2024-25, 2025-26")
     ap.add_argument("--tune", action="store_true", help="grid-search the [tuned] constants")
     args = ap.parse_args()

@@ -1,15 +1,23 @@
-FPL optimizer - quick commands (fpl_v2.py, version of chat 7, 2026-10-20)
+FPL optimizer (fplopt) - quick commands (chat 9a(i), 2026-10-21)
 The full README.md is written in chat 11.
 
-Setup (once, in the project folder):
+Layout:
+  src/fplopt/      the package (python -m fplopt, or the 'fplopt' command after installing)
+  scripts/         backtest and calibration of the xP model (calibrate_xp.py, check_*.py)
+  tests/           pytest suite (offline: synthetic season, no network)
+
+Setup (once, in the repository folder):
   python -m venv venv
   source venv/bin/activate
-  pip install requests pandas "pulp==3.3.2" highspy
+  pip install -e ".[highs,dev]"
+(-e = editable: the installed package is this folder, so changes to the code apply at once.
+ The quotes stop zsh from reading [ ] as a file pattern.)
 
 Before each GW deadline, AFTER the previous GW is finalised
 (FPL locks the points at 09:00 UK time the day after the GW's last match):
-  python fpl_v2.py --team 10248663
+  python -m fplopt --team 10248663
 
+Results are printed on stdout, progress and warnings on stderr (both appear in the terminal).
 The output ends with a CHIP SUGGESTIONS section: for every chip you can play now, the exact gain
 now (best plan with the chip minus best plan without, next 3 GWs, unweighted expected points) and
 an estimate for every GW up to the end of the chip's window (GW19 / GW38). If it suggests a chip,
@@ -30,26 +38,26 @@ Options:
                          shown shrunk, with the raw estimate in brackets
 
 Examples:
-  python fpl_v2.py --team 10248663 --chip WC
-  python fpl_v2.py --team 10248663 --chip BB
-  python fpl_v2.py --team 10248663 --no-chip-report --time-limit 60
+  python -m fplopt --team 10248663 --chip WC
+  python -m fplopt --team 10248663 --no-chip-report --time-limit 60
 
 After the GW is finalised (model accuracy vs FPL's ep_next):
-  python fpl_v2.py --mode evaluate --gw N
+  python -m fplopt --mode evaluate --gw N
 
-Backtest of the xP model on past seasons (downloads vaastav data into data_cache/):
-  python calibrate_xp.py --season 2025-26
-  python check_papp.py                 (P(appear) only, chat 6b)
-  python check_minutes.py measure     (calibration of P(appear), P(60+), E[minutes], raw)
-  python check_minutes.py fit         (fits the shrinkage constants on 2024-25, checks on 2025-26)
-  python check_minutes.py verify      (fpl_v2.shrink_minutes equals the fit formulas; consistency checks)
-  python check_minutes.py recency     (refits the constants for several MINUTES_RECENCY values)
+Backtest of the xP model on past seasons (run from the repository folder; downloads vaastav data
+into data_cache/):
+  python scripts/calibrate_xp.py --season 2025-26
+  python scripts/check_papp.py               (P(appear) only, chat 6b)
+  python scripts/check_minutes.py measure    (calibration of P(appear), P(60+), E[minutes], raw)
+  python scripts/check_minutes.py fit        (fits the shrinkage constants on 2024-25, checks on 2025-26)
+  python scripts/check_minutes.py verify     (xp_model.shrink_minutes equals the fit formulas)
+  python scripts/check_minutes.py recency    (refits the constants for several MINUTES_RECENCY values)
 
 Acceptance check of a change to the xP model (lower RMSE AND top-11 + captain gap not worse
 than 2 paired standard errors, in both seasons):
-  cp fpl_v2.py fpl_v2_base.py          (before the change)
-  python check_acceptance.py fpl_v2_base
+  cp src/fplopt/xp_model.py xp_model_base.py        (before the change)
+  python scripts/check_acceptance.py xp_model_base.py
 
-Offline checks (no network; next to fpl_v2.py with harness_offline.py and harness_6b.py):
-  python harness_6b.py wait            (also: ft, save, chips, budget, vice, gw1, full)
-  python harness_7.py tc               (chat 7, hand-computed: tc, bb, wc, fh, rules, estimates, equiv)
+Tests (offline):
+  pytest                 fast tests (~10 s)
+  pytest -m slow         full runs on the synthetic season (~12 min)

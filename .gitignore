@@ -8,3 +8,7 @@ predictions_log.csv
 predictions_history.csv
 fpl_v2_stable.py
 fpl_v2_base.py
+xp_model_base.py
+*.egg-info/
+build/
+dist/

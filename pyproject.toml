@@ -1,6 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fplopt"
+dynamic = ["version"]
+description = "Fantasy Premier League squad optimizer: multi-period MILP on a backtested expected-points model"
+authors = [{ name = "Giannis Tsilogiannis" }]
+requires-python = ">=3.10"
+# Exact versions are pinned in requirements.txt (chat 9a(ii)). PuLP stays below 4 until the
+# MILP module is moved to the new PuLP 4 API (chat 9a(ii)).
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pulp>=3.3.2,<4",
+]
+
+[project.optional-dependencies]
+highs = ["highspy>=1.15"]   # HiGHS solver (default when installed); without it PuLP's bundled CBC is used
+dev = ["pytest>=9"]
+
+[project.scripts]
+fplopt = "fplopt.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "fplopt.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
 markers = [
     "slow: long solver runs on the synthetic season (deselected by default; run with: pytest -m slow)",
 ]

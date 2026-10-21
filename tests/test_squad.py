@@ -3,7 +3,7 @@
 import pytest
 
 from fpl_fake import CUR, sell_rule
-from fpl_v2 import free_transfers_from_history, load_current_squad, selling_price
+from fplopt.squad import free_transfers_from_history, load_current_squad, selling_price
 
 
 @pytest.mark.parametrize("purchase, now, expected", [
@@ -13,13 +13,12 @@ def test_selling_price(purchase, now, expected):
     assert selling_price(purchase, now) == expected
 
 
-def load(season, api, capsys):
+def load(season, client, messages):
     """Runs load_current_squad against the fake API; returns its result, its messages and the truth."""
-    squad, bank, sell = load_current_squad(1, CUR, {'elements': season.elements})
-    messages = [ln for ln in capsys.readouterr().out.splitlines() if ln.strip()]
-    t_sq, t_pur, t_bank = api.manager['truth']
+    squad, bank, sell = load_current_squad(client, 1, CUR, {'elements': season.elements})
+    t_sq, t_pur, t_bank = client.api.manager['truth']
     truth_sell = {p: sell_rule(t_pur[p], season.price(p, CUR)) / 10 for p in t_sq}
-    return squad, bank, sell, messages, (t_sq, t_pur, t_bank, truth_sell)
+    return squad, bank, sell, messages(), (t_sq, t_pur, t_bank, truth_sell)
 
 
 FH_MSG = "[*] Free Hit played in GW7: squad and bank taken from GW6."
@@ -27,7 +26,7 @@ UNSURE_MSG = ("[*] Selling value of the squad is between £96.2m and £96.3m (pu
               "known: P57). Using the lower value; --override-budget sets the exact one from the app.")
 
 
-@pytest.mark.parametrize("scenario, manager_kw, messages, bank, sum_sell, prices_match, n_requests", [
+@pytest.mark.parametrize("scenario, manager_kw, expected_messages, bank, sum_sell, prices_match, n_requests", [
     ('fh', {}, [FH_MSG], 2.9, 96.2, True, 4),
     ('nofh', {'fh_last': False}, [], 4.9, 94.4, True, 4),
     ('midseason', {'first_gw': 2}, [FH_MSG, UNSURE_MSG], 2.9, 96.2, True, 20),
@@ -36,30 +35,30 @@ UNSURE_MSG = ("[*] Selling value of the squad is between £96.2m and £96.3m (pu
      [FH_MSG, "[WARNING] Rebuilt bank £3.2m != API bank £2.9m: selling prices may be off. "
               "Check them in the app; use --override-budget if needed."], 2.9, 96.2, True, 4),
 ])
-def test_load_current_squad(season, fake_api, capsys, scenario, manager_kw, messages, bank, sum_sell,
-                            prices_match, n_requests):
-    api = fake_api(**manager_kw)
-    squad, got_bank, sell, got_messages, (t_sq, t_pur, t_bank, truth_sell) = load(season, api, capsys)
-    assert got_messages == messages
+def test_load_current_squad(season, fake_client, messages, scenario, manager_kw, expected_messages, bank,
+                            sum_sell, prices_match, n_requests):
+    client = fake_client(**manager_kw)
+    squad, got_bank, sell, got_messages, (t_sq, t_pur, t_bank, truth_sell) = load(season, client, messages)
+    assert got_messages == expected_messages
     assert sorted(squad) == sorted(t_sq)                    # Free Hit squad reverted
     assert got_bank == bank == t_bank / 10
     assert (sell == truth_sell) is prices_match             # midmix: the lower bound is used
     assert round(sum(sell.values()), 1) == sum_sell
     assert all(sell[p] <= truth_sell[p] + 1e-9 for p in t_sq)   # never above the real selling price
-    assert len(api.calls) == n_requests
+    assert len(client.api.calls) == n_requests
 
 
-def test_midmix_purchase_prices(season, fake_api, capsys):
+def test_midmix_purchase_prices(season, fake_client, messages):
     # two players were bought between two price changes; the true sum is 96.3, the code uses 96.2
-    api = fake_api(first_gw=2, mix=True)
-    assert api.manager['mixed'] == ([39, 57], [(70, 69, 69), (45, 46, 46)])
-    *_, (_, _, _, truth_sell) = load(season, api, capsys)
+    client = fake_client(first_gw=2, mix=True)
+    assert client.api.manager['mixed'] == ([39, 57], [(70, 69, 69), (45, 46, 46)])
+    *_, (_, _, _, truth_sell) = load(season, client, messages)
     assert round(sum(truth_sell.values()), 1) == 96.3
 
 
-def test_selling_price_examples(season, fake_api, capsys):
-    api = fake_api()
-    squad, bank, sell, _, (t_sq, t_pur, _, _) = load(season, api, capsys)
+def test_selling_price_examples(season, fake_client, messages):
+    client = fake_client()
+    squad, bank, sell, _, (t_sq, t_pur, _, _) = load(season, client, messages)
     gain = [(p, t_pur[p], season.price(p, CUR), sell[p]) for p in t_sq if season.price(p, CUR) != t_pur[p]][:4]
     assert gain == [(39, 70, 66, 6.6), (57, 45, 52, 4.8), (111, 70, 66, 6.6), (297, 84, 87, 8.5)]
 
