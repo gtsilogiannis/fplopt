@@ -1,0 +1,54 @@
+[*] MILP Optimizer | Team: 1 | Lookahead: 3 GWs
+[*] Planning horizon: GW8-GW10 | weights: GW8=1.00, GW9=0.85, GW10=0.72
+[*] History: 7 finished GWs, 2520 player-GW rows
+[*] Free Hit played in GW7: squad and bank taken from GW6.
+[*] Free transfers: 3 (rebuilt from history; --ft overrides)
+[*] Budget: £99.1m = squad selling value £96.2m + bank £2.9m
+[*] Solved with HiGHS in 19.1 s (3 pass(es) for the bench weights); proven within 0.07 weighted points of the best plan of this model
+
+====================================================================================
+ SQUAD PLAN | GW8 (horizon: GW8-GW10)
+====================================================================================
+   Player             | Pos | Cost  | xP GW8  | P(app) | xP horizon | Role
+   P19                | GK  | £5.5  | 0.50     | 0.20   | 1.28       | Start
+   P39                | DEF | £6.6  | 2.39     | 0.91   | 6.50       | Start
+   P57                | DEF | £4.8  | 1.93     | 0.75   | 4.56       | Start
+   P327               | DEF | £5.5  | 2.25     | 0.80   | 4.83       | Start
+>> P30                | MID | £6.5  | 5.12     | 0.89   | 13.19      | Start
+>> P47                | MID | £6.7  | 5.19     | 0.92   | 13.38      | Start
+   P171               | MID | £7.6  | 4.12     | 0.85   | 10.82      | Start
+   P297               | MID | £8.5  | 5.24     | 0.78   | 14.16      | Start
+>> P108               | FWD | £8.1  | 6.53     | 0.91   | 16.30      | Vice
+>> P214               | FWD | £8.5  | 6.52     | 0.88   | 16.61      | Captain
+>> P360               | FWD | £7.7  | 6.16     | 0.88   | 15.24      | Start
+   P1                 | GK  | £5.0  | 0.88     | 0.47   | 2.50       | Bench GK
+   P207               | MID | £5.5  | 3.26     | 0.85   | 8.33       | Bench 1
+   P75                | DEF | £5.0  | 1.47     | 0.67   | 3.48       | Bench 2
+   P111               | DEF | £6.6  | 1.40     | 0.54   | 3.59       | Bench 3
+   Cost = selling price for players you keep, current price for players you buy.
+------------------------------------------------------------------------------------
+ Transfer plan (FT = free transfers available before that GW's transfers):
+   GW8: FT 3 | P153 -> P30, P189 -> P47, P231 -> P108, P321 -> P214, P267 -> P360 | hits 2 | C P214, VC P108
+   GW9: FT 1 | P111 -> P293 | hits 0 | C P214, VC P108
+   GW10: FT 1 | P207 -> P192 | hits 0 | C P108, VC P360
+Sales now (SELL): P153 £6.5m, P189 £8.0m, P231 £8.5m, P321 £6.5m, P267 £6.1m
+   Bench weights GW8 (P(slot used)): 0.79, 0.44, 0.16  [approximation, notes_06b §8]
+Expected points GW8: XI 45.95 + captain 6.52 + vice 0.79 + autosubs 4.16 - hits 8 = 49.42
+Objective (weighted over horizon, hits included): 141.83
+
+====================================================================================
+ CHIP SUGGESTIONS | GW8 (expected points, unweighted)
+====================================================================================
+   Chips (API (bootstrap-static chips)): WC GW2-19 played GW5 | WC GW20-38 available | FH GW2-19 played GW7 | FH GW20-38 available | BB GW1-19 available | BB GW20-38 available | TC GW1-19 available | TC GW20-38 available
+   Exact Delta now = best plan with the chip in GW8 minus best plan without a chip, full model, GW8-GW10:
+      BB +2.85 (error <= 0.14) | TC +7.31 (error <= 0.13)
+   Estimates by GW (squad of the plan; after GW10 its last squad, no transfers [assumption]); * = best GW to the end of the window:
+      BB  GW8 +2.8  GW9 +3.1  GW10 +2.9  GW11 +3.3  GW12 +2.8  GW13 +2.8  GW14 +3.0  GW15 +2.7
+          GW16 +2.9  GW17 +2.7  GW18 +3.4*  GW19 +2.8
+      TC  GW8 +7.3  GW9 +7.4  GW10 +7.2  GW11 +7.4  GW12 +7.3  GW13 +6.9  GW14 +7.4  GW15 +7.4
+          GW16 +6.9  GW17 +7.5*  GW18 +7.1  GW19 +7.2
+   BB: hold (now +2.8, best estimate GW18 +3.4; window ends GW19)
+   TC: hold (now +7.3, best estimate GW17 +7.5; window ends GW19)
+>> Suggestion: no chip this GW.
+[*] Chip analysis: 62.1 s
+[*] 360 predictions for GW8 written to predictions_log.csv
