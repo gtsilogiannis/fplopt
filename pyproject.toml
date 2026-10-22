@@ -36,6 +36,3 @@ markers = [
     "slow: long solver runs on the synthetic season (deselected by default; run with: pytest -m slow)",
 ]
 addopts = "-m 'not slow'"
-# PuLP 3.3.2 warns on every variable that its API changes in PuLP 4.0 (prob.add_variable).
-# The move to PuLP 4 is chat 9a(ii); until then these warnings only hide real ones.
-filterwarnings = ["ignore:.*PuLP 4\\.0:DeprecationWarning"]

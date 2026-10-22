@@ -226,7 +226,8 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             elif g == t0 and chip != 'AUTO':
                 u[(cp, g)] = 1 if cp == chip else 0         # --chip: forced in the current GW
             elif any(s <= g <= e for s, e in windows.get(cp, [])):
-                u[(cp, g)] = pulp.LpVariable(f"chip_{cp}_{g}", cat='Binary')
+                # 9a(ii): a variable is created by the problem it belongs to (PuLP 4 API, also in 3.3.x)
+                u[(cp, g)] = prob.add_variable(f"chip_{cp}_{g}", cat='Binary')
             else:
                 u[(cp, g)] = 0
     for g in horizon:                                       # (K1) at most one chip per GW
@@ -245,13 +246,15 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     phi = {g: u[('WC', g)] + u[('FH', g)] for g in horizon}
     # first GW: transfers cost nothing (before the first deadline, or a WC/FH fixed in t0)
     free_now = ft0 is None or (not is_var(phi[t0]) and phi[t0] == 1)
-    x = pulp.LpVariable.dicts("x", ig, cat='Binary')          # M1: squad in GW g
-    l = pulp.LpVariable.dicts("l", ig, cat='Binary')          # XI in GW g
-    c = pulp.LpVariable.dicts("c", ig, cat='Binary')          # captain in GW g
+    # add_variable_dicts: one variable per key of ig, named "x_(i,_g)" (same names as the
+    # LpVariable.dicts of PuLP 3, so warm starts by name keep working)
+    x = prob.add_variable_dicts("x", ig, cat='Binary')        # M1: squad in GW g
+    l = prob.add_variable_dicts("l", ig, cat='Binary')        # XI in GW g
+    c = prob.add_variable_dicts("c", ig, cat='Binary')        # captain in GW g
     # M1: transfers in. Continuous is enough: at the optimum in = max(0, x - x_prev),
     # because every extra unit can only cost FTs or hits. 'out' is not needed:
     # the squad has 15 players in every GW, so #out = #in.
-    t_in = pulp.LpVariable.dicts("in", ig, lowBound=0, upBound=1)
+    t_in = prob.add_variable_dicts("in", ig, lowBound=0, upBound=1)
 
     # C4: permanent squad y[(i, g)] after GW g = what the transfers of GW g+1 start from.
     # A Free Hit squad is temporary: after an FH in g the permanent squad is still y[g-1]
@@ -267,7 +270,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         for i in ids:
             y_prev = y[(i, g - 1)] if g > t0 else (1 if i in S0 else 0)
             if is_var(uf) and g != horizon[-1]:
-                yv = pulp.LpVariable(f"y_{i}_{g}", lowBound=0, upBound=1)
+                yv = prob.add_variable(f"y_{i}_{g}", lowBound=0, upBound=1)
                 prob += yv <= x[(i, g)] + uf
                 prob += yv <= y_prev + 1 - uf
                 y[(i, g)] = yv
@@ -316,7 +319,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         # negative xP the lower bound rho >= a + b - 1 forces the product. A captain with
         # xP <= 0 is never chosen while a starter has xP > 0, so tau covers xP > 0 only.
         if is_var(u_bb):
-            rho = {i: pulp.LpVariable(f"bb_{i}_{g}", lowBound=0, upBound=1) for i in ids if xp[(i, g)] != 0}
+            rho = {i: prob.add_variable(f"bb_{i}_{g}", lowBound=0, upBound=1) for i in ids if xp[(i, g)] != 0}
             for i, r_ in rho.items():
                 if xp[(i, g)] > 0:
                     prob += r_ <= x[(i, g)] - l[(i, g)]
@@ -325,7 +328,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
                     prob += r_ >= x[(i, g)] - l[(i, g)] + u_bb - 1
             obj.append(w * pulp.lpSum(xp[(i, g)] * r_ for i, r_ in rho.items()))
         if is_var(u_tc):
-            tau = {i: pulp.LpVariable(f"tc_{i}_{g}", lowBound=0, upBound=1) for i in ids if xp[(i, g)] > 0}
+            tau = {i: prob.add_variable(f"tc_{i}_{g}", lowBound=0, upBound=1) for i in ids if xp[(i, g)] > 0}
             for i, t_ in tau.items():
                 prob += t_ <= c[(i, g)]
                 prob += t_ <= u_tc
@@ -340,8 +343,8 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         # Exact for binary v: only the vice-captain can have s > 0, and s <= q.
         # No big-M constant appears, which keeps the LP relaxation tight (notes_06b §9).
         if use_vice and m_big > 0:
-            v = {i: pulp.LpVariable(f"v_{i}_{g}", cat='Binary') for i in ids}
-            s_vc = {i: pulp.LpVariable(f"svc_{i}_{g}", lowBound=0) for i in ids}
+            v = {i: prob.add_variable(f"v_{i}_{g}", cat='Binary') for i in ids}
+            s_vc = {i: prob.add_variable(f"svc_{i}_{g}", lowBound=0) for i in ids}
             prob += pulp.lpSum(v.values()) == 1
             prob += pulp.lpSum(s_vc.values()) <= 1 - pulp.lpSum(papp[(i, g)] * c[(i, g)] for i in ids)
             for i in ids:
@@ -352,7 +355,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             if is_var(u_tc):
                 # C5: with Triple Captain the vice-captain term is also tripled: sigma = s_vc * u_TC
                 # (s_vc in [0, 1], u_TC binary -> min(s_vc, u_TC) = s_vc * u_TC)
-                sig = {i: pulp.LpVariable(f"tcv_{i}_{g}", lowBound=0, upBound=1) for i in ids if xp[(i, g)] > 0}
+                sig = {i: prob.add_variable(f"tcv_{i}_{g}", lowBound=0, upBound=1) for i in ids if xp[(i, g)] > 0}
                 for i, s_ in sig.items():
                     prob += s_ <= s_vc[i]
                     prob += s_ <= u_tc
@@ -364,7 +367,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             # Goalkeeper: exact under independence, same construction as the vice-captain,
             # with "captain" = starting GK and "vice" = bench GK (bench indicator x - l):
             #   value = (1 - P_startGK) * xP_benchGK,  s_i = (x_i - l_i) * (1 - P_startGK).
-            s_gk = {i: pulp.LpVariable(f"sgk_{i}_{g}", lowBound=0) for i in gk_ids}
+            s_gk = {i: prob.add_variable(f"sgk_{i}_{g}", lowBound=0) for i in gk_ids}
             prob += pulp.lpSum(s_gk.values()) <= 1 - pulp.lpSum(papp[(i, g)] * l[(i, g)] for i in gk_ids)
             if is_var(u_bb):
                 prob += pulp.lpSum(s_gk.values()) <= 1 - u_bb    # C5: no autosub value in a BB GW
@@ -374,8 +377,8 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             # Outfield: bench slots 1-3 with weights beta (assignment variables; continuous,
             # the assignment constraints are totally unimodular -> integral at the optimum)
             if beta and g in beta:
-                b = pulp.LpVariable.dicts(f"b_{g}", [(i, k) for i in out_ids for k in range(3)],
-                                          lowBound=0, upBound=1)
+                b = prob.add_variable_dicts(f"b_{g}", [(i, k) for i in out_ids for k in range(3)],
+                                            lowBound=0, upBound=1)
                 for i in out_ids:
                     prob += pulp.lpSum(b[(i, k)] for k in range(3)) <= x[(i, g)] - l[(i, g)]
                 for k in range(3):
@@ -393,7 +396,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     # k[i,g] = "still holds the ORIGINAL copy of owned player i" (sells for sell[i]);
     # a re-bought copy costs price[i]. Only needed when sell < price.
     gain_ids = [i for i in S0 if i in pool['price'] and sell[i] < price[i] - 1e-9]
-    k_var = pulp.LpVariable.dicts("k", [(i, g) for i in gain_ids for g in horizon], lowBound=0, upBound=1)
+    k_var = prob.add_variable_dicts("k", [(i, g) for i in gain_ids for g in horizon], lowBound=0, upBound=1)
     # C4: kap[(i, g)] = still owns the original copy PERMANENTLY after GW g. A Free Hit squad
     # may leave i out for one GW without selling the original (same rule as y above):
     #   no FH in g: kap = k[g];  FH fixed: kap = kap[g-1];  FH variable: kap <= k + u_FH, kap <= kap[g-1].
@@ -406,7 +409,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             if is_var(kap_prev):
                 prob += k_var[(i, g)] <= kap_prev              # once sold, the original is gone
             if is_var(uf) and g != horizon[-1]:
-                kv = pulp.LpVariable(f"kap_{i}_{g}", lowBound=0, upBound=1)
+                kv = prob.add_variable(f"kap_{i}_{g}", lowBound=0, upBound=1)
                 prob += kv <= k_var[(i, g)] + uf
                 if is_var(kap_prev):
                     prob += kv <= kap_prev
@@ -432,7 +435,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         obj.append(-CHIP_TIEBREAK * pulp.lpSum(chip_vars))   # C3: no chip without a gain
     for g in horizon:
         if g > t0:
-            F[g] = pulp.LpVariable(f"ft_{g}", lowBound=1, upBound=MAX_FT, cat='Integer')
+            F[g] = prob.add_variable(f"ft_{g}", lowBound=1, upBound=MAX_FT, cat='Integer')
             ph = phi[g - 1]
             if g - 1 == t0 and ft0 is None:
                 prob += F[g] <= 1                       # first deadline passed -> 1 FT
@@ -448,7 +451,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         if (g == t0 and free_now) or (not is_var(phi[g]) and phi[g] == 1):
             h[g] = 0                                    # WC / FH fixed / before the first deadline
             continue
-        h[g] = pulp.LpVariable(f"hits_{g}", lowBound=0, upBound=max_hits, cat='Integer')
+        h[g] = prob.add_variable(f"hits_{g}", lowBound=0, upBound=max_hits, cat='Integer')
         prob += h[g] >= T[g] - F[g] - CHIP_TRANSFER_M * phi[g]   # (1); C2: phi = 0 -> M2 as before
         obj.append(-weight[g] * HIT_COST * h[g])        # M2/A1: weighted like that GW's points
 
