@@ -1,0 +1,35 @@
+# Fast test suite (pytest without the 'slow' marker, ~10-20 s) on every push to main and on every
+# pull request, on Linux and Windows with each supported Python version.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read            # the job only reads the repository
+
+jobs:
+  fast:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20     # a hung job is stopped instead of using the default 6 hours
+    strategy:
+      fail-fast: false      # one failing combination does not cancel the others
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13", "3.14"]   # quoted: unquoted 3.10-style numbers are read as floats
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip                                   # reuse downloaded wheels between runs
+          cache-dependency-path: requirements*.txt     # the cache is renewed when a pin changes
+      - name: Install the pinned dependencies and the package
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e . --no-deps
+      - name: Run the fast tests
+        run: python -m pytest
