@@ -1,4 +1,4 @@
-"""Solver timing on the 700-player synthetic season (chat 9a(ii)): one main-plan solve of the
+"""Solver timing on the 700-player synthetic season: one main-plan solve of the
 optimizer per setting, without the chip analysis, on the same data for every PuLP version.
 
     python scripts/bench_solver.py                         # HiGHS, lookahead 3 5 8

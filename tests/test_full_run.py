@@ -1,7 +1,7 @@
 """Whole optimizer on the synthetic season (GW8, lookahead 3, chip suggestions).
 
-The text must equal the reference run of chat 7 (tests/data/full_run_L3.txt, from
-baseline_09a.txt) except for the solve times and the optimality gaps. Since 9a(i) the progress
+The text must equal the reference run of the original version (tests/data/full_run_L3.txt)
+except for the solve times and the optimality gaps. Since the refactor the progress
 lines ('[*] ...', '[WARNING] ...', '[INFO] ...') are logged to stderr and the rest is printed to
 stdout, so each stream is compared with its own lines of the reference.
 
@@ -36,8 +36,8 @@ def test_full_run_equals_reference(fake_client, messages, tmp_path):
     log_path = tmp_path / "predictions_log.csv"
     # 9a(ii): time limit far above the ~2.5 minutes the run needs. With the default 180 s each solve
     # of the chip analysis gets a share of the time LEFT, so on a slow or busy machine the bench-weight
-    # fixed point of the BB solve stopped after 2 passes instead of 3 (BB +3.01 instead of +2.85,
-    # notes_09a §17.6). The reference was recorded with every pass done; the time-sharing rule itself
+    # fixed point of the BB solve stopped after 2 passes instead of 3 (BB +3.01 instead of +2.85).
+    # The reference was recorded with every pass done; the time-sharing rule itself
     # is not what this test checks.
     result = optimize(fake_client(), Options(team_id=1, lookahead=3, log_path=str(log_path), time_limit=600))
     out = io.StringIO()

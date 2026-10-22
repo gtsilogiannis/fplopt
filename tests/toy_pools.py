@@ -1,5 +1,5 @@
 """Small hand-checkable player pools for the MILP tests (port of the toy pools of
-claude/harness_6b.py). No API: the pool dicts are built directly in the format the
+harness_6b.py of the first commit). No API: the pool dicts are built directly in the format the
 solver expects ({'ids', 'pos', 'team', 'price', 'sell', 'xp', 'papp', 'avail'})."""
 
 

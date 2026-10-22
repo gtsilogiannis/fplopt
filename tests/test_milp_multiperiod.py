@@ -1,4 +1,4 @@
-"""Multi-period MILP (chat 6b): free transfers, hits, chips fixed in the first GW, budget with
+"""Multi-period MILP: free transfers, hits, chips fixed in the first GW, budget with
 selling prices, vice-captain, GW1. Expected values are computed by hand in each test
 (reference output: harness_6b.py in baseline_09a.txt).
 

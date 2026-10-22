@@ -6,7 +6,7 @@ Written for the C console frontend and the website (roadmap: GUI / frontend). De
   - fixed field names; enums are short strings; null = not applicable / unknown;
   - numbers are not rounded (the text output rounds);
   - schema_version changes when a field is removed or changes meaning (adding fields does not).
-The schema is documented in claude/notes_09a_refactor.md (section "JSON schema").
+The schema is documented in docs/json-output.md.
 """
 import json
 import math

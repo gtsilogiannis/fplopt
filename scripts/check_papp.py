@@ -7,7 +7,7 @@ Data: the same vaastav files and data_cache/ as calibrate_xp.py.
 Walk-forward, same estimator as build_features: Papp = recency-weighted share
 (MINUTES_RECENCY^(age)) of the player's team-match GWs before t in which he played.
 Compares it with the actual appearance in GW t. Data: vaastav merged_gw.csv.
-Availability proxy (notes_08a 5.1): FPL xP of row t-1 (= FPL estimate for GW t,
+Availability proxy: FPL xP of row t-1 (= FPL estimate for GW t,
 made after GW t-1) > 0; rows with xP(t-1) == 0 correspond to players flagged out."""
 import numpy as np
 import pandas as pd

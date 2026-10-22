@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 # V1: new log file (one row per player per GW, see log_predictions). The old
 # predictions_history.csv has a different schema and is no longer read.
 PREDICTIONS_FILE = "predictions_log.csv"
-XI_ROLES = ['Start', 'Captain', 'Vice']   # M6: logged roles of the starting XI ('Vice' from chat 6b)
+XI_ROLES = ['Start', 'Captain', 'Vice']   # M6: logged roles of the starting XI
 
 
 def log_predictions(gw, players, roles, path=PREDICTIONS_FILE):

@@ -68,10 +68,10 @@ DEFCON_NB_SIZE = {2: 4.0, 3: 10.0, 4: 10.0}
 # (by 0.0005), so by the acceptance rule (lower in BOTH seasons) 0.6 stays. Refitting a, b, c
 # for each value (check_minutes.py fit <R>) did not change this.
 MINUTES_RECENCY = 0.6
-# 8c: SHRINKAGE of the minutes model (notes_08c). The raw estimates S/W of the recency-weighted
+# 8c: SHRINKAGE of the minutes model. The raw estimates S/W of the recency-weighted
 # sums (W = sum w, S_app = sum w*[appeared], S_60 = sum w*[60+ min], S_min = sum w*minutes,
 # w = MINUTES_RECENCY^age) are frequencies over ~2.5 effective GWs. Measured walk-forward on
-# 2024/25 and 2025/26 (notes_08c §2): a raw 1.00 means 87-88% (P60) / 82-84 minutes (Emin),
+# 2024/25 and 2025/26: a raw 1.00 means 87-88% (P60) / 82-84 minutes (Emin),
 # a raw 0.00 means 3-9%. Each quantity is pulled towards a prior that counts like a
 # pseudo-sample of weight a, b or c:
 #     Papp = (S_app + a*m)   / (W + a)          P(appears in a match)
@@ -82,9 +82,9 @@ MINUTES_RECENCY = 0.6
 # 60*P60 <= Emin (S_min >= 60*S_60 and m_mu >= 60*m_q). a, b, c are in units of the weights
 # (a: recency weight, b and c: weighted appearances); they depend on MINUTES_RECENCY.
 # One global prior for all positions: per-position priors improved the log-loss of P60 by
-# <= 0.001 and the MSE of minutes by <= 2 (of ~730-810) and were not adopted (notes_08c §4).
+# <= 0.001 and the MSE of minutes by <= 2 (of ~730-810) and were not adopted.
 # [fitted] on 2024/25 (check_minutes.py fit: log-loss for P(appear) and P(60+), MSE of minutes),
-# checked on 2025/26 and in the xP backtest of both seasons (calibrate_xp.py, notes_08c §5).
+# checked on 2025/26 and in the xP backtest of both seasons (calibrate_xp.py).
 # [tuned] b = c = a = 0.4: the fitted b was 0.8 on the grid, but the common weight b = c
 # (needed for 60*P60 <= Emin) gave a lower RMSE in both seasons (2.5431/2.5007 vs 2.5441/2.5035,
 # measured with K=1200 and price exponent 1.0, before their 8c retune).
@@ -110,7 +110,7 @@ PRICE_PRIOR_STATS = ['xg', 'xa', 'bonus']
 # [tuned] grid {0, 0.5, 1, 1.5, 2}. Selection rule for PLAYER_PRIOR_MINUTES (K) and this
 # exponent (b), fitted on 2024/25 ONLY (decision 2026-10-20): among settings within 0.005 RMSE
 # of the best, the smallest |predicted - actual| of the best XI + captain; 2025/26 is the check.
-# 8a used both seasons (K=1200, b=1.0). 8c (shrunk minutes model, notes_08c §6.2):
+# 8a used both seasons (K=1200, b=1.0). 8c (shrunk minutes model):
 # 2024/25 best RMSE 2.5352 (K=300, b=2.0); K=600, b=2.0: RMSE 2.5364, gap +0.2 -> chosen.
 # Check on 2025/26: RMSE 2.4996 (6b 2.5064), gap +7.2 (6b +5.9; paired difference +1.26 +/- 1.13,
 # within the acceptance tolerance of the roadmap). The gap grows with b (K=600: -6.5, -3.1,
@@ -176,7 +176,7 @@ def minutes_sums(hist, gw_now, start_gw_of=None, recency=None):
     r = MINUTES_RECENCY if recency is None else recency
     # Age = gw_now - 1 - gw is CALENDAR age: if the GW before gw_now is not final yet and so
     # missing from hist, W is smaller and the shrinkage stronger. Measured better than
-    # counting age from the last GW present in the data (notes_08c §8).
+    # counting age from the last GW present in the data.
     h = hist[(hist['gw'] < gw_now) & (hist['n_matches'] > 0)]
     # X9: only GWs at his CURRENT club. A GW before the player joined would count
     # as "did not appear" (0 minutes) or, for a move between PL clubs, describe his

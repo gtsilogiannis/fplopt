@@ -1,8 +1,8 @@
 """Synthetic FPL season and a fake API for offline tests (no network).
 
-Port of claude/harness_offline.py (chat 8b). The data are generated with the same random
-sequence (seed 7), so every number the harness printed is reproduced exactly; the
-reference values are in claude/baseline_09a.txt.
+Port of harness_offline.py (in the first commit of this repository). The data are generated
+with the same random sequence (seed 7), so every number the harness printed is reproduced
+exactly; the tests compare with those reference values.
 
 Season: 20 teams, GW8 is the next gameweek (GW1-7 finished). Small pool: 18 players per
 team (360). big=True: 35 per team (700, the real pool size) with realistic minutes roles.
@@ -73,8 +73,8 @@ class Season:
         return [e['id'] for e in self.elements if e['element_type'] == pos and e['team'] == team]
 
     def minutes_choices(self, e):
-        # small pool: i.i.d. minutes (as in chat 8b); big pool: one nailed GK per team and
-        # outfield players nailed (55%), rotation (25%) or bench (20%) (chat 6b)
+        # small pool: i.i.d. minutes (as in the original harness); big pool: one nailed GK per
+        # team and outfield players nailed (55%), rotation (25%) or bench (20%)
         if not self.big:
             return [0, 0, 25, 90, 90, 90]
         if e['element_type'] == 1:
