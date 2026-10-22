@@ -1,5 +1,7 @@
 # fplopt
 
+[![tests](https://github.com/gtsilogiannis/fplopt/actions/workflows/tests.yml/badge.svg)](https://github.com/gtsilogiannis/fplopt/actions/workflows/tests.yml)
+
 A Fantasy Premier League (FPL) squad optimizer. It estimates the expected points (xP) of every
 player in every remaining gameweek, then solves a multi-period mixed-integer linear program
 (MILP) that plans transfers, starting XI, captain, vice-captain and bench order over the next
@@ -12,7 +14,8 @@ must pass a fixed acceptance criterion on both (see [Validation](#validation)).
 > undocumented FPL API, which can change without notice.
 
 **Status:** version 0.9.0 (before 1.0 the command-line options and the JSON output may still
-change). Tested on Linux with Python 3.13 and 3.14.
+change). The test suite runs on Linux and Windows with Python 3.12, 3.13 and 3.14 (GitHub
+Actions); weekly runs on real data are made on Linux.
 
 ---
 
@@ -198,16 +201,16 @@ Per-gameweek values are arrays of `{"gw": ..., ...}` objects, numbers are not ro
 The xP of player *i* in a match is a sum of components, each one
 (FPL points per event) × (expected number of events):
 
-$$
+```math
 \mathrm{xP}_i = \underbrace{P_{\text{app}} + P_{60}}_{\text{appearance}}
 + \text{goals} + \text{assists} + \text{clean sheet} + \text{conceded} + \text{saves}
 + \text{DefCon} + \text{bonus} + \text{cards}
-$$
+```
 
 - **Minutes model.** For each player, recency-weighted counts (weight 0.6 per gameweek of age)
   of appearances, 60-minute appearances and minutes in his team's matches, only at his current
   club. The raw frequencies are shrunk towards a prior that counts like a small pseudo-sample,
-  e.g. $P_{\text{app}} = (S_{\text{app}} + a\,m)/(W + a)$. This keeps a player with one good
+  e.g. $P_{\text{app}} = (S_{\text{app}} + a m)/(W + a)$. This keeps a player with one good
   week from being treated as a certain starter, and guarantees $P_{60} \le P_{\text{app}}$.
 - **Rates per 90 minutes** (xG, xA, xGC, defensive contributions, saves, bonus, cards) are shrunk
   towards the mean of the player's position with 600 pseudo-minutes. For xG, xA and bonus the
@@ -215,7 +218,7 @@ $$
 - **Team strength.** xG for and against per match relative to the league average, with 10
   pseudo-matches of an average team; a home factor of 1.08.
 - **Scoring rules** of the 2026/27 season. Non-linear rules use their exact expectation under the
-  stated distribution: clean sheet $= e^{-1.08\,\lambda}$ (Poisson goals against), "1 point per 3
+  stated distribution: clean sheet $= e^{-1.08 \lambda}$ (Poisson goals against), "1 point per 3
   saves" and "−1 per 2 goals conceded" as $\mathbb{E}\lfloor X/k \rfloor$ with Poisson $X$,
   defensive contributions as a negative-binomial tail above the threshold.
 - A **double gameweek** adds the xP of both matches; a **blank** gives 0. FPL's
@@ -229,12 +232,12 @@ with the data it came from.
 
 Binary variables per player *i* and gameweek *g*: in the squad $x_{ig}$, in the XI $l_{ig}$,
 captain $c_{ig}$, vice-captain $v_{ig}$. The objective is the expected points of the horizon
-minus the hits, with weight $w_g = 0.85^{\,g - g_0}$ for gameweeks further ahead:
+minus the hits, with weight $w_g = 0.85^{g - g_0}$ for gameweeks further ahead:
 
-$$
+```math
 \max \sum_g w_g \Big[ \sum_i \mathrm{xP}_{ig}\,(l_{ig} + c_{ig})
 + \text{vice-captain} + \text{autosubs} - 4\,h_g \Big]
-$$
+```
 
 Main constraints:
 
@@ -242,7 +245,7 @@ Main constraints:
   3 DEF, 2 MID, 1 FWD); one captain from the XI.
 - **Transfers and hits.** $T_g$ = players bought in gameweek *g*, $F_g$ = free transfers,
   $h_g$ = paid transfers:
-  $h_g \ge T_g - F_g$, $\;F_{g+1} \le F_g - T_g + h_g + 1$, $\;1 \le F_g \le 5$.
+  $h_g \ge T_g - F_g$, $F_{g+1} \le F_g - T_g + h_g + 1$ and $1 \le F_g \le 5$.
   Since $h_g = \max(0, T_g - F_g)$ at the optimum, the bound is $F_{g+1} \le \max(0, F_g - T_g) + 1$,
   and a larger $F_{g+1}$ never lowers the objective, so the model can always reach the FPL rule
   $F_{g+1} = \min(5, \max(0, F_g - T_g) + 1)$. The free transfers and hits of the plan are
@@ -329,8 +332,8 @@ stored reference run.
   not a guarantee of points.
 - **The FPL API** is undocumented and can change; the program retries temporary failures (4
   attempts) and stops with exit code 3 otherwise.
-- **Windows** is supported by design (UTF-8 output, paths) but has not been tested on a real
-  machine yet.
+- **Windows**: the test suite passes there (GitHub Actions), but the optimizer has not yet been
+  run on real FPL data on a Windows machine.
 
 ## Development
 
