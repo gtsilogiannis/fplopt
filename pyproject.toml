@@ -14,8 +14,8 @@ license-files = ["LICENSE"]
 # PuLP 4 publishes wheels and metadata for Python 3.12 and later only (PyPI, 2026-10-22)
 requires-python = ">=3.12"
 # Ranges known to work; the exact versions of a tested install are pinned in requirements.txt.
-# PuLP 4.2: the PuLP 4 API used by milp.py (9a(ii)). highspy: the only MIP solver (PuLP 4 ships
-# none, and CBC was removed in 9a(ii)).
+# PuLP 4.2: the PuLP 4 API used by milp.py. highspy: the only MIP solver (PuLP 4 ships
+# none, and CBC was removed after measurement).
 dependencies = [
     "requests>=2.31",
     "pandas>=2.2",

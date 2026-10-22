@@ -34,7 +34,7 @@ def mask(lines):
 @pytest.mark.slow
 def test_full_run_equals_reference(fake_client, messages, tmp_path):
     log_path = tmp_path / "predictions_log.csv"
-    # 9a(ii): time limit far above the ~2.5 minutes the run needs. With the default 180 s each solve
+    # Time limit far above the ~2.5 minutes the run needs. With the default 180 s each solve
     # of the chip analysis gets a share of the time LEFT, so on a slow or busy machine the bench-weight
     # fixed point of the BB solve stopped after 2 passes instead of 3 (BB +3.01 instead of +2.85).
     # The reference was recorded with every pass done; the time-sharing rule itself

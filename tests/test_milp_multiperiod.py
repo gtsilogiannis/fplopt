@@ -1,6 +1,6 @@
 """Multi-period MILP: free transfers, hits, chips fixed in the first GW, budget with
 selling prices, vice-captain, GW1. Expected values are computed by hand in each test
-(reference output: harness_6b.py in baseline_09a.txt).
+(reference output: harness_6b.py in the first commit).
 
 Players with exactly equal xP are interchangeable for the solver, and HiGHS may pick a
 different one between runs; the tests therefore check counts, objectives and properties,

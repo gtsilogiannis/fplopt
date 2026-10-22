@@ -46,7 +46,7 @@ class Options:
     use_vice: bool = True                # vice-captain term in the objective (M6)
     use_bench: bool = True               # autosub value of the bench (M5)
     time_limit: Optional[int] = None     # seconds for the whole run; None = SOLVER_TIME_LIMIT
-    solver: Optional[str] = None         # 'highs' (the only solver since 9a(ii)); None = HiGHS
+    solver: Optional[str] = None         # 'highs' (the only solver); None = HiGHS
     chip_report: bool = True             # compute the Chip suggestions section
     write_log: bool = True               # append the predictions to log_path
     log_path: str = PREDICTIONS_FILE
@@ -242,7 +242,7 @@ def _optimize(client, opts, warnings):
     join_dates = {p['id']: p.get('team_join_date') for p in bootstrap['elements']}
     if deadlines and any(join_dates.values()):
         start_gw_of = xpm.first_gw_at_club(join_dates, deadlines)
-    else:  # field missing from the API -> minutes model uses all GWs (chat-8a behaviour)
+    else:  # field missing from the API -> minutes model uses all GWs (earlier behaviour)
         log.warning("[WARNING] deadline_time / team_join_date missing; minutes model uses all GWs.",
                     extra={'code': 'join_dates_missing'})
         start_gw_of = None

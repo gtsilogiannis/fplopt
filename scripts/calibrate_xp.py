@@ -204,7 +204,7 @@ def report(season, d, p):
 
 def tune(d, hist, pos_of):
     """Grid search of the [tuned] constants by RMSE (see score()). TEAM_PRIOR_MATCHES
-    stays at 10: in the chat-8a grid it changed MAE by < 0.01."""
+    stays at 10: in an earlier grid it changed MAE by < 0.01."""
     prices = price_table(d)
     rows = []
     # 8c: the recency grid is centred on the chosen 0.6 (the earlier grid 0.8/0.9/1.0 did not contain it)
