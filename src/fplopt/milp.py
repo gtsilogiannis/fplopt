@@ -1,10 +1,8 @@
 """The multi-period MILP (chats 6b and 7) and the solver interface.
 
-Moved unchanged from fpl_v2.py in chat 9a(i). This is the only module that uses PuLP, so the
-move to PuLP 4 (chat 9a(ii), new variable API) changes this file only.
+Moved unchanged from fpl_v2.py in chat 9a(i); moved to the PuLP 4 API in chat 9a(ii). This is
+the only module that uses PuLP.
 """
-import os
-import tempfile
 import time  # M7: solve time is reported (lookahead choice, notes_06b)
 
 import pulp
@@ -13,18 +11,18 @@ from .errors import UserActionError
 from .rules import CHIPS, HIT_COST, MAX_FT
 
 try:
-    import highspy  # M10: optional MIP solver (pip install highspy); CBC is used without it
+    import highspy  # M10: the MIP solver; PuLP 4 ships none (9a(ii): required, see requirements.txt)
 except ImportError:
     highspy = None
 
 
-def require_pulp_3():
-    """PuLP 4.x removed LpVariable.dicts, LpStatus and the bundled CBC (PULP_CBC_CMD). This
-    module is written against the 3.x API, so stop early with a clear message instead of
-    failing later with an AttributeError."""
-    if int(pulp.__version__.split('.')[0]) >= 4:
-        raise UserActionError(f"PuLP {pulp.__version__} found; this program needs PuLP 3.x. "
-                              f"Install it with: pip install 'pulp==3.3.2'")
+def require_pulp_4():
+    """9a(ii): this module uses the PuLP 4 API (solve() returns LpSolveStats; LpStatus, sol_status
+    and PULP_CBC_CMD no longer exist). PuLP 3.x would fail later with an AttributeError, so stop
+    early with a clear message."""
+    if int(pulp.__version__.split('.')[0]) < 4:
+        raise UserActionError(f"PuLP {pulp.__version__} found; this program needs PuLP 4.x. "
+                              f"Install the pinned versions with: pip install -r requirements.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -103,80 +101,51 @@ def bench_weights(xi, pos, papp_g):
     return poisson_binomial_tail([1.0 - papp_g[i] for i in xi if pos[i] != 1], 3)
 
 
-def cbc_bound(log_path):
-    """M7: best bound proven by CBC for this maximisation, read from its log. The final
-    summary prints 'Upper bound: X' when CBC stops on the time limit; if it is missing,
-    the last progress line 'best possible -X' is used (printed for the internal
-    minimisation, i.e. with the sign flipped). None if neither is found."""
-    try:
-        with open(log_path, encoding='utf-8', errors='replace') as fh:
-            lines = fh.readlines()
-    except OSError:
-        return None
-    for line in reversed(lines):
-        try:
-            if line.startswith('Upper bound:'):
-                return float(line.split(':')[1])
-            if 'best possible' in line:
-                return -float(line.split('best possible')[1].split()[0].rstrip(','))
-        except (IndexError, ValueError):
-            continue
-    return None
+def fill_start(prob):
+    """9a(ii): complete the starting solution. PuLP 4 passes HiGHS only the variables that have a
+    value (a PARTIAL start, which HiGHS then tries to complete). The PuLP 3 version of this module
+    passed every column, with 0 for the variables without a value (HighsSolver.callSolver), and
+    that start is feasible: the "keep the squad" start below leaves only transfer, vice-captain,
+    autosub and chip-product variables without a value, and 0 is feasible for all of them.
+    So every variable without a value gets 0 (clipped to its bounds), as before."""
+    for var in prob.variables():
+        if var.varValue is None:
+            val = 0.0
+            if var.lowBound is not None:            # None = no bound (minus infinity)
+                val = max(val, var.lowBound)
+            if var.upBound is not None:             # None = no bound (plus infinity)
+                val = min(val, var.upBound)
+            var.setInitialValue(val)
 
 
-if highspy is not None:
-    class HighsSolver(pulp.HiGHS):
-        """M10: PuLP's HiGHS interface plus (1) a starting solution from the variables'
-        initial values (PuLP 3.3.2 passes none to HiGHS) and (2) the proven bound."""
-        def __init__(self, warm_start=False, **kw):
-            super().__init__(msg=False, **kw)
-            self.warm_start, self.bound = warm_start, None
-
-        def callSolver(self, lp):
-            if self.warm_start:
-                sol = highspy.HighsSolution()
-                # column order = lp.variables(), the order used by buildSolverModel
-                sol.col_value = [v.varValue if v.varValue is not None else 0.0 for v in lp.variables()]
-                lp.solverModel.setSolution(sol)
-            lp.solverModel.run()
-
-        def findSolutionValues(self, lp):
-            info = lp.solverModel.getInfo()
-            # HiGHS minimises -objective, so its dual (lower) bound is minus our upper bound
-            if info.mip_dual_bound not in (float('inf'), float('-inf')):
-                self.bound = -info.mip_dual_bound
-            return super().findSolutionValues(lp)
+# 9a(ii): solver states that stop the search before the gap target (LpSolveStatus of PuLP 4).
+# Only TimeLimit can occur with the options used here; the others are listed for safety.
+STOPPED_EARLY = ('TimeLimit', 'IterationLimit', 'NodeLimit', 'SolutionLimit', 'MemoryLimit',
+                 'Interrupted', 'Stopped')
 
 
 def run_solver(prob, solver, time_limit, warm_start):
-    """M10: solve with CBC or HiGHS. Both stop at the relative gap MIP_REL_GAP or at the
-    time limit. Returns {'solver', 'proven' (stopped by the gap, not by time), 'bound'}."""
-    name = solver or default_solver()
-    if name == 'highs':
-        cmd = HighsSolver(warm_start=warm_start, timeLimit=time_limit, gapRel=MIP_REL_GAP)
-        prob.solve(cmd)
-        return {'solver': 'HiGHS ' + highspy.__version__ if hasattr(highspy, '__version__') else 'HiGHS',
-                'proven': prob.sol_status == pulp.LpSolutionOptimal, 'bound': cmd.bound}
-    log_path = os.path.join(tempfile.gettempdir(), f"fpl_cbc_{os.getpid()}.log")
-    prob.solve(pulp.PULP_CBC_CMD(msg=0, warmStart=warm_start, logPath=log_path,
-                                 timeLimit=time_limit, gapRel=MIP_REL_GAP))
-    proven = prob.sol_status == pulp.LpSolutionOptimal
-    bound = None if proven else cbc_bound(log_path)
-    if proven and prob.objective is not None:
-        # stopped by the gap: the bound is not printed in a parsable way; MIP_REL_GAP
-        # is the guarantee (bound <= objective * (1 + MIP_REL_GAP))
-        bound = pulp.value(prob.objective) * (1.0 + MIP_REL_GAP)
-    try:
-        os.remove(log_path)
-    except OSError:
-        pass
-    return {'solver': 'CBC', 'proven': proven, 'bound': bound}
-
-
-def default_solver():
-    """M10: HiGHS when highspy is installed (faster and more predictable on the larger
-    horizons, notes_06b §18), otherwise the CBC bundled with PuLP 3.x."""
-    return 'highs' if highspy is not None else 'cbc'
+    """M10: solve with HiGHS; it stops at the relative gap MIP_REL_GAP or at the time limit.
+    9a(ii): PuLP 4 returns the solve statistics (LpSolveStats) instead of setting prob.status and
+    prob.sol_status, and reports the bound HiGHS has proven (best_bound, in the problem's own
+    sense: an upper bound for this maximisation), so the HighsSolver subclass of the PuLP 3
+    version is no longer needed. CBC was removed in 9a(ii) (decision of the user, notes_09a §17):
+    HiGHS was as good or better in every measured case. 'solver' is kept as an argument for the
+    --solver option. Returns {'solver', 'proven' (stopped by the gap, not by time),
+    'has_solution', 'stopped_early', 'status', 'bound'}."""
+    if solver not in (None, 'highs'):             # e.g. 'cbc' from code written before 9a(ii)
+        raise UserActionError(f"Unknown solver '{solver}': only 'highs' is supported.")
+    if highspy is None:
+        raise UserActionError("The HiGHS solver is missing: pip install -r requirements.txt")
+    if warm_start:
+        fill_start(prob)
+    cmd = pulp.HiGHS(msg=False, warmStart=warm_start, timeLimit=time_limit, gapRel=MIP_REL_GAP)
+    stats = prob.solve(cmd)
+    status = stats.status.name                          # e.g. 'Optimal', 'TimeLimit', 'Infeasible'
+    return {'solver': 'HiGHS ' + highspy.__version__ if hasattr(highspy, '__version__') else 'HiGHS',
+            'proven': stats.status == pulp.LpSolveStatus.Optimal,
+            'has_solution': bool(stats.has_solution), 'stopped_early': status in STOPPED_EARLY,
+            'status': status, 'bound': stats.best_bound}
 
 
 def is_var(e):
@@ -201,7 +170,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
           unused; the model may play each at most once per window. None = no chip planning.
     chip_fix: C3 {(chip, g): 0 or 1} forces chip decisions (used for the opportunity costs).
     beta: {g: [b1, b2, b3]} outfield bench weights (None -> no outfield bench value).
-    warm: {variable name: value} of a previous solve, given to CBC as a starting
+    warm: {variable name: value} of a previous solve, given to the solver as a starting
           solution (the bench fixed point re-solves an almost identical problem).
     Returns a dict with the solver status and the plan (see the end of the function).
     """
@@ -468,7 +437,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
                     val = min(val, var.upBound)
                 var.setInitialValue(round(val) if var.cat == 'Integer' else val)
     elif S0:
-        # M7: starting solution for CBC = keep the current squad in every GW (always
+        # M7: starting solution for the solver = keep the current squad in every GW (always
         # feasible: no transfers, and it costs exactly the budget minus the bank), best
         # XI by xP, captain and vice-captain = the two highest xP of that XI. Without it,
         # most of the solve time was spent looking for a FIRST feasible plan (notes_06b §9).
@@ -503,14 +472,16 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             elif ft0 is None and g == t0:
                 ft_run = 1
     out = run_solver(prob, solver, time_limit or SOLVER_TIME_LIMIT, bool(warm) or bool(S0))
-    res = {'status': pulp.LpStatus[prob.status], 'objective': pulp.value(prob.objective),
+    # 'status' keeps the texts of the PuLP 3 version: 'Optimal' whenever a plan exists (also when
+    # the time limit stopped the proof; 'proven' tells the two apart)
+    res = {'status': 'Optimal' if out['has_solution'] else out['status'],
+           'objective': pulp.value(prob.objective),
            'values': {var.name: var.varValue for var in prob.variables()},
            'proven': out['proven'], 'solver': out['solver']}
-    # sol_status: 1 = optimal (within MIP_REL_GAP), 2 = feasible plan found but the time
-    # limit stopped the proof. Anything else (no plan found, infeasible) has no usable values.
-    if prob.status != pulp.LpStatusOptimal or prob.sol_status not in (pulp.LpSolutionOptimal,
-                                                                      pulp.LpSolutionIntegerFeasible):
-        if prob.status == pulp.LpStatusOptimal:
+    # has_solution: optimal within MIP_REL_GAP, or a feasible plan found before the time limit
+    # stopped the proof. Otherwise (no plan found, infeasible) there are no usable values.
+    if not out['has_solution']:
+        if out['stopped_early']:
             res['status'] = 'No plan found within the time limit'
         return res
     res['gap'] = None if out['bound'] is None else max(0.0, out['bound'] - res['objective'])
@@ -554,7 +525,7 @@ def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     """M5: fixed point for the outfield bench weights. Pass 1 uses the best XI of
     the current squad (or of the pool at GW1) as reference; each later pass uses the
     XI the solver chose, until the weights change by <= BENCH_BETA_TOL. Each pass
-    starts CBC from the previous plan (warm start).
+    starts the solver from the previous plan (warm start).
     Returns the result of the last pass that produced a plan (or the failed first one)."""
     pos, xp, papp = pool['pos'], pool['xp'], pool['papp']
     ref = start_squad if start_squad else pool['ids']

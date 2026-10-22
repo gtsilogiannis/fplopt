@@ -1,6 +1,6 @@
 """fplopt: Fantasy Premier League squad optimizer.
 
-A multi-period mixed-integer linear program (PuLP, HiGHS or CBC) chooses transfers, starting
+A multi-period mixed-integer linear program (PuLP 4, HiGHS) chooses transfers, starting
 XI, captain, vice-captain and bench order over several gameweeks, on top of an expected-points
 model that is backtested on past seasons (scripts/calibrate_xp.py).
 
