@@ -1,17 +1,22 @@
-FPL optimizer (fplopt) - quick commands (chat 9a(i), 2026-10-21)
+FPL optimizer (fplopt) - quick commands (chat 9a(ii), 2026-10-22)
 The full README.md is written in chat 11.
 
 Layout:
   src/fplopt/      the package (python -m fplopt, or the 'fplopt' command after installing)
-  scripts/         backtest and calibration of the xP model (calibrate_xp.py, check_*.py)
+  scripts/         backtest and calibration of the xP model (calibrate_xp.py, check_*.py), solver timing
+                   (bench_solver.py)
   tests/           pytest suite (offline: synthetic season, no network)
+
+Requirements: Python 3.12 or newer (PuLP 4 has no release for older versions).
 
 Setup (once, in the repository folder):
   python -m venv venv
   source venv/bin/activate
-  pip install -e ".[highs,dev]"
-(-e = editable: the installed package is this folder, so changes to the code apply at once.
- The quotes stop zsh from reading [ ] as a file pattern.)
+  pip install -r requirements-dev.txt
+  pip install -e . --no-deps
+(requirements-dev.txt = the exact versions the tests passed with, plus pytest; requirements.txt alone
+ is enough to run the optimizer. -e = editable: the installed package is this folder, so changes to the
+ code apply at once. --no-deps: the dependencies come from the requirements file, not from new releases.)
 
 Before each GW deadline, AFTER the previous GW is finalised
 (FPL locks the points at 09:00 UK time the day after the GW's last match):
@@ -30,7 +35,7 @@ Options:
   --lookahead N          gameweeks planned, current one included (default: 5)
   --time-limit S         seconds for the whole run of the solver (plan + chip analysis); the optimality
                          gap is printed (default: 180)
-  --solver highs|cbc     MIP solver (default: highs if highspy is installed, else cbc)
+  --solver highs         MIP solver (default and only choice: HiGHS; CBC was removed in chat 9a(ii))
   --max-hits N           optional cap on -4 hits per GW (default: no cap)
   --min-chance P         players below P% chance of playing are treated as out (default: 75)
   --override-budget X    selling value of the squad + bank, as shown in the app (e.g. 100.1)
@@ -68,6 +73,12 @@ than 2 paired standard errors, in both seasons):
   cp src/fplopt/xp_model.py xp_model_base.py        (before the change)
   python scripts/check_acceptance.py xp_model_base.py
 
+Solver timing on the 700-player synthetic season (main plan only; run nothing else meanwhile):
+  python scripts/bench_solver.py                     (lookahead 3, 5, 8; one line per run)
+  python scripts/bench_solver.py --start partial --lookahead 5 --out bench.csv
+
 Tests (offline):
-  pytest                 fast tests (~10 s)
-  pytest -m slow         full runs on the synthetic season (~12 min)
+  pytest                 fast tests (~20 s)
+  pytest -m slow         full runs on the synthetic season (~12-15 min). Run them on an otherwise idle
+                         machine: the chip analysis shares the time limit of the run, so a busy machine
+                         can change test_full_run's chip Deltas.

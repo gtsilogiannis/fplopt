@@ -1,0 +1,9 @@
+# Everything in requirements.txt plus the test tools (chat 9a(ii), 2026-10-22).
+# Install:   pip install -r requirements-dev.txt   then   pip install -e . --no-deps
+-r requirements.txt
+pytest==9.1.1
+# --- pulled in by pytest (on Windows pytest also installs colorama, which is not pinned here)
+iniconfig==2.3.1
+packaging==26.3
+pluggy==1.7.0
+Pygments==2.21.0
