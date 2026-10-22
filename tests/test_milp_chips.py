@@ -1,5 +1,5 @@
 """Chip variables in the MILP (C2-C5) and the one-GW chip estimates (C8-C9).
-Expected values are computed by hand (reference output: harness_7.py in baseline_09a.txt)."""
+Expected values are computed by hand (reference output: harness_7.py in the first commit)."""
 import pytest
 
 from toy_pools import add, base_squad, chip_gws, fill, toy_pool, weights
@@ -116,7 +116,7 @@ def test_chip_rules():
     assert [g for g, p in res['plan'].items() if p['chip'] == 'FH'] == [19]
 
 
-# Reference objectives of the toy equivalence check (baseline_09a.txt, harness_7.py equiv):
+# Reference objectives of the toy equivalence check (harness_7.py equiv, first commit):
 # (chip, GW, vice/bench terms) -> (variable formulation, fixed chip, no chip)
 EQUIV = {
     ('WC', 8, False): (180.1790, 180.1800, 168.4800), ('WC', 8, True): (183.6766, 183.6776, 171.8842),

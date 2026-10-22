@@ -28,7 +28,7 @@ def test_gw_points_equals_expected_points(main_plan):
     assert gw_points(res['plan'][8], 8, st.pool, res['beta'][8])['total'] == pytest.approx(ep.total, abs=1e-9)
 
 
-# baseline_09a.txt, harness_7.py equiv_big: (variable formulation, fixed chip); no chip: 141.832
+# harness_7.py equiv_big (first commit): (variable formulation, fixed chip); no chip: 141.832
 EQUIV_BIG = {
     ('WC', 8): (164.694, 164.671), ('WC', 9): (152.345, 152.346), ('WC', 10): (146.137, 146.138),
     ('FH', 8): (148.199, 148.200), ('FH', 9): (146.280, 146.281), ('FH', 10): (146.137, 146.138),

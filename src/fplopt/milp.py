@@ -1,4 +1,4 @@
-"""The multi-period MILP (chats 6b and 7) and the solver interface.
+"""The multi-period MILP and the solver interface.
 
 Moved unchanged from fpl_v2.py in the refactor; later moved to the PuLP 4 API. This is
 the only module that uses PuLP.
@@ -11,13 +11,13 @@ from .errors import UserActionError
 from .rules import CHIPS, HIT_COST, MAX_FT
 
 try:
-    import highspy  # M10: the MIP solver; PuLP 4 ships none (9a(ii): required, see requirements.txt)
+    import highspy  # M10: the MIP solver; PuLP 4 ships none (required, see requirements.txt)
 except ImportError:
     highspy = None
 
 
 def require_pulp_4():
-    """9a(ii): this module uses the PuLP 4 API (solve() returns LpSolveStats; LpStatus, sol_status
+    """This module uses the PuLP 4 API (solve() returns LpSolveStats; LpStatus, sol_status
     and PULP_CBC_CMD no longer exist). PuLP 3.x would fail later with an AttributeError, so stop
     early with a clear message."""
     if int(pulp.__version__.split('.')[0]) < 4:
@@ -102,7 +102,7 @@ def bench_weights(xi, pos, papp_g):
 
 
 def fill_start(prob):
-    """9a(ii): complete the starting solution. PuLP 4 passes HiGHS only the variables that have a
+    """Complete the starting solution. PuLP 4 passes HiGHS only the variables that have a
     value (a PARTIAL start, which HiGHS then tries to complete). The PuLP 3 version of this module
     passed every column, with 0 for the variables without a value (HighsSolver.callSolver), and
     that start is feasible: the "keep the squad" start below leaves only transfer, vice-captain,
@@ -118,7 +118,7 @@ def fill_start(prob):
             var.setInitialValue(val)
 
 
-# 9a(ii): solver states that stop the search before the gap target (LpSolveStatus of PuLP 4).
+# Solver states that stop the search before the gap target (LpSolveStatus of PuLP 4).
 # Only TimeLimit can occur with the options used here; the others are listed for safety.
 STOPPED_EARLY = ('TimeLimit', 'IterationLimit', 'NodeLimit', 'SolutionLimit', 'MemoryLimit',
                  'Interrupted', 'Stopped')
@@ -126,14 +126,14 @@ STOPPED_EARLY = ('TimeLimit', 'IterationLimit', 'NodeLimit', 'SolutionLimit', 'M
 
 def run_solver(prob, solver, time_limit, warm_start):
     """M10: solve with HiGHS; it stops at the relative gap MIP_REL_GAP or at the time limit.
-    9a(ii): PuLP 4 returns the solve statistics (LpSolveStats) instead of setting prob.status and
+    PuLP 4 returns the solve statistics (LpSolveStats) instead of setting prob.status and
     prob.sol_status, and reports the bound HiGHS has proven (best_bound, in the problem's own
     sense: an upper bound for this maximisation), so the HighsSolver subclass of the PuLP 3
     version is no longer needed. CBC was removed after measurement:
     HiGHS was as good or better in every measured case. 'solver' is kept as an argument for the
     --solver option. Returns {'solver', 'proven' (stopped by the gap, not by time),
     'has_solution', 'stopped_early', 'status', 'bound'}."""
-    if solver not in (None, 'highs'):             # e.g. 'cbc' from code written before 9a(ii)
+    if solver not in (None, 'highs'):             # e.g. 'cbc' from code written for PuLP 3
         raise UserActionError(f"Unknown solver '{solver}': only 'highs' is supported.")
     if highspy is None:
         raise UserActionError("The HiGHS solver is missing: pip install -r requirements.txt")
@@ -195,7 +195,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
             elif g == t0 and chip != 'AUTO':
                 u[(cp, g)] = 1 if cp == chip else 0         # --chip: forced in the current GW
             elif any(s <= g <= e for s, e in windows.get(cp, [])):
-                # 9a(ii): a variable is created by the problem it belongs to (PuLP 4 API, also in 3.3.x)
+                # A variable is created by the problem it belongs to (PuLP 4 API, also in 3.3.x)
                 u[(cp, g)] = prob.add_variable(f"chip_{cp}_{g}", cat='Binary')
             else:
                 u[(cp, g)] = 0

@@ -1,5 +1,5 @@
 """Squad, bank, selling prices and free transfers rebuilt from the public API
-(chats 8b and 6b; reference: harness_offline.py and harness_6b.py ft in baseline_09a.txt)."""
+(reference values from harness_offline.py and harness_6b.py in the first commit)."""
 import pytest
 
 from fpl_fake import CUR, sell_rule

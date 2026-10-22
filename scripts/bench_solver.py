@@ -5,8 +5,8 @@ optimizer per setting, without the chip analysis, on the same data for every PuL
     python scripts/bench_solver.py --start partial --lookahead 5 --out bench.csv
 
 Settings:
-  --solver   highs; cbc only with a PuLP 3 checkout from before 9a(ii) (its bundled CBC): CBC was
-             removed from milp.py in 9a(ii), and with the current code 'cbc' is refused
+  --solver   highs; cbc only with an older PuLP 3 checkout of this repository (its bundled CBC): CBC was
+             removed from milp.py after measurement, and with the current code 'cbc' is refused
   --start    full    = starting solution with every variable set (0 where none was given);
                        what the PuLP 3 version of milp.py passed to HiGHS
              partial = only the variables that have a value (PuLP 4's own HiGHS behaviour);

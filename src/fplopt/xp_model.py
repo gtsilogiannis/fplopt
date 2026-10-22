@@ -32,7 +32,7 @@ PTS_RED = -3
 #   [measured]   computed from vaastav/Fantasy-Premier-League per-match data
 #   [fitted]     chosen so that predicted and actual points of one component match
 #   [tuned]      chosen by walk-forward RMSE on 2024/25, checked on 2025/26
-#                (calibrate_xp.py --tune). X10: RMSE, not MAE (chat-8a used MAE):
+#                (calibrate_xp.py --tune). X10: RMSE, not MAE (an earlier version used MAE):
 #                MAE is minimised by the median, which is below the mean for
 #                right-skewed FPL points, so it favoured under-predicting attackers.
 #   [assumption] not derived from data
@@ -103,7 +103,7 @@ TEAM_PRIOR_MATCHES = 10.0
 # X8: the shrinkage target ("prior") of these per-90 rates depends on the player's
 # price: prior = position mean * price^b / (minute-weighted mean of price^b in the
 # position). The division keeps the position average unchanged; b = 0 gives the
-# plain position mean (chat-8a version). Reason: with the position mean, early in
+# plain position mean (earlier version). Reason: with the position mean, early in
 # the season every premium player was pulled towards an average player
 # (backtest GW2-8, players >= GBP10m: bias -3.91 in 2024/25, -1.36 in 2025/26).
 PRICE_PRIOR_STATS = ['xg', 'xa', 'bonus']
