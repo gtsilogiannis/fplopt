@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "fplopt"
 dynamic = ["version"]
 description = "Fantasy Premier League squad optimizer: multi-period MILP on a backtested expected-points model"
+readme = "README.md"
 authors = [{ name = "Giannis Tsilogiannis" }]
 # SPDX license expression and the file that holds its text (PEP 639; needs setuptools >= 77)
 license = "AGPL-3.0-only"
