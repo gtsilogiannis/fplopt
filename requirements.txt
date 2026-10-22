@@ -1,0 +1,25 @@
+# Exact versions of a tested install (chat 9a(ii), 2026-10-22: Linux, Python 3.13 and 3.14).
+# Direct dependencies (ranges in pyproject.toml): pulp, highspy, pandas, numpy, requests.
+# The other lines are what they pull in, pinned too so that a new install gets the same code.
+# Install:   pip install -r requirements.txt   then   pip install -e . --no-deps
+# Update:    in a new venv, pip install -e ., run the tests, then copy the versions of pip freeze.
+PuLP==4.2.0
+highspy==1.15.1
+pandas==3.0.6
+numpy==2.5.4
+requests==2.34.2
+# --- pulled in by the packages above
+annotated-types==0.8.0
+certifi==2026.10.19
+charset-normalizer==3.5.2
+cpsat-logutils==1.0.0
+idna==3.20
+orloge==1.0.0
+pydantic==2.14.1
+pydantic_core==2.50.1
+python-dateutil==3.0.0
+six==1.17.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzdata==2026.5
+urllib3==2.8.0
