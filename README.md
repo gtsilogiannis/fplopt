@@ -367,6 +367,43 @@ Other scripts: `check_minutes.py` (calibration of the minutes model), `check_pap
 (appearance probability only), `bench_solver.py` (solver timing on a 700-player synthetic
 season).
 
+### Tags in the comments
+
+Comments in the code carry short tags such as `M5:` or `X8:`. Each tag names one change, so
+that every line belonging to it can be found with a search (e.g. `git grep -n "M5"`). The
+letter gives the area:
+
+| Tags | Area |
+|---|---|
+| `A`, `B`, `C`, `D`, `E` | first fixes of the original version: **A** an unavailable player you own stays in the pool (his price counts in the budget and he can be sold); **B** the −4 cost of each hit; **C** the solver status is checked; **D** binary variables are read safely from floats (`> 0.5`, not `== 1`); **E** a bonus based on transfer trends was removed from the xP |
+| `G1`–`G4` | xP per gameweek: horizon as a list of gameweeks, double and blank gameweeks, output |
+| `H` | the optional cap on hits (`--max-hits`) |
+| `X1`–`X10` | xP model: scoring rules, constants, history data, per-match model, `ep_next` fallback, `--explain`, price-dependent prior, club join dates, RMSE as the tuning score |
+| `V1`, `V2` | prediction log and `--mode evaluate` |
+| `S1`–`S5`, `R1` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit |
+| `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
+| `A1` | hits are weighted like the points of their gameweek |
+| `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |
+| `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
+
+`C` alone (solver status) and `C2`–`C11` (chips) are different changes.
+
+Comments also compare numbers between **development stages**, e.g. `RMSE 2.4996 (6b 2.5064)`:
+the current value, then the value at stage 6b. The stages, in the order they were made:
+
+| Stage | Change |
+|---|---|
+| 5 | first fixes (`A`–`E`) |
+| 6 | xP per gameweek (`G`, `H`) |
+| 8a | new xP model (`X`, `V`) |
+| 8b | data: selling prices and squad history (`S`, `R`) |
+| 6b | multi-period MILP (`M`, `A1`) |
+| 8c | shrinkage of the minutes model |
+| 7 | chips (`C2`–`C11`, `K`) |
+
+After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
+change any result.
+
 ## AI assistance
 
 I built this project around my own interests: football, FPL and programming. I decided what the
