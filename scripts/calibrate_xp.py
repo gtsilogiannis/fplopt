@@ -151,7 +151,7 @@ def actual_components(d):
 
 
 def top11(p):
-    """Scale check (notes_08a §10.4, roadmap acceptance criterion): for every GW, the 11
+    """Scale check (acceptance criterion of the project): for every GW, the 11
     highest predictions + the captain (the highest one, counted twice), with no budget or
     formation. Returns an array with one row per GW: (predicted, actual)."""
     tops = []

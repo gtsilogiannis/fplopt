@@ -1,4 +1,4 @@
-"""Chip variables in the MILP (chat 7, C2-C5) and the one-GW chip estimates (C8-C9).
+"""Chip variables in the MILP (C2-C5) and the one-GW chip estimates (C8-C9).
 Expected values are computed by hand (reference output: harness_7.py in baseline_09a.txt)."""
 import pytest
 

@@ -1,4 +1,4 @@
-# Everything in requirements.txt plus the test tools (chat 9a(ii), 2026-10-22).
+# Everything in requirements.txt plus the test tools (2026-10-22).
 # Install:   pip install -r requirements-dev.txt   then   pip install -e . --no-deps
 -r requirements.txt
 pytest==9.1.1

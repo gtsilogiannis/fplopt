@@ -24,9 +24,9 @@ from .squad import available_chips, free_transfers_from_history, load_current_sq
 log = logging.getLogger(__name__)
 
 # Discount weight per gameweek AHEAD in the objective: w_g = 0.85^(g - current GW), applied to
-# the points AND the hits of GW g (decision A1, notes_06b §4). [assumption] a decision
+# the points AND the hits of GW g (decision A1). [assumption] a decision
 # parameter (projections further ahead are less reliable), not derived from data; its value
-# is studied with the rolling-horizon backtest of chat 9b.
+# is to be studied with a rolling-horizon backtest.
 TIME_DECAY_RATE = 0.85
 POSITION_NAME = {1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD'}
 
@@ -247,7 +247,7 @@ def _optimize(client, opts, warnings):
                     extra={'code': 'join_dates_missing'})
         start_gw_of = None
     feats, team_rating, league_xg = xpm.build_features(hist, pos_of, current_gw, price_of, start_gw_of)
-    # 8c (notes_08c §8): if the GW before current_gw is not final yet (bonus points / corrections
+    # 8c: if the GW before current_gw is not final yet (bonus points / corrections
     # still pending) it is missing from hist. The ages stay calendar ages, so W is smaller and
     # the minutes model shrinks more towards its prior; this is on purpose and only reported here.
     if not hist.empty and hist['gw'].max() < current_gw - 1:
@@ -304,7 +304,7 @@ def _optimize(client, opts, warnings):
     # C6: chip sets not played yet (bootstrap-static windows minus the entry history), for the
     # "Chip suggestions" section. The main plan does NOT get chip variables: with every chip free
     # the MILP stopped at the time limit with a gap of 117 points at lookahead 5 and a worse plan
-    # than without chips (notes_07 §4). --chip forces a chip in the current GW, as before.
+    # than without chips. --chip forces a chip in the current GW, as before.
     chip_hist = history if current_gw > 1 else client.entry_history(team_id)
     chip_windows, chip_rows, chip_warn, chip_src = available_chips(bootstrap, chip_hist, current_gw)
     for msg in chip_warn:
@@ -514,7 +514,7 @@ def _optimize(client, opts, warnings):
     if n_fb:
         log.info(f"[*] {n_fb} player(s) with no GW at their current club yet use FPL's ep_next (marked '(FPL ep)').")  # X5
 
-    # C10: chip suggestions (opportunity costs), notes_07 §3
+    # C10: chip suggestions (opportunity costs)
     chips = ChipSection(source=chip_src, sets=list(chip_rows), status='computed')
     t_chips = time.time()
     if not opts.chip_report:

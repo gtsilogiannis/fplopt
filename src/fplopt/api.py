@@ -29,7 +29,7 @@ FPL_API = "https://fantasy.premierleague.com/api"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-TIMEOUT = 12  # seconds per request (unchanged since chat 5)
+TIMEOUT = 12  # seconds per request [assumption]
 # [assumption] retry policy: 4 attempts, waiting 1, 2 and 4 s before attempts 2-4 (at most 7 s
 # plus the timeouts). Enough for a short server hiccup; not tuned to measured FPL outages.
 MAX_ATTEMPTS = 4
@@ -194,6 +194,6 @@ def is_final(event):
     changed, premierleague.com "Why players' Fantasy points could change within a Gameweek").
     A missing field counts as not final, so nothing is cached that could still change.
     [assumption] the meaning of data_checked is taken from library type definitions and the
-    behaviour above; it is checked on real data in the Arch run of chat 9a(i)."""
+    behaviour above; it was checked on real data (2026-10-21)."""
     return (isinstance(event, dict) and event.get('finished') is True and event.get('data_checked') is True
             and bool(event.get('deadline_time')))

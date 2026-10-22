@@ -1,4 +1,4 @@
-"""Chip suggestions (chat 7, notes_07 §3): the opportunity cost of each chip that can be
+"""Chip suggestions: the opportunity cost of each chip that can be
 played now, and the rule that turns the numbers into a suggestion."""
 import time
 
@@ -52,8 +52,8 @@ def squad_value(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solv
 
 def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_windows, max_hits,
                 use_vice, use_bench, time_left, solver=None):
-    """C10: opportunity cost of each chip that can be played now (notes_07 §3, decision of the
-    user: approach 'G', unweighted points).
+    """C10: opportunity cost of each chip that can be played now (design decision of the
+    user: unweighted points).
       exact[c]    = Delta_c(t0): points of the best plan with chip c in t0 minus the best plan
                     without a chip, both solved with the full model over min(3, L) GWs and
                     scored UNWEIGHTED (plan_points).
@@ -80,7 +80,7 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
     for k, (cp, share) in enumerate(runs):
         left = deadline - time.time()
         # this solve's share of the remaining time, in proportion to the measured solve times
-        # (WC ~2x the others, notes_07 §4), and at least MIN_PASS_SECONDS
+        # (WC ~2x the others, measured), and at least MIN_PASS_SECONDS
         tl = max(MIN_PASS_SECONDS, left * share / sum(s for _, s in runs[k:]) * 0.75)
         if left < MIN_PASS_SECONDS or (cp != 'NONE' and base is None):
             out['skipped'].append(f"exact {cp}")
@@ -123,7 +123,7 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
 
 
 def advise(rep, current_gw):
-    """C10/C11: the suggestion rule (notes_07 §3) applied to the numbers of chip_report.
+    """C10/C11: the suggestion rule applied to the numbers of chip_report.
     A chip c is suggested now only if its estimate now is the maximum up to the end of its window
     AND its exact Delta now is positive; with several, the largest exact Delta (one chip per GW).
     WC has no estimates after now, so it is never suggested by the rule; C11 adds a note when

@@ -5,7 +5,7 @@ Data: the same vaastav files and data_cache/ as calibrate_xp.py.
 Walk-forward: for every GW t = 2..38 the sums behind the model (xp_model.minutes_sums) are built
 from GWs < t only, and compared with what the player did in GW t.
 Sample = the rows calibrate_xp.score() uses: GWs where the dataset has FPL's projection and
-the player is not flagged out (FPL ep of that GW > 0, the availability proxy of notes_08a 5.1),
+the player is not flagged out (FPL ep of that GW > 0, used as the availability proxy),
 and the player is in the model (has at least one GW at his current club).
 P(60+) and minutes are judged on single-match GWs only (in a DGW the model works per match).
 """
@@ -292,7 +292,7 @@ if __name__ == '__main__':
     elif what == 'verify':
         verify()
     elif what == 'recency':
-        # re-fit of (a, m), (b, m_q), (c, m_mu) for several MINUTES_RECENCY values (notes_08c §6)
+        # re-fit of (a, m), (b, m_q), (c, m_mu) for several MINUTES_RECENCY values
         for R in (0.4, 0.5, 0.6, 0.7, 0.8):
             res, _, _ = fit(R, verbose=False)
             print(f"recency {R} (W_max {1 / (1 - R):.2f}): {res}")

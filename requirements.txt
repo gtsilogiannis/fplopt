@@ -1,4 +1,4 @@
-# Exact versions of a tested install (chat 9a(ii), 2026-10-22: Linux, Python 3.13 and 3.14).
+# Exact versions of a tested install (2026-10-22: Linux, Python 3.13 and 3.14).
 # Direct dependencies (ranges in pyproject.toml): pulp, highspy, pandas, numpy, requests.
 # The other lines are what they pull in, pinned too so that a new install gets the same code.
 # Install:   pip install -r requirements.txt   then   pip install -e . --no-deps

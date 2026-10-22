@@ -1,6 +1,6 @@
 """Text output of a run (stdout). Progress lines and warnings ('[*] ...', '[WARNING] ...')
 are not printed here: the engine logs them while it runs and the command line sends them to
-stderr. The text below is the same as the output of fpl_v2.py (chat 7)."""
+stderr. The text below is the same as the output of the original fpl_v2.py."""
 import sys
 
 
@@ -68,7 +68,7 @@ def print_optimize(r, out=None):
     ep = r.expected_now
     if ep.bench_weights is not None:
         p(f"   Bench weights GW{g0} (P(slot used)): " + ", ".join(f"{b:.2f}" for b in ep.bench_weights)
-          + "  [approximation, notes_06b §8]")
+          + "  [approximation]")
     p(f"Expected points GW{g0}: XI {ep.xi:.2f} + captain {ep.captain:.2f} + vice {ep.vice:.2f} "
       f"+ autosubs {ep.autosubs:.2f} - hits {ep.hits} = {ep.total:.2f}")
     p(f"Objective (weighted over horizon, hits included): {r.solver.objective:.2f}")

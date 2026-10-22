@@ -47,7 +47,7 @@ def build_parser():
     parser.add_argument("--ft", type=int, default=None,
                         help="Free transfers available now (1-5). Default: rebuilt from your GW history")  # M8
     # C6: the chip to play NOW (override). The suggestion comes from the "Chip suggestions" section;
-    # the model does not choose chips inside the main plan (notes_07 §4).
+    # the model does not choose chips inside the main plan.
     parser.add_argument("--chip", type=str, choices=['WC', 'FH', 'BB', 'TC', 'NONE'], default='NONE',
                         help="Chip played in the current GW (Default: NONE; see the Chip suggestions section)")
     parser.add_argument("--no-chip-report", action="store_true",
@@ -55,7 +55,7 @@ def build_parser():
     parser.add_argument("--min-chance", type=int, default=75,
                         help="Minimum availability probability percentage, 0-100 (Default: 75)")
     # M7: default 5. Timing on the offline harness (700 players, 2 cores): lookahead 3 ->
-    # 10 s, 5 -> 88 s (proven optimal), 8 -> 244 s with a 0.45-point gap left (notes_06b §9).
+    # 10 s, 5 -> 88 s (proven optimal), 8 -> 244 s with a 0.45-point gap left.
     parser.add_argument("--lookahead", type=int, default=5,
                         help="Gameweeks planned, including the current one (Default: 5)")
     parser.add_argument("--override-budget", type=float, default=None,
@@ -74,7 +74,7 @@ def build_parser():
                              f"(Default: {SOLVER_TIME_LIMIT})")  # M7/M10
     parser.add_argument("--solver", type=str, choices=['highs'], default=None,
                         help="MIP solver (Default and only choice: highs)")  # M10; CBC removed in 9a(ii)
-    # notes_07 §15, finding 3: the log keeps one run per GW (the last one), so comparison runs
+    # The log keeps one run per GW (the last one), so comparison runs
     # made after the decision run would replace its predictions
     parser.add_argument("--no-log", action="store_true",
                         help="Do not write this run's predictions to predictions_log.csv (comparison runs)")
@@ -94,7 +94,7 @@ def check_args(args):
             raise InputError("--gw must be between 1 and 38.")
         return
     if not args.team:
-        raise InputError("Optimization mode requires --team ID. Example: --team 10248663")
+        raise InputError("Optimization mode requires --team ID: the number in the address of your team's Points page (fantasy.premierleague.com/entry/ID/event/GW).")
     if args.team < 1:
         raise InputError("--team must be a positive team ID.")
     if args.max_hits is not None and args.max_hits < 0:  # H: negative cap -> infeasible

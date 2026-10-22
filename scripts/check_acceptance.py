@@ -10,7 +10,7 @@ Criterion, in EACH season (2024-25 and 2025-26):
   (2) |gap| of the best XI + captain (mean over GWs of predicted - actual, calibrate_xp.top11)
       of the candidate <= |gap| of the baseline + 2 standard errors of the PAIRED difference
       (same GWs; the gap of one season alone has a standard error of ~2.5-3.5 points, the
-      paired difference of two versions ~0.4-1.1, notes_08c §6.3).
+      paired difference of two versions ~0.4-1.1).
 Runtime: two backtests per season (~1-2 minutes each)."""
 import argparse
 import importlib.util

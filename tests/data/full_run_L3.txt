@@ -32,7 +32,7 @@
    GW9: FT 1 | P111 -> P293 | hits 0 | C P214, VC P108
    GW10: FT 1 | P207 -> P192 | hits 0 | C P108, VC P360
 Sales now (SELL): P153 £6.5m, P189 £8.0m, P231 £8.5m, P321 £6.5m, P267 £6.1m
-   Bench weights GW8 (P(slot used)): 0.79, 0.44, 0.16  [approximation, notes_06b §8]
+   Bench weights GW8 (P(slot used)): 0.79, 0.44, 0.16  [approximation]
 Expected points GW8: XI 45.95 + captain 6.52 + vice 0.79 + autosubs 4.16 - hits 8 = 49.42
 Objective (weighted over horizon, hits included): 141.83
 
