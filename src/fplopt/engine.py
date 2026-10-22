@@ -16,7 +16,7 @@ from .chips import advise, chip_report
 from .data import build_fixture_map, fetch_history, get_current_gw
 from .errors import SolverError, UserActionError
 from .messages import collect
-from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_3
+from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_4
 from .predictions import PREDICTIONS_FILE, log_predictions
 from .rules import HIT_COST
 from .squad import available_chips, free_transfers_from_history, load_current_squad
@@ -46,7 +46,7 @@ class Options:
     use_vice: bool = True                # vice-captain term in the objective (M6)
     use_bench: bool = True               # autosub value of the bench (M5)
     time_limit: Optional[int] = None     # seconds for the whole run; None = SOLVER_TIME_LIMIT
-    solver: Optional[str] = None         # 'highs' or 'cbc'; None = HiGHS if installed
+    solver: Optional[str] = None         # 'highs' (the only solver since 9a(ii)); None = HiGHS
     chip_report: bool = True             # compute the Chip suggestions section
     write_log: bool = True               # append the predictions to log_path
     log_path: str = PREDICTIONS_FILE
@@ -201,7 +201,7 @@ class OptimizeResult:
 
 def optimize(client, opts):
     """Runs the optimizer for opts.team_id with data from client (api.FplClient or a fake)."""
-    require_pulp_3()
+    require_pulp_4()
     with collect() as warnings:
         return _optimize(client, opts, warnings)
 

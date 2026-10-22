@@ -72,8 +72,8 @@ def build_parser():
     parser.add_argument("--time-limit", type=int, default=SOLVER_TIME_LIMIT,
                         help=f"Seconds for the whole solve; the optimality gap is always printed "
                              f"(Default: {SOLVER_TIME_LIMIT})")  # M7/M10
-    parser.add_argument("--solver", type=str, choices=['highs', 'cbc'], default=None,
-                        help="MIP solver (Default: highs if highspy is installed, else cbc)")  # M10
+    parser.add_argument("--solver", type=str, choices=['highs'], default=None,
+                        help="MIP solver (Default and only choice: highs)")  # M10; CBC removed in 9a(ii)
     # notes_07 §15, finding 3: the log keeps one run per GW (the last one), so comparison runs
     # made after the decision run would replace its predictions
     parser.add_argument("--no-log", action="store_true",
