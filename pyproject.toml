@@ -7,6 +7,9 @@ name = "fplopt"
 dynamic = ["version"]
 description = "Fantasy Premier League squad optimizer: multi-period MILP on a backtested expected-points model"
 authors = [{ name = "Giannis Tsilogiannis" }]
+# SPDX license expression and the file that holds its text (PEP 639; needs setuptools >= 77)
+license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 # PuLP 4 publishes wheels and metadata for Python 3.12 and later only (PyPI, 2026-10-22)
 requires-python = ">=3.12"
 # Ranges known to work; the exact versions of a tested install are pinned in requirements.txt.
