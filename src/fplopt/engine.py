@@ -156,7 +156,7 @@ class ExplainEntry:
 
 @dataclass
 class EngineState:
-    """Internals of a run, for tests and the backtests of later chats (not part of the JSON)."""
+    """Internals of a run, for tests and scripts/backtest_season.py (not part of the JSON)."""
     pool: dict
     plan_result: dict
     horizon: list

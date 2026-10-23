@@ -366,6 +366,16 @@ cp src/fplopt/xp_model.py xp_model_base.py          # before changing the model
 python scripts/check_acceptance.py xp_model_base.py # after: prints ACCEPTED or NOT ACCEPTED
 ```
 
+Rolling-horizon backtest of the whole optimizer: every gameweek of a past season is planned
+with only the data known before its deadline, the decisions of that gameweek are applied, and the
+real points are counted (autosubs, vice-captain, chips, hits). Two settings are compared by
+their paired difference per gameweek:
+
+```sh
+python scripts/backtest_season.py --season 2024-25 --lookahead 3 --out a.csv
+python scripts/backtest_season.py --compare a.csv b.csv
+```
+
 Other scripts: `check_minutes.py` (calibration of the minutes model), `check_papp.py`
 (appearance probability only), `bench_solver.py` (solver timing on a 700-player synthetic
 season).
@@ -388,6 +398,7 @@ letter gives the area:
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
+| `W1` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`) |
 
 `C` alone (solver status) and `C2`–`C11` (chips) are different changes.
 
@@ -403,6 +414,7 @@ the current value, then the value at stage 6b. The stages, in the order they wer
 | 6b | multi-period MILP (`M`, `A1`) |
 | 8c | shrinkage of the minutes model |
 | 7 | chips (`C2`–`C11`, `K`) |
+| 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`) |
 
 After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
 change any result.
