@@ -45,6 +45,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from calibrate_xp import download                                   # noqa: E402  (same cache)
 
+import fplopt.milp as milp                                          # noqa: E402
 from fplopt.api import FplClient                                    # noqa: E402
 from fplopt.engine import Options, optimize                         # noqa: E402
 from fplopt.rules import CHIP_API_NAME, CHIP_RULE_WINDOWS, HIT_COST  # noqa: E402
@@ -381,6 +382,8 @@ def main():
     ap.add_argument('--chips', choices=['none', 'advice'], default='none',
                     help="none = never play a chip; advice = play the chip the optimizer suggests")
     ap.add_argument('--time-limit', type=int, default=NO_LIMIT)
+    ap.add_argument('--ft-value', type=float, default=None,
+                    help="W2: value of each free transfer left after the horizon (default: the code's)")
     ap.add_argument('--out', help="CSV with one row per GW (rewritten after every GW)")
     ap.add_argument('--compare', nargs=2, metavar=('A.csv', 'B.csv'))
     args = ap.parse_args()
@@ -388,6 +391,9 @@ def main():
         compare(*args.compare)
         return
     logging.basicConfig(level=logging.WARNING, format='%(message)s')   # optimizer warnings only
+    if args.ft_value is not None:
+        milp.FT_END_VALUE = args.ft_value
+    print(f"{args.season} | lookahead {args.lookahead} | chips {args.chips} | FT_END_VALUE {milp.FT_END_VALUE}")
     simulate(args.season, args.lookahead, args.first_gw, args.last_gw, args.chips, args.time_limit, args.out)
 
 
