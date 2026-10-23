@@ -398,7 +398,7 @@ letter gives the area:
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
-| `W1` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`) |
+| `W1`, `W2` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon |
 
 `C` alone (solver status) and `C2`–`C11` (chips) are different changes.
 

@@ -146,3 +146,19 @@ def test_before_the_first_deadline():
     assert {101, 102} <= set(res['plan'][1]['squad'])
     assert [res['plan'][g]['ft'] for g in h] == [None, 1, 2]
     assert res['plan'][2]['captain'] in (101, 102)
+
+
+@pytest.mark.parametrize("value, transfers", [(0.0, 1), (1.0, 1), (2.0, 0)])
+def test_value_of_free_transfers_after_the_horizon(monkeypatch, value, transfers):
+    """W2: a target +2 xP over the squad only in GW10 gains 2 x 0.7225 = 1.445 weighted points.
+    With 1 FT, 4 FTs are left after GW10 if he is not bought, 3 if he is. A value per FT
+    above 1.445 keeps the transfer; the objective then holds 4 x value."""
+    import fplopt.milp as milp
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    add(pool, 101, 3, 5.0, {8: 1.0, 9: 1.0, 10: 4.0})    # bought in any GW, he starts only in GW10
+    base = solve_plan(pool, H3, W3, sq, 75.0, 1, **NO_TERMS)['objective']   # FT_END_VALUE = 0
+    monkeypatch.setattr(milp, 'FT_END_VALUE', value)
+    res = solve_plan(pool, H3, W3, sq, 75.0, 1, **NO_TERMS)
+    assert sum(n_in(res, g) for g in H3) == transfers      # the GW is a tie (bench has no value here)
+    left = 4 - transfers                                    # same FTs left whichever GW it is bought
+    assert res['objective'] == pytest.approx(base + value * left - (0 if transfers else 1.445 - 0.001), abs=1e-6)

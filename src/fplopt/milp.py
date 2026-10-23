@@ -37,6 +37,9 @@ BENCH_MAX_PASSES = 3  # [assumption] cap on solves for the bench-weight fixed po
 # horizon, where a free transfer has no value for the solver). 0.001 points per
 # transfer is far below any xP difference the model can resolve.
 TRANSFER_TIEBREAK = 0.001
+# W2: value (weighted points) of each free transfer left after the last GW of the horizon.
+# 0 = earlier behaviour. [tuned] with scripts/backtest_season.py --ft-value (pending).
+FT_END_VALUE = 0.0
 # M9 originally shrank P(appear) only for the vice-captain / autosub terms with
 # PAPP_PRIOR_WEIGHT / PAPP_PRIOR_MEAN. Since 8c the whole minutes model is shrunk in
 # build_features (xp_model.APP_PRIOR_*), so those terms use the same Papp as the xP.
@@ -423,6 +426,24 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         h[g] = prob.add_variable(f"hits_{g}", lowBound=0, upBound=max_hits, cat='Integer')
         prob += h[g] >= T[g] - F[g] - CHIP_TRANSFER_M * phi[g]   # (1); C2: phi = 0 -> M2 as before
         obj.append(-weight[g] * HIT_COST * h[g])        # M2/A1: weighted like that GW's points
+
+    # W2: free transfers left for the GW after the horizon, worth FT_END_VALUE weighted points
+    # each. Without it a banked transfer is worth 0 at the end of the horizon, so the plan uses
+    # every free transfer even for a tiny gain. Same rule as F[g] above, one GW further.
+    if FT_END_VALUE:
+        g = horizon[-1]
+        fe = prob.add_variable("ft_end", lowBound=0, upBound=MAX_FT)   # integer at the optimum
+        ph = phi[g]
+        if g == t0 and ft0 is None:
+            prob += fe <= 1                             # first deadline -> 1 FT next GW
+        elif not is_var(ph) and ph == 1:
+            prob += fe <= F[g]                          # chip fixed: FTs kept, none added
+        elif is_var(ph):
+            prob += fe <= F[g] - T[g] + h[g] + 1 + CHIP_TRANSFER_M * ph   # (2), as above
+            prob += fe <= F[g] + 1 - ph                                  # (3)
+        else:
+            prob += fe <= F[g] - T[g] + h[g] + 1
+        obj.append(FT_END_VALUE * fe)
 
     prob += pulp.lpSum(obj)
     if warm:
