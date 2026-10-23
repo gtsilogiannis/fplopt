@@ -73,3 +73,9 @@ def test_captain_and_vice_out():
     total, info = score_gw(gw(), POS, mins(zero=[14, 15]), pts(zero=[14, 15]))
     assert info['captain_used'] is None                 # no multiplier for anyone
     assert total == sum(XI) - 14 - 15 + 12 + 6   # MID 12 for 14, then DEF 6 for 15 (4-5-1)
+
+
+def test_bench_slots_used():
+    _, info = score_gw(gw(), POS, mins(zero=[1, 3, 8]), pts(zero=[1, 3, 8]))
+    # GK 2 for GK 1; MID 12 for MID 8 (for DEF 3 it would leave 2 DEF); DEF 6 for DEF 3
+    assert info["subs"] == [0, 1, 2]

@@ -283,13 +283,15 @@ def score_gw(pg, pos, minutes, points):
     play, minus 4 per hit. A player 'plays' with minutes > 0 in any of his matches of the GW.
     Autosubs: the bench in its order (GK slot first); a bench player who played replaces the first
     starter who did not, among those whose replacement keeps a valid formation (GK only by GK).
-    Returns (total, {'xi': final XI, 'captain_used': id or None})."""
+    Returns (total, {'xi': final XI, 'captain_used': id or None, 'subs': bench slots that came on
+    (0 = GK slot, 1-3 = outfield slots)})."""
     played = {i: minutes.get(i, 0) > 0 for i in pg.squad}
+    subs = []
     if pg.chip == 'BB':
         xi = list(pg.squad)
     else:
         xi = list(pg.xi)
-        for b in pg.bench:                                  # GK slot first, then outfield 1-3
+        for k, b in enumerate(pg.bench):                    # GK slot first, then outfield 1-3
             if not played[b]:
                 continue
             for s in xi:
@@ -298,6 +300,7 @@ def score_gw(pg, pos, minutes, points):
                 trial = [b if i == s else i for i in xi]
                 if valid_xi(trial, pos):
                     xi = trial
+                    subs.append(k)
                     break
     total = sum(points.get(i, 0) for i in xi)
     mult = 3 if pg.chip == 'TC' else 2
@@ -305,7 +308,7 @@ def score_gw(pg, pos, minutes, points):
         pg.vice_id if pg.vice_id is not None and played[pg.vice_id] else None)
     if cap is not None:
         total += (mult - 1) * points.get(cap, 0)
-    return total - HIT_COST * pg.hits, {'xi': xi, 'captain_used': cap}
+    return total - HIT_COST * pg.hits, {'xi': xi, 'captain_used': cap, 'subs': subs}
 
 
 # --------------------------------------------------------------------------- simulation
@@ -333,12 +336,16 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path):
         mins = {i: data.minutes.get((i, t), 0) for i in pg.squad}
         pts = {i: data.points.get((i, t), 0) for i in pg.squad}
         total, info = score_gw(pg, pos, mins, pts)
+        bw = r.expected_now.bench_weights if played_chip != 'BB' else None
         rows.append({'season': season, 'gw': t, 'points': total, 'hits': pg.hits, 'chip': played_chip,
                      'transfers': len(pg.transfers), 'ft': r.ft, 'bank': m.bank / 10,
                      'budget_seen': round(r.budget, 1), 'budget_exact': exact,
                      'captain': data.name[pg.captain_id], 'captain_used': data.name.get(info['captain_used']),
                      'expected': round(r.expected_now.total, 2), 'objective': round(r.solver.objective, 3),
                      'gap': None if r.solver.gap is None else round(r.solver.gap, 3),
+                     # predicted P(outfield bench slot k is used) and what happened (bench check)
+                     **{f'beta{k}': (None if bw is None else round(bw[k - 1], 4)) for k in (1, 2, 3)},
+                     **{f'used{k}': int(k in info['subs']) for k in (0, 1, 2, 3)},
                      'proven': r.solver.proven, 'passes': r.solver.passes,
                      'seconds': round(time.time() - t0, 1)})
         print(f"GW{t:2d}  pts {total:3d}  hits {pg.hits}  chip {played_chip:4s}  tr {len(pg.transfers)}  "
