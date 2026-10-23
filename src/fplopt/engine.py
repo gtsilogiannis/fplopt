@@ -276,13 +276,18 @@ def _optimize(client, opts, warnings):
 
     # A: fetch the current squad BEFORE filtering players, so the filter below knows who we own.
     ft0 = None   # M8: None = unlimited free transfers (before the team's first deadline)
-    ft_api, ft_source, history = None, 'unlimited', None
-    if current_gw == 1:
+    ft_api, ft_source = None, 'unlimited'
+    history = client.entry_history(team_id)   # also used below for the chips (C6)
+    # R2: a team created during the season has an empty 'current' list until its first deadline
+    # has passed, so it has no picks yet (asking for them gave a misleading 404). It starts like
+    # a GW1 team: no squad, GBP 100.0m, unlimited transfers. [assumption] the API returns
+    # current = [] for such a team (checked only on the fake API).
+    new_team = current_gw == 1 or not history.get('current')
+    if new_team:
         current_squad = []
         bank = 0.0
         sell_price = {}
     else:
-        history = client.entry_history(team_id)
         # R1 + S1: squad after a possible Free Hit revert, bank, selling prices
         current_squad, bank, sell_price = load_current_squad(client, team_id, current_gw, bootstrap, history)
         # M8: free transfers rebuilt from the GW history; --ft overrides
@@ -305,8 +310,7 @@ def _optimize(client, opts, warnings):
     # "Chip suggestions" section. The main plan does NOT get chip variables: with every chip free
     # the MILP stopped at the time limit with a gap of 117 points at lookahead 5 and a worse plan
     # than without chips. --chip forces a chip in the current GW, as before.
-    chip_hist = history if current_gw > 1 else client.entry_history(team_id)
-    chip_windows, chip_rows, chip_warn, chip_src = available_chips(bootstrap, chip_hist, current_gw)
+    chip_windows, chip_rows, chip_warn, chip_src = available_chips(bootstrap, history, current_gw)
     for msg in chip_warn:
         log.warning(f"[WARNING] Chips: {msg}", extra={'code': 'chips'})
 
@@ -393,7 +397,7 @@ def _optimize(client, opts, warnings):
 
     # Financial state
     squad_sell_value = None
-    if current_gw == 1:
+    if new_team:                      # R2: GW1 or a team created during the season
         total_budget = override_budget if override_budget else 100.0
         budget_source = 'override' if override_budget else 'default'
     else:
@@ -488,7 +492,7 @@ def _optimize(client, opts, warnings):
             squad=list(pg['squad']), xi=list(pg['xi']), bench=list(pg['bench'])))
 
     # S3: each sale of the current GW with the selling price it returns
-    sales_now = [(i, name_of[i], cost_dict[i], bool(avail_dict[i])) for i in now['out']] if current_gw > 1 else []
+    sales_now = [(i, name_of[i], cost_dict[i], bool(avail_dict[i])) for i in now['out']] if not new_team else []
 
     # G4/M5/M6: current-GW expected points, split into their parts (chip effects included)
     bb = now['chip'] == 'BB'                      # C3: chip of the current GW in the plan

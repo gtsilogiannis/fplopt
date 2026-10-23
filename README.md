@@ -383,7 +383,7 @@ letter gives the area:
 | `H` | the optional cap on hits (`--max-hits`) |
 | `X1`–`X10` | xP model: scoring rules, constants, history data, per-match model, `ep_next` fallback, `--explain`, price-dependent prior, club join dates, RMSE as the tuning score |
 | `V1`, `V2` | prediction log and `--mode evaluate` |
-| `S1`–`S5`, `R1` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit |
+| `S1`–`S5`, `R1`, `R2` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit; **R2** a team created during the season starts like a GW1 team |
 | `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |

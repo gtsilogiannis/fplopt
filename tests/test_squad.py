@@ -84,3 +84,18 @@ def history(first, rows, chips=()):
 ])
 def test_free_transfers_from_history(hist, expected):
     assert free_transfers_from_history(hist, 8) == expected
+
+
+def test_new_team_mid_season_starts_like_gw1(season):
+    """R2: a team created before the GW8 deadline has no finished GW yet ('current' is empty) and
+    no picks: it gets the GW1 treatment (GBP 100.0m, unlimited transfers, no sales) instead of a
+    404 for the picks of GW7."""
+    from conftest import FakeClient
+    from fpl_fake import FakeApi, build_manager
+    from fplopt.engine import Options, optimize
+    manager = build_manager(season)
+    manager.update(current=[], chips=[], picks={}, banks={}, transfers=[])   # nothing played yet
+    r = optimize(FakeClient(FakeApi(season, manager)),
+                 Options(team_id=1, lookahead=1, chip_report=False, write_log=False))
+    assert (r.budget, r.ft, r.ft_source) == (100.0, None, 'unlimited')
+    assert len(r.plan[0].squad) == 15 and r.sales_now == []
