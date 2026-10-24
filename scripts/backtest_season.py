@@ -284,9 +284,12 @@ def score_gw(pg, pos, minutes, points):
     Autosubs: the bench in its order (GK slot first); a bench player who played replaces the first
     starter who did not, among those whose replacement keeps a valid formation (GK only by GK).
     Returns (total, {'xi': final XI, 'captain_used': id or None, 'subs': bench slots that came on
-    (0 = GK slot, 1-3 = outfield slots)})."""
+    (0 = GK slot, 1-3 = outfield slots), 'sub_points': points of the players who came on,
+    'out': outfield starters with 0 minutes, 'gk_out': 1 if the starting GK had 0 minutes})."""
     played = {i: minutes.get(i, 0) > 0 for i in pg.squad}
-    subs = []
+    out = sum(1 for i in pg.xi if pos[i] != 1 and not played[i])
+    gk_out = int(any(pos[i] == 1 and not played[i] for i in pg.xi))
+    subs, sub_points = [], 0
     if pg.chip == 'BB':
         xi = list(pg.squad)
     else:
@@ -301,6 +304,7 @@ def score_gw(pg, pos, minutes, points):
                 if valid_xi(trial, pos):
                     xi = trial
                     subs.append(k)
+                    sub_points += points.get(b, 0)
                     break
     total = sum(points.get(i, 0) for i in xi)
     mult = 3 if pg.chip == 'TC' else 2
@@ -308,7 +312,8 @@ def score_gw(pg, pos, minutes, points):
         pg.vice_id if pg.vice_id is not None and played[pg.vice_id] else None)
     if cap is not None:
         total += (mult - 1) * points.get(cap, 0)
-    return total - HIT_COST * pg.hits, {'xi': xi, 'captain_used': cap, 'subs': subs}
+    return total - HIT_COST * pg.hits, {'xi': xi, 'captain_used': cap, 'subs': subs,
+                                        'sub_points': sub_points, 'out': out, 'gk_out': gk_out}
 
 
 # --------------------------------------------------------------------------- simulation
@@ -346,6 +351,9 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path):
                      # predicted P(outfield bench slot k is used) and what happened (bench check)
                      **{f'beta{k}': (None if bw is None else round(bw[k - 1], 4)) for k in (1, 2, 3)},
                      **{f'used{k}': int(k in info['subs']) for k in (0, 1, 2, 3)},
+                     'out': info['out'], 'gk_out': info['gk_out'],
+                     'gk': data.name[next(i for i in pg.xi if pos[i] == 1)],
+                     'exp_autosub': round(r.expected_now.autosubs, 3), 'act_autosub': info['sub_points'],
                      'proven': r.solver.proven, 'passes': r.solver.passes,
                      'seconds': round(time.time() - t0, 1)})
         print(f"GW{t:2d}  pts {total:3d}  hits {pg.hits}  chip {played_chip:4s}  tr {len(pg.transfers)}  "
