@@ -79,3 +79,9 @@ def test_bench_slots_used():
     _, info = score_gw(gw(), POS, mins(zero=[1, 3, 8]), pts(zero=[1, 3, 8]))
     # GK 2 for GK 1; MID 12 for MID 8 (for DEF 3 it would leave 2 DEF); DEF 6 for DEF 3
     assert info["subs"] == [0, 1, 2]
+
+
+def test_autosub_points_and_absences():
+    _, info = score_gw(gw(), POS, mins(zero=[1, 3, 8]), pts(zero=[1, 3, 8]))
+    assert (info['out'], info['gk_out']) == (2, 1)      # DEF 3 and MID 8; GK 1
+    assert info['sub_points'] == 2 + 12 + 6             # GK 2, MID 12, DEF 6 came on
