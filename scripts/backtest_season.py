@@ -35,6 +35,7 @@ import argparse
 import csv
 import logging
 import math
+import pickle
 import sys
 import time
 from pathlib import Path
@@ -317,12 +318,17 @@ def score_gw(pg, pos, minutes, points):
 
 
 # --------------------------------------------------------------------------- simulation
-def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path):
+def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, save_gws=(), save_dir=None):
     data = SeasonData(season)
     m = Manager()
     rows = []
     for t in range(first_gw, last_gw + 1):
         t0 = time.time()
+        if t in save_gws:
+            # W4: the team as it is before the deadline of t, so that one GW of this path can be
+            # solved again on its own (e.g. to time a Wildcard solve): load_state(season, t, dir)
+            with open(Path(save_dir) / f"state_{season}_gw{t}.pkl", 'wb') as fh:
+                pickle.dump(vars(m), fh)       # the fields only: loadable from any script
         opts = Options(team_id=1, lookahead=lookahead, write_log=False, time_limit=time_limit,
                        chip_report=(chips == 'advice'))
         r = optimize(Client(VaastavApi(data, m, t)), opts)
@@ -366,6 +372,16 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path):
     return rows
 
 
+def load_state(season, t, save_dir):
+    """(SeasonData, Client) of GW t of a saved path (see --save-gws): the optimizer sees the same
+    data and team as it did at t in the simulation."""
+    with open(Path(save_dir) / f"state_{season}_gw{t}.pkl", 'rb') as fh:
+        m = Manager()
+        m.__dict__.update(pickle.load(fh))
+    data = SeasonData(season)
+    return data, Client(VaastavApi(data, m, t))
+
+
 def write_rows(path, rows):
     with open(path, 'w', newline='', encoding='utf-8') as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
@@ -401,6 +417,8 @@ def main():
                     help="W2: value of each free transfer left after the horizon (default: the code's)")
     ap.add_argument('--out', help="CSV with one row per GW (rewritten after every GW)")
     ap.add_argument('--compare', nargs=2, metavar=('A.csv', 'B.csv'))
+    ap.add_argument('--save-gws', default='', help="e.g. 8,15,24,33: save the team before these deadlines")
+    ap.add_argument('--save-dir', default='.', help="folder for the saved teams (state_<season>_gw<t>.pkl)")
     args = ap.parse_args()
     if args.compare:
         compare(*args.compare)
@@ -409,7 +427,9 @@ def main():
     if args.ft_value is not None:
         milp.FT_END_VALUE = args.ft_value
     print(f"{args.season} | lookahead {args.lookahead} | chips {args.chips} | FT_END_VALUE {milp.FT_END_VALUE}")
-    simulate(args.season, args.lookahead, args.first_gw, args.last_gw, args.chips, args.time_limit, args.out)
+    save_gws = {int(g) for g in args.save_gws.split(',') if g}
+    simulate(args.season, args.lookahead, args.first_gw, args.last_gw, args.chips, args.time_limit, args.out,
+             save_gws, args.save_dir)
 
 
 if __name__ == '__main__':
