@@ -547,17 +547,22 @@ def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     the current squad (or of the pool at GW1) as reference; each later pass uses the
     XI the solver chose, until the weights change by <= BENCH_BETA_TOL. Each pass
     starts the solver from the previous plan (warm start).
-    Returns the result of the last pass that produced a plan (or the failed first one)."""
+    Returns the result of the last pass that produced a plan (or the failed first one), with
+    'complete' = every pass reached the gap target and the passes stopped by the rule above, not by
+    the time limit. A complete result does not depend on the speed of the machine: a longer time
+    limit gives the same plan (up to last-digit floating-point differences between machines)."""
     pos, xp, papp = pool['pos'], pool['xp'], pool['papp']
     ref = start_squad if start_squad else pool['ids']
     beta = {g: bench_weights(reference_xi(ref, pos, {i: xp[(i, g)] for i in ref}), pos,
                              {i: papp[(i, g)] for i in ref}) for g in horizon} if use_bench else None
     best, seconds, history = None, 0.0, []
+    complete = True                                 # C12: set False as soon as time cuts anything
     for n_pass in range(1, BENCH_MAX_PASSES + 1):
         t_start = time.time()
         # M10: the time limit is for the whole run; each pass gets what is left
         left = (time_limit or SOLVER_TIME_LIMIT) - seconds
         if best is not None and left < MIN_PASS_SECONDS:
+            complete = False                        # a pass the rule wanted was not done
             break                                   # no time for another pass: keep the last plan
         res = solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip, max_hits,
                          beta, use_vice, use_bench, warm=best['values'] if best else None,
@@ -567,9 +572,11 @@ def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         history.append(beta)
         if 'plan' not in res:
             if best is None:                        # nothing found at all
-                res['seconds'], res['passes'] = seconds, n_pass
+                res['seconds'], res['passes'], res['complete'] = seconds, n_pass, False
                 return res
+            complete = False
             break                                   # keep the previous pass
+        complete = complete and res['proven']       # a pass stopped by time also changes the later warm starts
         res['beta'], res['passes'] = beta, n_pass
         best = res
         if not use_bench:
@@ -581,5 +588,5 @@ def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         if best['beta_change'] <= BENCH_BETA_TOL:
             break
         beta = implied
-    best['seconds'], best['beta_history'] = seconds, history
+    best['seconds'], best['beta_history'], best['complete'] = seconds, history, complete
     return best

@@ -102,7 +102,10 @@ python -m fplopt --team <TEAM_ID>
 
 `fplopt --team <TEAM_ID>` is the same command. A run takes about 1–3 minutes, most of it in the
 solver: with the default 5-gameweek horizon, about 40–60 s for the plan and 90 s for the chip
-analysis on a recent laptop. `--time-limit` caps the solver time of the whole run.
+analysis on a recent laptop. `--time-limit` caps the solver time of the whole run. A number of
+the chip section that the time limit would cut short is not shown (`not computed`), and a chip
+without all its numbers gets no suggestion: the numbers that are shown are the same on a slower
+machine, which only shows fewer of them.
 
 If the chip section suggests a chip, run again with that chip to get the plan that uses it:
 
@@ -414,7 +417,7 @@ letter gives the area:
 | `S1`–`S5`, `R1`, `R2` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit; **R2** a team created during the season starts like a GW1 team |
 | `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
 | `A1` | hits are weighted like the points of their gameweek |
-| `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |
+| `C2`–`C12` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit) |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
 | `W1`–`W4` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`) |
 
@@ -432,7 +435,7 @@ the current value, then the value at stage 6b. The stages, in the order they wer
 | 6b | multi-period MILP (`M`, `A1`) |
 | 8c | shrinkage of the minutes model |
 | 7 | chips (`C2`–`C11`, `K`) |
-| 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`) |
+| 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`), chip numbers computed in full (`C12`) |
 
 After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
 change any result.

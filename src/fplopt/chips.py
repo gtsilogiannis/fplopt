@@ -47,7 +47,8 @@ def squad_value(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solv
     budget = sum(sub['sell'].values()) + 1.0
     res = plan_squad(sub, [g], {g: 1.0}, list(squad), budget, 1, chip, 0, use_vice, use_bench,
                      time_limit=30, solver=solver)
-    return plan_points(res, sub, [g], use_bench) if 'plan' in res else None
+    # C12: a value cut by the time limit would differ between machines: None (not computed) instead
+    return plan_points(res, sub, [g], use_bench) if res.get('complete') else None
 
 
 def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_windows, max_hits,
@@ -63,6 +64,9 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
                     TC, BB: squad_value(Q_t, chip) - squad_value(Q_t);
                     FH: best one-GW Free Hit squad (whole pool) - squad_value(Q_t);
                     WC: not estimated after t0 ([assumption], no one-GW proxy exists).
+    C12: a number is kept only if every solve behind it was complete (milp.plan_squad: gap target
+    reached, bench-weight passes not cut by the time limit), so the numbers that are shown do not
+    depend on the speed of the machine; a slower machine shows fewer of them ('skipped').
     Returns a dict with the numbers; the caller prints them."""
     t0 = horizon[0]
     deadline = time.time() + time_left
@@ -89,6 +93,9 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
                          time_limit=tl, solver=solver)
         if 'plan' not in res:
             out['skipped'].append(f"exact {cp} (no plan)")
+            continue
+        if not res['complete']:                     # C12: cut by the time limit
+            out['skipped'].append(f"exact {cp}")
             continue
         pts = plan_points(res, pool, h3, use_bench)
         out['plans'][cp] = res['plan'][t0]          # W3: the GW-t0 decisions of this solve (backtest)
@@ -117,22 +124,31 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
                 sub['avail'] = {i: True for i in pool['ids']} if t > t0 else pool['avail']
                 res = plan_squad(sub, [t], {t: 1.0}, list(q), budget, 1, 'FH', max_hits, use_vice, use_bench,
                                  time_limit=30, solver=solver)
-                v = plan_points(res, sub, [t], use_bench) if 'plan' in res else None
+                v = plan_points(res, sub, [t], use_bench) if res.get('complete') else None   # C12
             if v is not None and v0 is not None:
                 out['est'].setdefault(cp, {})[t] = v - v0
+            else:
+                out['skipped'].append(f"estimate {cp} GW{t}")     # C12: not computed in time
     return out
 
 
 def advise(rep, current_gw):
     """C10/C11: the suggestion rule applied to the numbers of chip_report.
+    C12: the rule needs the exact Delta now and an estimate for EVERY GW up to the end of the
+    window; a chip that misses any of them (time limit) gets no suggestion at all, neither 'play'
+    nor 'hold', and is listed in 'incomplete' (a rule applied to part of the window could say
+    'play' on one machine and 'hold' on another).
     A chip c is suggested now only if its estimate now is the maximum up to the end of its window
     AND its exact Delta now is positive; with several, the largest exact Delta (one chip per GW).
     WC has no estimates after now, so it is never suggested by the rule; C11 adds a note when
     the WC gains more now than the suggested chip.
     Returns {'now_ok': [...], 'pick': chip or None, 'also': [...],
              'holds': [(chip, estimate now or None, best GW, best estimate, window end), ...],
-             'wc_note': (WC exact, pick exact) or None}."""
-    est_all = rep['est']
+             'wc_note': (WC exact, pick exact) or None, 'incomplete': [chip, ...]}."""
+    incomplete = [cp for cp in rep['window'] if cp != 'WC' and (
+        cp not in rep['exact'] or
+        any(t not in rep['est'].get(cp, {}) for t in range(current_gw, rep['window'][cp] + 1)))]
+    est_all = {cp: est for cp, est in rep['est'].items() if cp not in incomplete}
     # the 1e-9 lets an estimate equal to the maximum count as the maximum (float rounding)
     now_ok = [cp for cp, est in est_all.items()
               if est.get(current_gw) is not None and est[current_gw] >= max(est.values()) - 1e-9
@@ -147,4 +163,4 @@ def advise(rep, current_gw):
     if pick is not None and pick != 'WC' and rep['exact'].get('WC', float('-inf')) > rep['exact'][pick]:
         wc_note = (rep['exact']['WC'], rep['exact'][pick])
     return {'now_ok': now_ok, 'pick': pick, 'also': [cp for cp in now_ok if cp != pick],
-            'holds': holds, 'wc_note': wc_note}
+            'holds': holds, 'wc_note': wc_note, 'incomplete': incomplete}

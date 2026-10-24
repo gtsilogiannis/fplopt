@@ -113,6 +113,10 @@ def print_chips(r, out):
         # the margin is printed because estimates of different GWs that differ by a few
         # tenths are within the error of the xP model (RMSE ~2.5 per player-GW)
         p(f"   {cp}: hold ({now_txt}best estimate GW{t_best} {best:+.1f}; window ends GW{window_end})")
+    for cp in adv.get('incomplete', []):
+        # C12: no suggestion from part of the numbers (it could differ between machines)
+        p(f"   {cp}: no suggestion: not every number up to GW{c.window[cp]} was computed in the time limit "
+          f"(raise --time-limit).")
     if 'WC' in c.window:
         txt = f"{c.exact['WC']:+.2f}" if 'WC' in c.exact else "not computed"
         p(f"   WC: exact Delta now {txt}; later GWs are not estimated [assumption] -> compare yourself "

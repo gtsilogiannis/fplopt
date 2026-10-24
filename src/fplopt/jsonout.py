@@ -80,6 +80,7 @@ def optimize_to_dict(r):
             'also_best_now': list(adv.get('also', [])),
             'holds': [{'chip': cp, 'now': now, 'best_gw': g, 'best': best, 'window_end': end}
                       for cp, now, g, best, end in adv.get('holds', [])],
+            'incomplete': list(adv.get('incomplete', [])),   # C12
             'wc_note': ({'wc_delta': adv['wc_note'][0], 'suggested_delta': adv['wc_note'][1]}
                         if adv.get('wc_note') is not None else None),
             'not_computed': list(c.not_computed),
