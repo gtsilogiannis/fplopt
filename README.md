@@ -110,6 +110,11 @@ If the chip section suggests a chip, run again with that chip to get the plan th
 python -m fplopt --team <TEAM_ID> --chip WC --no-log
 ```
 
+A Wildcard is the slowest plan to solve. On 8 squads of past seasons (`bench_chip_solve.py` below)
+the 5-gameweek Wildcard plan took 50–740 s (median 190 s) to reach the gap target, against
+30–70 s for a Free Hit (2-core machine, two solves at a time). At the time limit the plan is
+printed with its gap; give the Wildcard run more time, e.g. `--time-limit 900`.
+
 ### Options
 
 | Option | Meaning | Default |
@@ -390,7 +395,8 @@ python scripts/chip_study.py evaluate chips_2425.jsonl chips_2526.jsonl
 
 Other scripts: `check_minutes.py` (calibration of the minutes model), `check_papp.py`
 (appearance probability only), `bench_solver.py` (solver timing on a 700-player synthetic
-season).
+season), `bench_chip_solve.py` (time of Wildcard and Free Hit plans on squads saved by
+`backtest_season.py --save-gws`).
 
 ### Tags in the comments
 
@@ -410,7 +416,7 @@ letter gives the area:
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
-| `W1`–`W3` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`) |
+| `W1`–`W4` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`) |
 
 `C` alone (solver status) and `C2`–`C11` (chips) are different changes.
 
