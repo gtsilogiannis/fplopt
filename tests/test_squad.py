@@ -99,3 +99,15 @@ def test_new_team_mid_season_starts_like_gw1(season):
                  Options(team_id=1, lookahead=1, chip_report=False, write_log=False))
     assert (r.budget, r.ft, r.ft_source) == (100.0, None, 'unlimited')
     assert len(r.plan[0].squad) == 15 and r.sales_now == []
+
+
+def test_new_team_gets_no_wildcard_or_free_hit_gain(season):
+    """R2: the chip analysis of a team before its first deadline leaves out WC and FH (~3 s)."""
+    from conftest import FakeClient
+    from fpl_fake import FakeApi, build_manager
+    from fplopt.engine import Options, optimize
+    manager = build_manager(season)
+    manager.update(current=[], chips=[], picks={}, banks={}, transfers=[])
+    r = optimize(FakeClient(FakeApi(season, manager)),
+                 Options(team_id=1, lookahead=1, write_log=False, time_limit=600))
+    assert set(r.chips.window) == {'BB', 'TC'} and set(r.chips.exact) == {'BB', 'TC'}
