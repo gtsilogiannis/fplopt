@@ -376,6 +376,15 @@ python scripts/backtest_season.py --season 2024-25 --lookahead 3 --out a.csv
 python scripts/backtest_season.py --compare a.csv b.csv
 ```
 
+Chip rules are compared on one path, the season played without chips: at every gameweek the
+exact and estimated gains and the real gain of each chip are recorded, then the rules are replayed
+on these records (one season and lookahead 3 take about an hour):
+
+```sh
+python scripts/chip_study.py collect --season 2024-25 --out chips_2425.jsonl
+python scripts/chip_study.py evaluate chips_2425.jsonl chips_2526.jsonl
+```
+
 Other scripts: `check_minutes.py` (calibration of the minutes model), `check_papp.py`
 (appearance probability only), `bench_solver.py` (solver timing on a 700-player synthetic
 season).
@@ -398,7 +407,7 @@ letter gives the area:
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C11` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
-| `W1`, `W2` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon |
+| `W1`–`W3` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`) |
 
 `C` alone (solver status) and `C2`–`C11` (chips) are different changes.
 
