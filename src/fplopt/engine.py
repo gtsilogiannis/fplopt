@@ -313,6 +313,11 @@ def _optimize(client, opts, warnings):
     chip_windows, chip_rows, chip_warn, chip_src = available_chips(bootstrap, history, current_gw)
     for msg in chip_warn:
         log.warning(f"[WARNING] Chips: {msg}", extra={'code': 'chips'})
+    if new_team:
+        # R2: before the team's first deadline transfers are unlimited anyway, so a Wildcard gains
+        # nothing and a Free Hit squad would revert to no squad at all (its gain came out as -56
+        # points in a backtest). Their gains are not computed; BB and TC are.
+        chip_windows = {cp: w for cp, w in chip_windows.items() if cp not in ('WC', 'FH')}
 
     explain_names = {n.strip().lower() for n in explain.split(',')} if explain else set()
     explained = []
