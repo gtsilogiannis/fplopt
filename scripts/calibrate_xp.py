@@ -29,8 +29,12 @@ def download(season, path):
         os.makedirs(CACHE_DIR, exist_ok=True)
         r = requests.get(DATA_URL.format(season=season, path=path), timeout=60)
         r.raise_for_status()
-        with open(local, 'wb') as fh:
+        # write to a private temporary file, then rename it: the rename is atomic, so a script
+        # running in parallel never sees a half-written (or empty) cache file
+        tmp = f"{local}.{os.getpid()}.tmp"
+        with open(tmp, 'wb') as fh:
             fh.write(r.content)
+        os.replace(tmp, local)
     return local
 
 
