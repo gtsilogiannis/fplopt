@@ -197,11 +197,12 @@ Expected points of the current gameweek, unweighted, split into the terms of the
 | `suggestion` | `{chip, delta}` or null | the suggested chip and its exact gain; `null` = no chip this gameweek |
 | `also_best_now` | array of string | other chips that also pass the rule now (one chip per gameweek) |
 | `holds` | array of `{chip, now, best_gw, best, window_end}` | chips not suggested now: estimate now (`now`, may be `null`) and the gameweek with the best estimate |
+| `incomplete` | array of string | chips with no suggestion at all because the time limit left out their exact gain or an estimate up to `window_end` (the rule is not applied to part of the numbers, so that the suggestion does not depend on the speed of the machine) |
 | `wc_note` | `{wc_delta, suggested_delta}` or null | set when the Wildcard gains more now than the suggested chip |
-| `not_computed` | array of string | parts skipped by the time limit, e.g. `"exact WC"`, `"estimates from GW16"` |
+| `not_computed` | array of string | parts skipped by the time limit, e.g. `"exact WC"`, `"estimate TC GW12"`, `"estimates from GW16"`. Every number that is given was computed in full (all its solves reached the gap target), so the numbers do not depend on the speed of the machine; a slower machine gives fewer of them |
 | `seconds` | number or null | time of the chip analysis; `null` when it did not run (`skipped_flag`, `skipped_chip`) |
 
-When `status` is not `"computed"`, `exact`, `estimates`, `holds` and `also_best_now` are empty
+When `status` is not `"computed"`, `exact`, `estimates`, `holds`, `incomplete` and `also_best_now` are empty
 and `suggestion` and `wc_note` are `null`.
 
 ### explain
@@ -355,6 +356,7 @@ lookahead 3; arrays shortened):
     "suggestion": null,
     "also_best_now": [],
     "holds": [{"chip": "TC", "now": 7.315, "best_gw": 17, "best": 7.533, "window_end": 19}],
+    "incomplete": [],
     "wc_note": null,
     "not_computed": [],
     "seconds": 82.0
