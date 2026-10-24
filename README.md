@@ -295,6 +295,9 @@ with `--mode evaluate`.
 
 How to read it:
 
+- The 2025/26 file of the dataset has FPL's projection in only 11 gameweeks (GW1-6, 8, 9, 24, 29,
+  38; it is 0 for every player in the others, checked 2026-10-23), so its RMSE and baseline rows
+  come from those gameweeks; 2024/25 lacks it only in GW22, 32 and 34.
 - The `[tuned]` constants were chosen on **2024/25 only**; 2025/26 is the check. Some
   `[measured]` and `[fitted]` constants pool both seasons, and the DefCon dispersion was fitted
   on 2025/26 (the only season with that data), so 2025/26 is not a fully independent test.
