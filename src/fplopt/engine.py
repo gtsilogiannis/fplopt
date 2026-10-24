@@ -165,6 +165,7 @@ class EngineState:
     budget: float
     ft0: Optional[int]
     players: list
+    chip_plans: dict = field(default_factory=dict)   # W3: {chip or 'NONE': GW-t0 plan of the exact Delta solves}
 
 
 @dataclass
@@ -526,6 +527,7 @@ def _optimize(client, opts, warnings):
     # C10: chip suggestions (opportunity costs)
     chips = ChipSection(source=chip_src, sets=list(chip_rows), status='computed')
     t_chips = time.time()
+    chip_plans = {}
     if not opts.chip_report:
         chips.status = 'skipped_flag'
     elif chip_used != 'NONE':
@@ -535,6 +537,7 @@ def _optimize(client, opts, warnings):
         rep = chip_report(pool, horizon, gw_weight, plan, start_squad, total_budget, ft0, chip_windows,
                           max_hits, use_vice, use_bench, time_left, solver)
         chips.window, chips.exact, chips.error, chips.estimates = rep['window'], rep['exact'], rep['gap'], rep['est']
+        chip_plans = rep['plans']
         chips.not_computed = list(rep['skipped'])
         if not rep['window']:
             chips.status = 'no_chip_now'
@@ -567,7 +570,7 @@ def _optimize(client, opts, warnings):
                  'total_s': time.time() - t_start},
         api_stats=dict(getattr(client, 'stats', {})),
         state=EngineState(pool=pool, plan_result=res, horizon=horizon, weights=gw_weight, start_squad=start_squad,
-                          budget=total_budget, ft0=ft0, players=players))
+                          budget=total_budget, ft0=ft0, players=players, chip_plans=chip_plans))
 
 
 def _explain_entry(p, f, comp_now, xp_gw, source, chance, team_name, horizon):

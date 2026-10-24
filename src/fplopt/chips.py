@@ -66,7 +66,7 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
     Returns a dict with the numbers; the caller prints them."""
     t0 = horizon[0]
     deadline = time.time() + time_left
-    out = {'exact': {}, 'gap': {}, 'est': {}, 'window': {}, 'skipped': []}
+    out = {'exact': {}, 'gap': {}, 'est': {}, 'window': {}, 'skipped': [], 'plans': {}}
     now_chips = [cp for cp in CHIPS for s, e in chip_windows.get(cp, []) if s <= t0 <= e]
     for cp in now_chips:
         out['window'][cp] = next(e for s, e in chip_windows[cp] if s <= t0 <= e)
@@ -91,6 +91,7 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
             out['skipped'].append(f"exact {cp} (no plan)")
             continue
         pts = plan_points(res, pool, h3, use_bench)
+        out['plans'][cp] = res['plan'][t0]          # W3: the GW-t0 decisions of this solve (backtest)
         if cp == 'NONE':
             base = (pts, res.get('gap'))
         else:
