@@ -29,12 +29,12 @@
 ------------------------------------------------------------------------------------
  Transfer plan (FT = free transfers available before that GW's transfers):
    GW8: FT 3 | P153 -> P30, P189 -> P47, P231 -> P108, P321 -> P214, P267 -> P360 | hits 2 | C P214, VC P108
-   GW9: FT 1 | P207 -> P298 | hits 0 | C P214, VC P108
-   GW10: FT 1 | P19 -> P272 | hits 0 | C P108, VC P360
+   GW9: FT 1 | P111 -> P293 | hits 0 | C P214, VC P108
+   GW10: FT 1 | P207 -> P192 | hits 0 | C P108, VC P360
 Sales now (SELL): P153 £6.5m, P189 £8.0m, P231 £8.5m, P321 £6.5m, P267 £6.1m
    Bench weights GW8 (P(slot used)): 0.79, 0.44, 0.16  [approximation]
 Expected points GW8: XI 45.95 + captain 6.52 + vice 0.79 + autosubs 4.16 - hits 8 = 49.42
-Objective (weighted over horizon, hits included): 141.95
+Objective (weighted over horizon, hits included): 141.83
 
 ====================================================================================
  CHIP SUGGESTIONS | GW8 (expected points, unweighted)
@@ -43,11 +43,11 @@ Objective (weighted over horizon, hits included): 141.95
    Exact Delta now = best plan with the chip in GW8 minus best plan without a chip, full model, GW8-GW10:
       BB +2.85 (error <= 0.14) | TC +7.31 (error <= 0.13)
    Estimates by GW (squad of the plan; after GW10 its last squad, no transfers [assumption]); * = best GW to the end of the window:
-      BB  GW8 +2.8  GW9 +3.0  GW10 +3.4  GW11 +3.5  GW12 +2.9  GW13 +3.6  GW14 +3.4  GW15 +3.5
-          GW16 +3.6  GW17 +3.3  GW18 +3.9*  GW19 +3.6
+      BB  GW8 +2.8  GW9 +3.1  GW10 +2.9  GW11 +3.3  GW12 +2.8  GW13 +2.8  GW14 +3.0  GW15 +2.7
+          GW16 +2.9  GW17 +2.7  GW18 +3.4*  GW19 +2.8
       TC  GW8 +7.3  GW9 +7.4  GW10 +7.2  GW11 +7.4  GW12 +7.3  GW13 +6.9  GW14 +7.4  GW15 +7.4
           GW16 +6.9  GW17 +7.5*  GW18 +7.1  GW19 +7.2
-   BB: hold (now +2.8, best estimate GW18 +3.9; window ends GW19)
+   BB: hold (now +2.8, best estimate GW18 +3.4; window ends GW19)
    TC: hold (now +7.3, best estimate GW17 +7.5; window ends GW19)
 >> Suggestion: no chip this GW.
 [*] Chip analysis: 62.1 s
