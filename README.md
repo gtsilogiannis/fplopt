@@ -339,7 +339,7 @@ club rotates.
 
 ### Tests
 
-`pytest` runs 101 fast tests (10–20 s) on a synthetic season, with no network: the MILP on
+`pytest` runs 129 fast tests (10–20 s) on a synthetic season, with no network: the MILP on
 small pools checked by hand (free transfers, hits, chips, budget, vice-captain), selling prices,
 the chip rules, the JSON output and exit codes, retries against a local HTTP server, the cache.
 `pytest -m slow` runs 14 full optimizer runs (about 5–15 minutes) and compares the output with a
