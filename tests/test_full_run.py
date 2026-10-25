@@ -1,10 +1,7 @@
 """Whole optimizer on the synthetic season (GW8, lookahead 3, chip suggestions).
 
 The text must equal the reference run of the original version (tests/data/full_run_L3.txt)
-except for the solve times and the optimality gaps. The reference was changed once since, by M11
-(the plan of the bench-weight pass with the best value by its own weights is kept): pass 1 instead
-of pass 3, so the GW9-GW10 transfers, the objective (141.95, was 141.83), the Bench Boost estimates
-after GW8 (they use the squads of the plan) changed; the GW8 decisions did not. Since the refactor the progress
+except for the solve times and the optimality gaps. Since the refactor the progress
 lines ('[*] ...', '[WARNING] ...', '[INFO] ...') are logged to stderr and the rest is printed to
 stdout, so each stream is compared with its own lines of the reference.
 
@@ -57,7 +54,7 @@ def test_full_run_equals_reference(fake_client, messages, tmp_path):
     assert result.current_gw == 8 and result.horizon == [8, 9, 10]
     assert (result.ft, result.ft_source) == (3, 'history')
     assert round(result.budget, 1) == 99.1
-    assert round(result.solver.objective, 2) == 141.95   # M11: pass 1 kept (141.83 with the last pass)
+    assert round(result.solver.objective, 2) == 141.83
     assert round(result.expected_now.total, 2) == 49.42
     assert [pg.hits for pg in result.plan] == [2, 0, 0]
     assert [len(pg.transfers) for pg in result.plan] == [5, 1, 1]

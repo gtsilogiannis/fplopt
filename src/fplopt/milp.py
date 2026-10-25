@@ -541,35 +541,13 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     return res
 
 
-def self_consistent_value(res, pool, horizon, weight, beta, implied):
-    """M11: value of a solved plan with the bench weights of its OWN XI in every GW:
-        V = objective + sum_g w_g * sum_k (implied_k - beta_k) * xP(bench slot k),
-    i.e. the objective of the solve with the bench term rewritten for the weights implied by the
-    plan. The bench term is the only part of the objective that depends on beta, so V has exactly
-    the other terms of the objective (hits, tie-breaks, value of the FTs left). A GW without the
-    bench term in the model (Bench Boost, or no player with xP > 0) has no correction."""
-    xp, pos = pool['xp'], pool['pos']
-    v = res['objective']
-    for g in horizon:
-        pg = res['plan'][g]
-        if pg['chip'] == 'BB' or max(xp[(i, g)] for i in pool['ids']) <= 0:
-            continue
-        outs = [i for i in pg['bench'] if pos[i] != 1]          # outfield bench in slot order
-        v += weight[g] * sum((implied[g][k] - beta[g][k]) * xp[(i, g)] for k, i in enumerate(outs))
-    return float(v)                                             # a plain float (xP may be numpy floats)
-
-
 def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max_hits=None,
                use_vice=True, use_bench=True, time_limit=None, solver=None, chips_avail=None, chip_fix=None):
     """M5: fixed point for the outfield bench weights. Pass 1 uses the best XI of
     the current squad (or of the pool at GW1) as reference; each later pass uses the
     XI the solver chose, until the weights change by <= BENCH_BETA_TOL. Each pass
     starts the solver from the previous plan (warm start).
-    M11: the passes do not always improve the plan (each pass is optimal for the weights it was
-    given, not for the weights of its own XI), so the plan returned is the one with the highest
-    self-consistent value over the passes (a tie: the later pass), with 'beta' = the weights of its
-    own XI, so that every number computed from it uses those weights, and 'objective' = that value.
-    Returns that result (or the failed first one when no pass produced a plan), with
+    Returns the result of the last pass that produced a plan (or the failed first one), with
     'complete' = every pass reached the gap target and the passes stopped by the rule above, not by
     the time limit. A complete result does not depend on the speed of the machine: a longer time
     limit gives the same plan (up to last-digit floating-point differences between machines)."""
@@ -577,49 +555,38 @@ def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     ref = start_squad if start_squad else pool['ids']
     beta = {g: bench_weights(reference_xi(ref, pos, {i: xp[(i, g)] for i in ref}), pos,
                              {i: papp[(i, g)] for i in ref}) for g in horizon} if use_bench else None
-    best, last, seconds, history = None, None, 0.0, []
+    best, seconds, history = None, 0.0, []
     complete = True                                 # C12: set False as soon as time cuts anything
     for n_pass in range(1, BENCH_MAX_PASSES + 1):
         t_start = time.time()
         # M10: the time limit is for the whole run; each pass gets what is left
         left = (time_limit or SOLVER_TIME_LIMIT) - seconds
-        if last is not None and left < MIN_PASS_SECONDS:
+        if best is not None and left < MIN_PASS_SECONDS:
             complete = False                        # a pass the rule wanted was not done
-            break                                   # no time for another pass: keep the plans so far
+            break                                   # no time for another pass: keep the last plan
         res = solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip, max_hits,
-                         beta, use_vice, use_bench, warm=last['values'] if last else None,
+                         beta, use_vice, use_bench, warm=best['values'] if best else None,
                          time_limit=max(left, MIN_PASS_SECONDS), solver=solver,
                          chips_avail=chips_avail, chip_fix=chip_fix)   # C3
         seconds += time.time() - t_start
         history.append(beta)
         if 'plan' not in res:
-            if last is None:                        # nothing found at all
+            if best is None:                        # nothing found at all
                 res['seconds'], res['passes'], res['complete'] = seconds, n_pass, False
                 return res
             complete = False
             break                                   # keep the previous pass
         complete = complete and res['proven']       # a pass stopped by time also changes the later warm starts
-        res['beta'], res['pass'] = beta, n_pass
-        last = res                                  # the next pass starts from this plan
+        res['beta'], res['passes'] = beta, n_pass
+        best = res
         if not use_bench:
-            best = res
             break
         implied = {g: bench_weights(res['plan'][g]['xi'], pos, {i: papp[(i, g)] for i in pool['ids']})
                    for g in horizon}
-        res['beta_implied'] = implied
-        res['beta_change'] = max(abs(implied[g][k] - beta[g][k]) for g in horizon for k in range(3))
-        res['value'] = self_consistent_value(res, pool, horizon, weight, beta, implied)   # M11
-        if best is None or res['value'] >= best['value'] - 1e-9:
-            best = res                              # M11: best plan so far by its own weights
-        if res['beta_change'] <= BENCH_BETA_TOL:
+        best['beta_implied'] = implied
+        best['beta_change'] = max(abs(implied[g][k] - beta[g][k]) for g in horizon for k in range(3))
+        if best['beta_change'] <= BENCH_BETA_TOL:
             break
         beta = implied
-    if use_bench:
-        best['beta_used'], best['beta'] = best['beta'], best['beta_implied']   # M11: numbers with its own weights
-        # M11: objective = value with those weights (the solver's own objective is kept; the gap
-        # belongs to it: no plan is better than objective_solver + gap for the weights solved with)
-        best['objective_solver'], best['objective'] = best['objective'], best['value']
-        best['beta_change'] = last['beta_change']   # did the fixed point settle: change in the LAST pass
-    best['passes'] = len(history)                   # solves done (the kept plan is pass best['pass'])
     best['seconds'], best['beta_history'], best['complete'] = seconds, history, complete
     return best

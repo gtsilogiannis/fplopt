@@ -115,10 +115,10 @@ The options of the run, as given (defaults filled in by the command line).
 | `name` | string | solver used, e.g. `"HiGHS"` (may include its version) |
 | `seconds` | number | solve time of the main plan, all passes |
 | `passes` | int | solves of the bench-weight fixed point (1–3) |
-| `proven` | bool | `true`: the solve of the plan stopped at the gap target (0.05%); `false`: it stopped at the time limit |
+| `proven` | bool | `true`: the last pass stopped at the gap target (0.05%); `false`: it stopped at the time limit |
 | `gap` | number or null | best proven bound minus the plan's objective, in weighted points: the plan is at most this far below the best plan of the model. `null` = bound unknown |
-| `objective` | number | objective of the plan (weighted points over the horizon, hits subtracted, tie-breaks included), with the bench weights of the plan's own XI. The solve that found the plan used the weights of the pass before, so its own objective (to which `gap` belongs) can differ when the weights changed between the passes |
-| `bench_weights_change` | number | largest change of a bench weight in the last pass; above 0.02 the fixed point did not settle (warning `bench_not_converged`). The plan is the pass with the highest expected points with the weights of its own XI, not always the last one |
+| `objective` | number | objective of the plan (weighted points over the horizon, hits subtracted, tie-breaks included) |
+| `bench_weights_change` | number | largest change of a bench weight in the last pass; above 0.02 the fixed point did not settle (warning `bench_not_converged`) |
 
 ### squad
 
@@ -183,7 +183,7 @@ Expected points of the current gameweek, unweighted, split into the terms of the
 | `autosubs` | number | expected points of bench players coming on for starters who do not play (0 with Bench Boost) |
 | `hits` | int | points deducted (4 per paid transfer); subtract it |
 | `total` | number | `xi + captain + vice + autosubs - hits` |
-| `bench_weights` | array of 3 numbers, or null | P(bench slot k is used), k = 1–3, for the XI of the plan; `null` with Bench Boost |
+| `bench_weights` | array of 3 numbers, or null | P(bench slot k is used), k = 1–3; `null` with Bench Boost |
 
 ### chips
 
@@ -293,7 +293,7 @@ must accept codes it does not know; an entry logged without a code has `"code": 
 | `replay_squad_mismatch` | replaying the transfer history does not give the current squad; players without a known purchase price are valued at their current price |
 | `chips` | the API has no chip windows (the built-in 2026/27 windows are used), or a chip is already active for the current gameweek (pass it with `--chip`) |
 | `time_limit` | the solver stopped at the time limit; the plan is valid and `solver.gap` bounds its distance from the best plan |
-| `bench_not_converged` | the bench weights still changed after the last pass; the pass with the highest expected points with its own weights is used |
+| `bench_not_converged` | the bench weights still changed after the last pass; the last plan is used |
 | `chips_not_computed` | the time limit skipped parts of the chip analysis (`chips.not_computed`) |
 | `api_retry` | an API request failed temporarily and was repeated |
 | `cache_unreadable`, `cache_write_failed` | a cache file could not be read (it is downloaded again) or written |
@@ -325,7 +325,7 @@ lookahead 3; arrays shortened):
     "budget": {"total": 99.1, "squad_value": 96.19999999999999, "bank": 2.9, "source": "computed"}
   },
   "solver": {"name": "HiGHS", "seconds": 22.6, "passes": 3, "proven": true,
-             "gap": 0.0686, "objective": 141.952, "bench_weights_change": 0.0},
+             "gap": 0.0686, "objective": 141.832, "bench_weights_change": 0.0},
   "squad": [
     {"id": 214, "name": "P214", "team": 12, "position": "FWD", "cost": 8.5, "xp_now": 6.52,
      "papp_now": 0.878, "xp_horizon": 16.609, "n_matches_now": 1, "role": "Captain",
