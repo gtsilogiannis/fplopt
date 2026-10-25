@@ -265,7 +265,10 @@ Main constraints:
 - **Bench**: the bench GK is valued like the vice-captain; bench slot *k* gets weight
   $\beta_k = P(\text{at least } k \text{ outfield starters do not play})$, computed exactly from
   the starters' appearance probabilities. $\beta$ depends on the chosen XI, so the MILP is
-  re-solved with the new weights (up to 3 passes) until they stop changing.
+  re-solved with the new weights (up to 3 passes) until they stop changing. A pass is not always
+  better than the one before (each is the best plan for the weights it was given, not for those
+  of its own XI), so the plan kept is the pass with the highest expected points with the weights
+  of its own XI; every number printed for it uses those weights.
 - **Chips**: Wildcard and Free Hit switch off the hit constraints for one gameweek (a Free Hit
   squad reverts afterwards); Bench Boost scores the bench; Triple Captain adds the captain once
   more. Products of binary variables are written as continuous variables bounded by both.
@@ -415,7 +418,7 @@ letter gives the area:
 | `X1`–`X10` | xP model: scoring rules, constants, history data, per-match model, `ep_next` fallback, `--explain`, price-dependent prior, club join dates, RMSE as the tuning score |
 | `V1`, `V2` | prediction log and `--mode evaluate` |
 | `S1`–`S5`, `R1`, `R2` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit; **R2** a team created during the season starts like a GW1 team |
-| `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
+| `M1`–`M11` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS; **M11** the bench-weight pass with the best value by its own weights is kept |
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C12` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit) |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
@@ -435,7 +438,7 @@ the current value, then the value at stage 6b. The stages, in the order they wer
 | 6b | multi-period MILP (`M`, `A1`) |
 | 8c | shrinkage of the minutes model |
 | 7 | chips (`C2`–`C11`, `K`) |
-| 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`), chip numbers computed in full (`C12`) |
+| 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`), chip numbers computed in full (`C12`), best bench-weight pass kept (`M11`) |
 
 After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
 change any result.

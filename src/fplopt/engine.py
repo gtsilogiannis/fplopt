@@ -453,8 +453,10 @@ def _optimize(client, opts, warnings):
     log.info(f"[*] Solved with {res['solver']} in {res['seconds']:.1f} s ({res['passes']} pass(es) for the "
              f"bench weights); proven within {gap_txt} weighted points of the best plan of this model")
     if res.get('beta_change', 0.0) > BENCH_BETA_TOL:
+        # M11: the plan kept is the best of the passes by its own bench weights (milp.plan_squad)
         log.info(f"[*] Bench weights still changed by {res['beta_change']:.2f} after {res['passes']} passes "
-                 f"(they depend on the chosen XI); the last plan is used.", extra={'code': 'bench_not_converged'})
+                 f"(they depend on the chosen XI); the pass with the highest expected points with its own "
+                 f"weights is used (pass {res['pass']}).", extra={'code': 'bench_not_converged'})
     if not res['proven']:
         # M7: time limit reached; the plan is feasible and its distance from the best
         # possible plan of this model is at most the gap (weighted points)
