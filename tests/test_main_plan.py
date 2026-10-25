@@ -43,7 +43,7 @@ def test_chip_variable_equals_fixed_formulation_big(main_plan, chip, gw):
     solver stops at the relative gap MIP_REL_GAP, so equality holds within 2 x gap."""
     st = main_plan.state
     pool, hz, w = st.pool, st.horizon, st.weights
-    beta = st.plan_result['beta']
+    beta = st.plan_result['beta_history'][-1]   # weights of the last pass (those of the reference numbers)
     args = (pool, hz, w, st.start_squad, st.budget, st.ft0)
     z_none = solve_plan(*args, beta=beta)['objective']
     z_fix = solve_plan(*args, beta=beta, chip_fix={(chip, gw): 1})['objective']
