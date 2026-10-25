@@ -340,8 +340,9 @@ stored reference run.
   appearances of different players are independent; FPL's `chance_of_playing` is taken at face
   value; free transfers left at the end of the horizon have no value.
 - **Chip suggestions** rest on estimates for future gameweeks made on the current plan's squad.
-  Their exact gains can change by a few tenths between machines, because the chip solves share
-  the remaining time limit and a slower machine can stop the bench-weight passes earlier.
+  A number the time limit would cut short is not shown, so the numbers that are shown are the
+  same on every machine, except that last-digit floating-point differences can pick another of
+  two plans that are equal within the solver's gap target (0.05%).
 - **Optimality** is relative to this model: a proven plan is the best plan *for these xP values*,
   not a guarantee of points.
 - **The FPL API** is undocumented and can change; the program retries temporary failures (4
