@@ -85,3 +85,15 @@ def test_autosub_points_and_absences():
     _, info = score_gw(gw(), POS, mins(zero=[1, 3, 8]), pts(zero=[1, 3, 8]))
     assert (info['out'], info['gk_out']) == (2, 1)      # DEF 3 and MID 8; GK 1
     assert info['sub_points'] == 2 + 12 + 6             # GK 2, MID 12, DEF 6 came on
+
+
+def test_chip_rule_with_a_horizon():
+    """Estimates GW8 5, GW9 4, GW10 3, GW12 9 (window to GW19), exact gain now 2: the code's rule
+    waits for GW12; a rule that looks 3 GWs ahead (GW8-10) plays now; one that looks 5 ahead waits."""
+    from chip_study import rule_now_ok
+    rec = {'gw': 8, 'exact': {'TC': 2.0}, 'est': {'TC': {'8': 5.0, '9': 4.0, '10': 3.0, '12': 9.0}}}
+    assert not rule_now_ok(rec, 'TC', 0.0, 'rule')
+    assert rule_now_ok(rec, 'TC', 0.0, 'rule', horizon=3)
+    assert not rule_now_ok(rec, 'TC', 0.0, 'rule', horizon=5)
+    rec['exact']['TC'] = -1.0                                   # no gain now: never played
+    assert not rule_now_ok(rec, 'TC', 0.0, 'rule', horizon=3)

@@ -82,21 +82,27 @@ def collect(season, lookahead, out_path, first_gw=2, last_gw=38):
 
 
 # --------------------------------------------------------------------------- rules
-def rule_now_ok(rec, c, tol, kind):
-    """Would the rule play chip c at rec['gw'] (before the one-chip-per-GW choice)?"""
+def rule_now_ok(rec, c, tol, kind, horizon=None):
+    """Would the rule play chip c at rec['gw'] (before the one-chip-per-GW choice)?
+    horizon: compare only with the estimates of the next 'horizon' GWs (this one included)
+    instead of those up to the end of the window: the choice of a MILP that may play the chip
+    anywhere in a horizon of that length, where a chip not played inside it is worth 0
+    [assumption: its exact gains are close to these estimates]."""
     ex = rec['exact'].get(c)
     if ex is None:
         return False
     if kind == 'first':                       # play as soon as the exact gain is positive
         return ex > 0
     est = rec['est'].get(c, {})
+    if horizon is not None:
+        est = {g: v for g, v in est.items() if int(g) < rec['gw'] + horizon}
     now = est.get(str(rec['gw']))
     if now is None:
         return False
     return now >= max(est.values()) - tol - 1e-9 and ex > 0   # the code's rule: tol = 0
 
 
-def replay(recs, kind, tol=0.0, force=False):
+def replay(recs, kind, tol=0.0, force=False, horizon=None):
     """Replays one rule over one season. Returns {(window, chip): (gw or None, real gain, exact)}."""
     by_gw = {r['gw']: r for r in recs}
     out = {}
@@ -106,7 +112,7 @@ def replay(recs, kind, tol=0.0, force=False):
             rec = by_gw.get(t)
             if rec is None or not left:
                 continue
-            ok = [c for c in left if rule_now_ok(rec, c, tol, kind)]
+            ok = [c for c in left if rule_now_ok(rec, c, tol, kind, horizon)]
             if force and not ok and len(left) >= w1 - t + 1:   # as many chips left as GWs: play one now
                 ok = [c for c in left if c in rec['exact']]
             if kind == 'last':
@@ -146,7 +152,9 @@ RULES = [('code rule (tol 0)', dict(kind='rule', tol=0.0)),
          ('tol 2', dict(kind='rule', tol=2.0, force=True)),
          ('tol 3', dict(kind='rule', tol=3.0, force=True)),
          ('first positive', dict(kind='first')),
-         ('last GWs of window', dict(kind='last'))]
+         ('last GWs of window', dict(kind='last')),
+         ('best of next 3 GWs', dict(kind='rule', horizon=3)),    # what a joint chip MILP with
+         ('best of next 5 GWs', dict(kind='rule', horizon=5))]    # lookahead 3 / 5 would decide
 
 
 def evaluate(paths):
