@@ -318,6 +318,25 @@ How to read it:
 
 Live comparisons with the real `ep_next` come from `--mode evaluate` during the season.
 
+### Fixture congestion
+
+`scripts/check_congestion.py` tests whether the minutes model misses rotation after midweek
+matches outside the Premier League (Champions League, Europa League, Conference League, FA Cup,
+EFL Cup). The fixtures come from [openfootball](https://github.com/openfootball) (public domain);
+2024/25 is the only season it covers in full. For every player in every league match, the residual
+(actual − predicted) of P(appear) and P(60+) is compared between matches that came ≤ 4 days after
+a match outside the league and matches with ≥ 6 days of rest, with standard errors clustered by
+team and match. The rule, fixed before the run, was to model the effect only above 2 standard errors.
+
+| 2024/25 (12,542 player-matches) | difference | s.e. |
+|---|---|---|
+| P(appear) residual | −0.008 | 0.006 |
+| P(60+) residual | −0.003 | 0.006 |
+
+No group of players (regular starters, rotation players, each position) passes 2 standard errors,
+so congestion is not in the model: the recent-weighted appearance history already reflects how a
+club rotates.
+
 ### Tests
 
 `pytest` runs 101 fast tests (10–20 s) on a synthetic season, with no network: the MILP on
@@ -331,8 +350,9 @@ stored reference run.
 - **xP calibration.** The highest predictions are too high: players predicted above 6 points
   scored 0.6–0.9 less on average, and players over £10m are over-predicted by 0.7–1.1 points per
   gameweek from GW9 on. This affects the captain choice.
-- **Not modelled:** own goals, penalty saves and misses; fixture congestion and minutes in other
-  competitions; price changes within the horizon (prices are constant).
+- **Not modelled:** own goals, penalty saves and misses; minutes in other competitions; price
+  changes within the horizon (prices are constant). Fixture congestion was measured and left out
+  (see [Fixture congestion](#fixture-congestion)).
 - **Assumptions:** the weight 0.85 per gameweek ahead; the matches of a double gameweek and the
   appearances of different players are independent; FPL's `chance_of_playing` is taken at face
   value; free transfers left at the end of the horizon have no value.
@@ -400,7 +420,8 @@ python scripts/chip_study.py evaluate chips_2425.jsonl chips_2526.jsonl
 Other scripts: `check_minutes.py` (calibration of the minutes model), `check_papp.py`
 (appearance probability only), `bench_solver.py` (solver timing on a 700-player synthetic
 season), `bench_chip_solve.py` (time of Wildcard and Free Hit plans on squads saved by
-`backtest_season.py --save-gws`).
+`backtest_season.py --save-gws`), `check_congestion.py` (fixture congestion against the minutes
+model; needs clones of `openfootball/england` and `openfootball/champions-league`).
 
 ### Tags in the comments
 
@@ -413,7 +434,7 @@ letter gives the area:
 | `A`, `B`, `C`, `D`, `E` | first fixes of the original version: **A** an unavailable player you own stays in the pool (his price counts in the budget and he can be sold); **B** the −4 cost of each hit; **C** the solver status is checked; **D** binary variables are read safely from floats (`> 0.5`, not `== 1`); **E** a bonus based on transfer trends was removed from the xP |
 | `G1`–`G4` | xP per gameweek: horizon as a list of gameweeks, double and blank gameweeks, output |
 | `H` | the optional cap on hits (`--max-hits`) |
-| `X1`–`X10` | xP model: scoring rules, constants, history data, per-match model, `ep_next` fallback, `--explain`, price-dependent prior, club join dates, RMSE as the tuning score |
+| `X1`–`X11` | xP model: scoring rules, constants, history data, per-match model, `ep_next` fallback, `--explain`, price-dependent prior, club join dates, RMSE as the tuning score; **X11** fixture congestion study (`scripts/check_congestion.py`, no effect found, not in the model) |
 | `V1`, `V2` | prediction log and `--mode evaluate` |
 | `S1`–`S5`, `R1`, `R2` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit; **R2** a team created during the season starts like a GW1 team |
 | `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
