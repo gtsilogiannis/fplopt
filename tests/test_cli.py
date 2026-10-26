@@ -29,6 +29,10 @@ def run_cli(argv, capsys):
     (['--team', '1', '--override-budget', '-5'], "--override-budget must be a positive amount"),
     (['--team', '1', '--chip', 'AUTO'], "invalid choice: 'AUTO'"),
     (['--team', 'abc'], "invalid int value: 'abc'"),
+    (['--team', '1', '--check-gw', '9'], "--check-gw and --captain are used only with --check."),
+    (['--team', '1', '--captain', '5'], "--check-gw and --captain are used only with --check."),
+    (['--team', '1', '--check', 'TC', '--captain', '5', '--check-gw', '40'], "--check-gw must be between 1 and 38."),
+    (['--team', '1', '--check', 'WC'], "invalid choice: 'WC'"),
     (['--mode', 'evaluate'], "Evaluation mode requires target Gameweek"),
     (['--mode', 'evaluate', '--gw', '39'], "--gw must be between 1 and 38."),
 ])
@@ -67,6 +71,8 @@ def test_optimize_json(cli_client, capsys, monkeypatch, tmp_path):
     assert roles.count('Captain') == 1 and roles.count('Vice') == 1 and roles.count('Bench') == 4
     assert [p['bench_order'] for p in doc['squad'] if p['role'] == 'Bench'] == [0, 1, 2, 3]
     assert doc['chips']['status'] == 'skipped_flag'
+    assert doc['decision_check'] is None                        # no --check
+    assert (doc['input']['check'], doc['input']['check_gw'], doc['input']['captain']) == (None, None, None)
     assert doc['warnings'] == []
     assert doc['predictions_log'] == 'predictions_log.csv' and (tmp_path / 'predictions_log.csv').is_file()
     assert "[*] Solved with" in err             # progress stays on stderr
@@ -90,6 +96,53 @@ def test_optimize_text(cli_client, capsys, monkeypatch, tmp_path):
     assert " SQUAD PLAN | GW8 (horizon: GW8-GW8)" in out and "   Skipped (--no-chip-report)." in out
     assert not any(ln.startswith('[*]') for ln in out.splitlines())
     assert err.splitlines()[0] == "[*] MILP Optimizer | Team: 1 | Lookahead: 1 GWs"
+
+
+CHECK = ['--team', '1', '--lookahead', '1', '--no-chip-report', '--no-log']
+
+
+def test_check_tc_json(cli_client, capsys, season):
+    """--check TC on an owned forward: one 'decision_check' object with every field of the schema."""
+    cli_client()
+    cap = build_manager(season)['truth'][0][14]
+    status, out, err = run_cli(CHECK + ['--check', 'TC', '--captain', str(cap), '--json'], capsys)
+    assert status == 0
+    doc = json.loads(out)
+    d = doc['decision_check']
+    assert (doc['input']['check'], doc['input']['captain']) == ('TC', cap)
+    assert (d['status'], d['chip'], d['gw'], d['captain']['id']) == ('computed', 'TC', 8, cap)
+    assert d['g'] + d['r'] == pytest.approx(d['gain_action'], abs=1e-9)
+    assert set(d['objective']) == set(d['gaps']) == set(d['points_gw']) == {'no_chip', 'best', 'decision'}
+    assert d['decision']['captain'] == d['captain'] and d['decision']['chip'] == 'TC'
+    assert [e['gw'] for e in d['timing']['estimates']] == list(range(8, 20))
+    assert isinstance(d['timing']['is_best'], bool) and len(d['verdict']) >= 1
+    assert d['not_computed'] == [] and d['violations'] == []
+    assert "[*] Decision check: TC GW8:" in err
+
+
+def test_check_bb_text(cli_client, capsys):
+    cli_client()
+    status, out, _ = run_cli(CHECK + ['--check', 'BB'], capsys)
+    assert status == 0
+    assert " DECISION CHECK | BB in GW8" in out
+    assert "R = best BB - your decision:      0 (Bench Boost leaves nothing to choose)" in out
+    assert ">> Verdict: " in out
+    assert out.index(" DECISION CHECK") < out.index(" CHIP SUGGESTIONS")   # after the plan, before the chips
+
+
+def test_check_invalid_text_and_json(monkeypatch, season, capsys):
+    """TC already played: exit 0 (the plan is still given), the reason in the text and in the JSON."""
+    manager = build_manager(season)
+    manager['chips'].append({'name': '3xc', 'event': 3})
+    monkeypatch.setattr(cli, 'FplClient', lambda base_url, **kw: FakeClient(FakeApi(season, manager)))
+    status, out, _ = run_cli(CHECK + ['--check', 'TC', '--captain', '1'], capsys)
+    assert status == 0
+    assert "   Invalid: TC cannot be played in GW8: GW1-19 played GW3, GW20-38 available." in out
+    assert ">> Verdict: this decision is not allowed by the rules of the game." in out
+    status, out, _ = run_cli(CHECK + ['--check', 'TC', '--captain', '1', '--json'], capsys)
+    d = json.loads(out)['decision_check']
+    assert (d['status'], d['violations'][0]['code']) == ('invalid', 'chip_unavailable')
+    assert d['g'] is None and d['timing'] is None                 # nothing solved
 
 
 class NotFoundClient(FakeClient):

@@ -167,3 +167,37 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
         out['status'] = 'not_computed'
     out['seconds'] = time.time() - t_start
     return out
+
+
+VERDICTS = {   # code -> meaning (the text output and docs/json-output.md use the same wording)
+    'worse_than_none': "worse than not playing the chip: G is below 0 by more than the solver gaps",
+    'no_clear_gain': "no gain beyond the solver gaps: G is within them around 0",
+    'better_gw': "a later or earlier GW of the window has a higher estimate for the chip",
+    'better_version': "the same chip with another choice (the model's captain) gains more: R is above 0 "
+                      "by more than the solver gaps",
+    'agrees': "the decision gains, the GW is the best of the window and no better version exists",
+}
+
+
+def verdict(res):
+    """Section 0.4 of the spec: the verdict follows from the numbers, with no new constant (only the
+    gap bounds and the timing rule C10). Returns a list of codes of VERDICTS, or [] when a number it
+    needs was not computed (C12: no verdict from part of the numbers)."""
+    if res.get('g_low') is None or res.get('g_high') is None:
+        return []
+    if res['g_high'] < 0:
+        return ['worse_than_none']
+    out = []
+    if res['g_low'] <= 0:
+        out.append('no_clear_gain')
+    timing = res.get('timing')
+    if timing is not None:
+        if timing['is_best'] is None:
+            return []                                  # timing incomplete -> no verdict
+        if not timing['is_best']:
+            out.append('better_gw')
+    if res.get('r_low') is None:
+        return []
+    if res['r_low'] > 0:
+        out.append('better_version')
+    return out or ['agrees']
