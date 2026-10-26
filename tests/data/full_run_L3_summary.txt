@@ -1,34 +1,37 @@
-FPL plan for GW8 - deadline Sat 3 Oct, 10:00 (your time)
+FPL plan for GW8
+Deadline: Sat 3 Oct, 10:00 (your time)
 
-TRANSFERS  (3 free transfers - 2 extra transfer(s): -8 points)
-  Sell P153 -> buy P30    same price
-  Sell P189 -> buy P47    frees £1.3m
-  Sell P231 -> buy P108   frees £0.4m
-  Sell P321 -> buy P214   costs £2.0m more
-  Sell P267 -> buy P360   costs £1.6m more
-  Bank: £2.9m now, £1.0m after.
-  Selling P189 is what makes the other purchases fit your budget.
-  Compared with making no transfer: +7.4 expected points this gameweek,
-  +13.1 over GW8-GW10 (3 gameweeks).
+== TRANSFERS ==
+Free transfers:      3 (2 extra transfers: -8 points)
+  P153 -> P30    (same price)
+  P189 -> P47    (+£1.3m)
+  P231 -> P108   (+£0.4m)
+  P321 -> P214   (-£2.0m)
+  P267 -> P360   (-£1.6m)
+Bank:                £2.9m now -> £1.0m after
+Selling P189 is what makes the other purchases fit your budget.
+Gain vs no transfer: +7.4 points this gameweek, +13.1 over GW8-GW10
 
-CAPTAIN       P214 (expected about 7 points, doubled)
-VICE-CAPTAIN  P108
+== CAPTAINS ==
+C:  P214 (about 7 expected points, doubled)
+VC: P108
 
-STARTING XI (3-4-3)
-  GK   P19
-  DEF  P39, P57, P327
-  MID  P30, P47, P171, P297
-  FWD  P108, P214, P360
-BENCH (in this order)
-  P1 (GK), P207, P75, P111
+== STARTING XI (3-4-3) ==
+GK:    P19
+DEF:   P39, P57, P327
+MID:   P30, P47, P171, P297
+FWD:   P108, P214, P360
+Bench: P1 (GK), 1. P207, 2. P75, 3. P111
 
-CHIPS  No chip this gameweek.
-  Bench Boost: keep it. Now about +2.8, best in GW18 (+3.4).
-  Triple Captain: keep it. Now about +7.3, best in GW17 (+7.5).
-  Chip gains are estimates: differences of a few tenths are within the
-  model's error.
+== CHIPS ==
+Suggested:      no chip this gameweek
+Bench Boost:    keep it (now +2.8, best GW18: +3.4)
+Triple Captain: keep it (now +7.3, best GW17: +7.5)
+Chip gains are estimates: differences of a few tenths are within the
+model's error.
 
-EXPECTED POINTS  about 49 this gameweek
-  (in 8 of 10 gameweeks: between 24 and 73)
+== EXPECTED POINTS ==
+About 49 this gameweek
+In 8 of 10 gameweeks: between 24 and 73
 
 Full numbers: run again with --details

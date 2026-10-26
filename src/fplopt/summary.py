@@ -95,51 +95,50 @@ def _transfers(r, pg):
     }
 
 
-def _transfer_lines(r, t, chip):
+def _transfer_rows(r, t, chip):
+    """Rows of the TRANSFERS section for _layout(): (label, value), (None, sentence) or ('', raw line)."""
     g0 = r.current_gw
-    out = []
     if chip in ('WC', 'FH'):
-        out.append(f"TRANSFERS  {CHIP_NAME[chip]}: unlimited free transfers this gameweek")
+        rows = [('Free transfers', f"unlimited ({CHIP_NAME[chip]})")]
         if t['moves']:
-            out.append("  Sell: " + ", ".join(m['out']['name'] for m in t['moves']))
-            out.append("  Buy:  " + ", ".join(m['in']['name'] for m in t['moves']))
+            rows += [('Sell', ", ".join(m['out']['name'] for m in t['moves'])),
+                     ('Buy', ", ".join(m['in']['name'] for m in t['moves']))]
         if chip == 'FH':
-            out.append(f"  After GW{g0} your squad goes back to the one you have now.")
-        return out
+            rows.append((None, f"After GW{g0} your squad goes back to the one you have now."))
+        return rows
     if t['unlimited']:
-        out.append("TRANSFERS  unlimited this gameweek (your first deadline): build the squad below")
-        return out
+        return [('Free transfers', "unlimited (your first deadline): build the squad below")]
+    ft = t['free_transfers']
     if not t['moves']:
-        ft = t['free_transfers']
         if ft is not None and ft >= MAX_FT:
-            out.append(f"TRANSFERS  none. You already hold {MAX_FT} free transfers, the most you can keep:")
-            out.append("  one is lost if you make no transfer.")
-        elif ft is not None:
-            out.append(f"TRANSFERS  none. Save your free transfer: you will have {ft + 1} next gameweek.")
-        else:
-            out.append("TRANSFERS  none this gameweek.")
-        return out
-    n_ft, hits = t['free_transfers'], t['hits']
-    cost_txt = "no points cost" if hits == 0 else f"{hits} extra transfer(s): -{t['hit_points']} points"
-    out.append(f"TRANSFERS  ({n_ft} free transfer{'s' if n_ft != 1 else ''} - {cost_txt})")
-    w = max(len(m['out']['name']) for m in t['moves'])
+            return [('Free transfers', str(ft)),
+                    (None, f"No transfer this gameweek: {MAX_FT} is the most you can keep, so one is lost.")]
+        if ft is not None:
+            return [('Free transfers', str(ft)),
+                    (None, f"No transfer this gameweek: you will have {ft + 1} next gameweek.")]
+        return [(None, "No transfer this gameweek.")]
+    hits = t['hits']
+    cost = "no points cost" if hits == 0 else \
+        f"{hits} extra transfer{'s' if hits != 1 else ''}: -{t['hit_points']} points"
+    rows = [('Free transfers', f"{ft} ({cost})")]
+    w = max(len(m['out']['name']) for m in t['moves'])        # dynamic columns: the longest name sets them
     v = max(len(m['in']['name']) for m in t['moves'])
     for m in t['moves']:
         d = m['money']
-        price = "" if d is None else ("same price" if d == 0 else
-                                      (f"frees {money(d)}" if d > 0 else f"costs {money(d)} more"))
-        out.append(f"  Sell {m['out']['name']:<{w}} -> buy {m['in']['name']:<{v}}   {price}".rstrip())
+        # money of the move: '-' = you pay more than the sale returns, '+' = money left over
+        price = "" if d is None else ("(same price)" if d == 0 else f"({'+' if d > 0 else '-'}{money(d)})")
+        rows.append(('', f"  {m['out']['name']:<{w}} -> {m['in']['name']:<{v}}   {price}".rstrip()))
     if t['bank_before'] is not None and t['bank_after'] is not None:
-        out.append(f"  Bank: {money(t['bank_before'])} now, {money(t['bank_after'])} after.")
+        rows.append(('Bank', f"{money(t['bank_before'])} now -> {money(t['bank_after'])} after"))
     payers = [m['out']['name'] for m in t['moves'] if m['pays_for_others']]
     if payers:
-        out += _wrap(f"Selling {' and '.join(payers)} is what makes the other purchases fit your budget.")
+        rows.append((None, f"Selling {' and '.join(payers)} is what makes the other purchases fit your budget."))
     vs = t['vs_no_transfer']
     if vs is not None:
         h = r.horizon
-        out += _wrap(f"Compared with making no transfer: {signed(vs['this_gw'])} expected points this "
-                     f"gameweek, {signed(vs['next_gws'])} over GW{h[0]}-GW{h[-1]} ({vs['n_gws']} gameweeks).")
-    return out
+        rows.append(('Gain vs no transfer', f"{signed(vs['this_gw'])} points this gameweek, "
+                                            f"{signed(vs['next_gws'])} over GW{h[0]}-GW{h[-1]}"))
+    return rows
 
 
 # --------------------------------------------------------------------------- chips
@@ -163,36 +162,36 @@ def _chips(r):
     return res
 
 
-def _chip_lines(r, ch):
+def _chip_rows(r, ch):
+    """Rows of the CHIPS section for _layout(); [] = no section (--no-chip-report)."""
     g0 = r.current_gw
     if ch['status'] == 'skipped_flag':
         return []
     if ch['playing'] is not None:
-        return [f"CHIPS  You are playing {CHIP_NAME[ch['playing']]} in GW{g0}: the plan above uses it."]
+        return [(None, f"You are playing {CHIP_NAME[ch['playing']]} in GW{g0}: the plan above uses it.")]
     if ch['status'] == 'no_chip_now':
-        return [f"CHIPS  No chip can be played in GW{g0}."]
-    out = []
+        return [(None, f"No chip can be played in GW{g0}.")]
+    rows = []
     if ch['play'] is not None:
-        name = CHIP_NAME[ch['play']['chip']]
-        out.append(f"CHIPS  Suggested: {name} this gameweek (gain about {signed(ch['play']['gain'])}).")
-        out += _wrap(f"The plan above does not use it. To see the plan with the {name}, run again "
-                     f"with --chip {ch['play']['chip']}.", indent=4)
+        cp = ch['play']['chip']
+        rows.append(('Suggested', f"{CHIP_NAME[cp]} this gameweek ({signed(ch['play']['gain'])} points). "
+                                  f"The plan above does not use it: run again with --chip {cp} to see it."))
         if ch['also']:
-            out += _wrap("Also good now: " + ", ".join(CHIP_NAME[c] for c in ch['also'])
-                         + " (only one chip per gameweek).", indent=4)
+            rows.append(('Also good now', ", ".join(CHIP_NAME[c] for c in ch['also'])
+                         + " (only one chip per gameweek)"))
     else:
-        out.append("CHIPS  No chip this gameweek.")
+        rows.append(('Suggested', "no chip this gameweek"))
     for h in ch['hold']:
-        now = f"Now about {signed(h['now'])}, best" if h['now'] is not None else "Best"
-        out += _wrap(f"{CHIP_NAME[h['chip']]}: keep it. {now} in GW{h['best_gw']} ({signed(h['best'])}).")
+        now = f"now {signed(h['now'])}, " if h['now'] is not None else ""
+        rows.append((CHIP_NAME[h['chip']], f"keep it ({now}best GW{h['best_gw']}: {signed(h['best'])})"))
     if ch['wildcard_now'] is not None:
-        out += _wrap(f"Wildcard: gain now about {signed(ch['wildcard_now'])}; later gameweeks are not "
-                     f"estimated, so the timing is your call.")
+        rows.append(('Wildcard', f"now {signed(ch['wildcard_now'])}; later gameweeks are not estimated, "
+                                 f"so the timing is your call"))
     for cp in ch['no_advice']:
-        out += _wrap(f"{CHIP_NAME[cp]}: no advice (not enough time; see below).")
+        rows.append((CHIP_NAME[cp], "no advice (not enough time; see below)"))
     if ch['play'] is not None or ch['hold'] or ch['wildcard_now'] is not None:
-        out += _wrap(NOISE)
-    return out
+        rows.append((None, NOISE))
+    return rows
 
 
 # --------------------------------------------------------------------------- alerts
@@ -227,8 +226,20 @@ def _alerts(r):
 
 
 # --------------------------------------------------------------------------- whole summary
-def _wrap(text, indent=2):
-    return textwrap.wrap(text, WIDTH, initial_indent=" " * indent, subsequent_indent=" " * indent)
+def _layout(title, rows):
+    """One section: '== TITLE ==', then its rows. (label, value) -> 'label: value' with every value of
+    the section in one column (the longest label sets it; a long value wraps under that column);
+    (None, sentence) -> the sentence wrapped from the left margin; ('', line) -> the line as it is."""
+    w = max((len(lb) for lb, _ in rows if lb), default=0) + 2          # 'label:' plus one space
+    out = [f"== {title} =="]
+    for label, value in rows:
+        if label == '':
+            out.append(value)                                          # pre-aligned (transfer moves)
+        elif label is None:
+            out += textwrap.wrap(value, WIDTH)
+        else:
+            out += textwrap.wrap(value, WIDTH, initial_indent=f"{label}:".ljust(w), subsequent_indent=" " * w)
+    return out
 
 
 def build_summary(r, tz=None):
@@ -268,34 +279,33 @@ def build_summary(r, tz=None):
             t.append("plays twice this gameweek")
         return f"{row.name} ({', '.join(t)})" if t else row.name
 
-    head = f"FPL plan for GW{g0}"
+    lines = [f"FPL plan for GW{g0}"]
     if deadline:
-        head += f" - deadline {format_deadline(deadline, tz)} (your time)"
-    lines = [head, ""]
-    lines += _transfer_lines(r, s['transfers'], chip)
-    lines.append("")
+        lines.append(f"Deadline: {format_deadline(deadline, tz)} (your time)")
+    lines += [""] + _layout("TRANSFERS", _transfer_rows(r, s['transfers'], chip))
     mult = "tripled (Triple Captain)" if chip == 'TC' else "doubled"
-    lines.append(f"CAPTAIN       {cap.name} (expected {about(cap.xp_now)} points, {mult})")
+    caps = [('C', f"{cap.name} ({about(cap.xp_now)} expected points, {mult})")]
     if s['vice'] is not None:
-        lines.append(f"VICE-CAPTAIN  {s['vice']['name']}")
-    lines.append("")
+        caps.append(('VC', s['vice']['name']))
+    lines += [""] + _layout("CAPTAINS", caps)
     n = {p: len(lineup[p]) for p in ('DEF', 'MID', 'FWD')}
-    lines.append(f"STARTING XI ({n['DEF']}-{n['MID']}-{n['FWD']})")
-    for p in ('GK', 'DEF', 'MID', 'FWD'):
-        names = ", ".join(tag(x) for x in xi if x.position == p)
-        lines += textwrap.wrap(f"{p:<4} {names}", WIDTH, initial_indent="  ", subsequent_indent=" " * 7)
-    lines.append("BENCH (in this order)" + (" - Bench Boost: they all score" if chip == 'BB' else ""))
-    lines += _wrap(", ".join(tag(b) + (" (GK)" if b.pos_id == 1 else "") for b in bench))
-    chip_lines = _chip_lines(r, s['chip'])
-    if chip_lines:
-        lines += [""] + chip_lines
+    xi_rows = [(p, ", ".join(tag(x) for x in xi if x.position == p)) for p in ('GK', 'DEF', 'MID', 'FWD')]
+    # bench in its order: the GK first (his own slot), then outfield slots 1-3
+    names = [tag(b) + " (GK)" if b.pos_id == 1 else f"{b.bench_slot}. {tag(b)}" for b in bench]
+    xi_rows.append(('Bench', ", ".join(names)))
+    if chip == 'BB':
+        xi_rows.append((None, "Bench Boost: the bench players score too."))
+    lines += [""] + _layout(f"STARTING XI ({n['DEF']}-{n['MID']}-{n['FWD']})", xi_rows)
+    chip_rows = _chip_rows(r, s['chip'])
+    if chip_rows:
+        lines += [""] + _layout("CHIPS", chip_rows)
     lo, hi = s['expected_range']
-    lines += ["", f"EXPECTED POINTS  {about(total)} this gameweek",
-              f"  (in 8 of 10 gameweeks: between {half_up(lo)} and {half_up(hi)})"]
+    lines += [""] + _layout("EXPECTED POINTS", [(None, f"About {half_up(total)} this gameweek"),
+                                                ('In 8 of 10 gameweeks', f"between {half_up(lo)} and {half_up(hi)}")])
     if s['alerts']:
-        lines += ["", "BEFORE YOU DECIDE"]
+        lines += ["", "== BEFORE YOU DECIDE =="]
         for a in s['alerts']:
-            lines += _wrap(a['message'])
+            lines += textwrap.wrap(a['message'], WIDTH, initial_indent="! ", subsequent_indent="  ")
     lines += ["", "Full numbers: run again with --details"]
     s['text'] = lines
     return s

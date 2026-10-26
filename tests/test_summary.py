@@ -30,6 +30,11 @@ def text(s):
     return "\n".join(s['text'])
 
 
+def flat(s):
+    """The text with every run of spaces and line breaks made one space (alignment and wrapping)."""
+    return " ".join(text(s).split())
+
+
 def with_chips(r, **kw):
     """The result with a hand-made chip section (status 'computed' unless given)."""
     return replace(r, chips=ChipSection(**dict(dict(source='API', sets=[], status='computed'), **kw)))
@@ -84,16 +89,17 @@ def test_fields_equal_their_sources(plain):
 # --------------------------------------------------------------------------- S3: text = fields
 def test_text_numbers_equal_fields(plain):
     s = build_summary(plain)
-    x = text(s)
+    x, f = text(s), flat(s)
     lo, hi = s['expected_range']
-    assert f"EXPECTED POINTS  about {half_up(s['expected_points'])} this gameweek" in x
-    assert f"between {half_up(lo)} and {half_up(hi)}" in x
-    assert f"(expected about {half_up(s['captain']['expected_points'])} points" in x
+    assert f"About {half_up(s['expected_points'])} this gameweek" in x
+    assert f"In 8 of 10 gameweeks: between {half_up(lo)} and {half_up(hi)}" in f
+    assert f"C: {s['captain']['name']} (about {half_up(s['captain']['expected_points'])} expected points" in f
+    assert f"VC: {s['vice']['name']}" in f
     t = s['transfers']
     if t['moves']:
-        assert f"Bank: £{t['bank_before']:.1f}m now, £{t['bank_after']:.1f}m after." in x
+        assert f"Bank: £{t['bank_before']:.1f}m now -> £{t['bank_after']:.1f}m after" in f
         for m in t['moves']:
-            assert re.search(rf"Sell {m['out']['name']} +-> buy {m['in']['name']}\b", x)
+            assert re.search(rf"^  {m['out']['name']} +-> {m['in']['name']}\b", x, re.M)
     assert x.endswith("Full numbers: run again with --details")
 
 
@@ -123,20 +129,24 @@ def test_no_technical_words(plain):
 def test_no_transfer_saves_it(plain):
     pg = plain.plan[0]
     r = replace(plain, plan=[replace(pg, transfers=[], hits=0, ft=2)] + plain.plan[1:])
-    assert "Save your free transfer: you will have 3 next gameweek." in text(build_summary(r))
+    assert "No transfer this gameweek: you will have 3 next gameweek." in flat(build_summary(r))
     r = replace(plain, plan=[replace(pg, transfers=[], hits=0, ft=MAX_FT)] + plain.plan[1:])
-    assert f"You already hold {MAX_FT} free transfers" in text(build_summary(r))
+    assert f"{MAX_FT} is the most you can keep, so one is lost." in flat(build_summary(r))
 
 
 def test_chip_texts(plain):
     r = with_chips(plain, window={'FH': 19, 'TC': 19}, exact={'FH': 1.76, 'TC': 10.82},
                    advice=advice('FH', holds=[('TC', 10.82, 16, 11.0, 19)]))
     s = build_summary(r)
-    x = text(s)
-    assert "Suggested: Free Hit this gameweek (gain about +1.8)." in x
-    assert "--chip FH" in x and "does not use it" in x                     # the plan shown is without it
-    assert "Triple Captain: keep it. Now about +10.8, best in GW16 (+11.0)." in x
-    assert "within the model's error" in " ".join(x.split())              # the sentence may wrap
+    x = flat(s)
+    assert "Suggested: Free Hit this gameweek (+1.8 points)." in x
+    assert "does not use it: run again with --chip FH to see it." in x     # the plan shown is without it
+    assert "Triple Captain: keep it (now +10.8, best GW16: +11.0)" in x
+    assert "within the model's error" in x
+    # one value column per section: the values start at the same position after labels of any length
+    lines = [ln for ln in s['text'] if ln.startswith(('Suggested:', 'Triple Captain:'))]
+    starts = {len(ln) - len(ln.split(':', 1)[1].lstrip()) for ln in lines}
+    assert len(lines) == 2 and starts == {len("Triple Captain: ")}
     assert s['chip']['play'] == {'chip': 'FH', 'gain': 1.76}
     x = text(build_summary(replace(with_chips(plain, status='skipped_chip'), options=replace(plain.options, chip='TC'))))
     assert "the plan above uses it" in x
@@ -187,5 +197,5 @@ def test_deadline_ignores_the_locale():
 def test_header_with_deadline(plain):
     r = replace(plain)
     r.deadline = "2026-10-31T11:00:00Z"        # the engine sets it from step 2 of 15c
-    assert build_summary(r, tz=ZoneInfo("Europe/Athens"))['text'][0] == \
-        "FPL plan for GW8 - deadline Sat 31 Oct, 13:00 (your time)"
+    assert build_summary(r, tz=ZoneInfo("Europe/Athens"))['text'][:2] == \
+        ["FPL plan for GW8", "Deadline: Sat 31 Oct, 13:00 (your time)"]

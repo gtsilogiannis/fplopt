@@ -71,7 +71,7 @@ def test_no_gain_without_the_option(season):
 def test_deadline_of_the_current_gw(season, plain):
     event = next(e for e in season.events if e['id'] == plain.current_gw)
     assert plain.deadline == event['deadline_time']
-    assert build_summary(plain)['text'][0].startswith(f"FPL plan for GW{plain.current_gw} - deadline ")
+    assert build_summary(plain)['text'][1].startswith("Deadline: ")
 
 
 def test_selling_value_range(season, plain, messages):
@@ -92,20 +92,19 @@ def test_selling_value_range(season, plain, messages):
 def test_summary_text_has_the_gain(plain):
     nt = plain.no_transfer
     x = " ".join("\n".join(build_summary(plain)['text']).split())
-    assert f"Compared with making no transfer: {nt['this_gw']:+.1f} expected points this gameweek" in x
+    assert f"Gain vs no transfer: {nt['this_gw']:+.1f} points this gameweek" in x
 
 
 @pytest.mark.parametrize("chip, expected", [
-    ('TC', ["CHIPS  You are playing Triple Captain in GW8: the plan above uses it.", "tripled (Triple Captain)"]),
-    ('BB', ["Bench Boost: they all score"]),
-    ('WC', ["TRANSFERS  Wildcard: unlimited free transfers this gameweek"]),
-    ('FH', ["TRANSFERS  Free Hit: unlimited free transfers this gameweek",
-            "After GW8 your squad goes back to the one you have now."]),
+    ('TC', ["You are playing Triple Captain in GW8: the plan above uses it.", "tripled (Triple Captain)"]),
+    ('BB', ["Bench Boost: the bench players score too."]),
+    ('WC', ["Free transfers: unlimited (Wildcard)", "Sell: ", "Buy: "]),
+    ('FH', ["Free transfers: unlimited (Free Hit)", "After GW8 your squad goes back to the one you have now."]),
 ])
 def test_summary_with_a_chip_played(season, chip, expected):
     """--chip: the summary says the plan uses it; WC/FH list sales and buys, no 'no transfer' solve."""
     r = run(season, chip=chip, chip_report=True)
-    x = "\n".join(build_summary(r)['text'])
+    x = " ".join("\n".join(build_summary(r)['text']).split())
     for e in expected:
         assert e in x
     if chip in ('WC', 'FH'):
