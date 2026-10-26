@@ -91,9 +91,13 @@ def print_decision(r, out):
         print(line, file=out)
 
     d = r.decision
-    who = f" on {d.captain_name}" if d.captain_id is not None else ""
     p("\n" + "=" * 84)
-    p(f" DECISION CHECK | {d.chip}{who} in GW{d.gw}")
+    if d.chip == 'TRANSFERS':
+        moves = ", ".join(f"{d.names[o]} -> {d.names[i]}" for o, i in zip(d.transfers_out, d.transfers_in))
+        p(f" DECISION CHECK | transfers in GW{d.gw}: {moves}")
+    else:
+        who = f" on {d.captain_name}" if d.captain_id is not None else ""
+        p(f" DECISION CHECK | {d.chip}{who} in GW{d.gw}")
     p("=" * 84)
     if d.status == 'invalid':
         for v in d.violations:
@@ -101,6 +105,9 @@ def print_decision(r, out):
         p(">> Verdict: this decision is not allowed by the rules of the game.")
         return
     x = d.result
+    if d.chip == 'TRANSFERS':
+        _print_transfers(r, d, x, p)
+        return
     hz = f"GW{r.horizon[0]}-GW{r.horizon[-1]}"
     p(f"   Expected points over {hz}, weighted as in the plan; the transfers after GW{d.gw} stay free:")
     p(f"      G = your decision - no {d.chip}:      {_signed(x['g'], x['g_low'], x['g_high'])}")
@@ -122,9 +129,15 @@ def print_decision(r, out):
         est = t['estimates']
         top = max(est.values()) if est else None
         cells = [f"GW{g} {v:+.1f}{'*' if v == top else ''}" for g, v in sorted(est.items())]
-        p(f"   {d.chip} estimates by GW (squad of the plan, best captain; * = highest to GW{t['window_end']}):")
+        how = "squad of the plan, best captain" if d.chip == 'TC' else "squad of the plan"
+        p(f"   {d.chip} estimates by GW ({how}; * = highest to GW{t['window_end']}):")
         for k in range(0, len(cells), 8):                 # 8 GWs per line, as in the chip section
             p("      " + "  ".join(cells[k:k + 8]))
+    _print_tail(d, x, p)
+
+
+def _print_tail(d, x, p):
+    """Notes, what was not computed, the verdict and the reminder of the model's error."""
     for n in d.notes:
         p(f"   Note: {n['message']}.")
     if x['not_computed']:
@@ -136,8 +149,42 @@ def print_decision(r, out):
     p("   Expected points of the model (xP error ~2.5 per player-GW): differences of a few tenths are noise.")
 
 
+def _model_moves(d, x):
+    pg = x['plan_best']
+    if not pg['in']:
+        return "no transfer"
+    # out and in listed apart: which sale pays for which purchase is not a decision of the plan
+    return f"out {', '.join(d.names[i] for i in pg['out'])} | in {', '.join(d.names[i] for i in pg['in'])}"
+
+
+def _print_transfers(r, d, x, p):
+    """D3: the user's transfers against rolling the transfer and against the model's transfers."""
+    hz = f"GW{r.horizon[0]}-GW{r.horizon[-1]}"
+    p(f"   Expected points over {hz}, weighted as in the plan; the transfers after GW{d.gw} stay free:")
+    p(f"      G = your transfers - no transfer:      {_signed(x['g'], x['g_low'], x['g_high'])}")
+    p(f"      R = model's transfers - yours:         {_signed(x['r'], x['r_low'], x['r_high'])}")
+    p(f"      Gain of the model's transfers (G + R): {_signed(x['gain_action'])}")
+    pts = x['points_gw']
+    cells = [f"{label} {pts[k]:.2f}" for k, label in (('z0', 'no transfer'), ('z_decision', 'yours'),
+                                                       ('z_best', "model's")) if k in pts]
+    if cells:
+        p(f"   GW{d.gw} alone, unweighted, hits included: " + " | ".join(cells))
+    if x['plan_decision'] is not None:
+        p(f"   Your transfers: {x['plan_decision']['hits']} hit(s); captain "
+          f"{d.names.get(x['plan_decision']['captain'], x['plan_decision']['captain'])}.")
+    if x['plan_best'] is not None:
+        p(f"   Model's transfers in GW{d.gw}: {_model_moves(d, x)} ({x['plan_best']['hits']} hit(s)).")
+    _print_tail(d, x, p)
+
+
 def _verdict_text(code, d, x):
     t = x['timing']
+    if d.chip == 'TRANSFERS':
+        return {'worse_than_none': f"worse than no transfer ({x['g']:+.2f}): roll the transfer.",
+                'no_clear_gain': "no clear gain over no transfer: G is within the solver tolerance.",
+                'better_version': f"the model's transfers ({_model_moves(d, x)}) gain {x['r']:+.2f} more.",
+                'agrees': f"make them: they gain {x['g']:+.2f} over no transfer and no better set exists.",
+                }[code]
     if code == 'worse_than_none':
         return f"worse than not playing {d.chip} in GW{d.gw} ({x['g']:+.2f}): keep the chip."
     if code == 'no_clear_gain':

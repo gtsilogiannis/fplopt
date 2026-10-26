@@ -33,6 +33,8 @@ def run_cli(argv, capsys):
     (['--team', '1', '--captain', '5'], "--check-gw and --captain are used only with --check."),
     (['--team', '1', '--check', 'TC', '--captain', '5', '--check-gw', '40'], "--check-gw must be between 1 and 38."),
     (['--team', '1', '--check', 'WC'], "invalid choice: 'WC'"),
+    (['--team', '1', '--out', '5', '--in', '6'], "--out and --in are used only with --check TRANSFERS."),
+    (['--team', '1', '--check', 'TRANSFERS', '--out', 'a', '--in', '6'], "--out needs player ids separated by commas"),
     (['--mode', 'evaluate'], "Evaluation mode requires target Gameweek"),
     (['--mode', 'evaluate', '--gw', '39'], "--gw must be between 1 and 38."),
 ])
@@ -73,6 +75,7 @@ def test_optimize_json(cli_client, capsys, monkeypatch, tmp_path):
     assert doc['chips']['status'] == 'skipped_flag'
     assert doc['decision_check'] is None                        # no --check
     assert (doc['input']['check'], doc['input']['check_gw'], doc['input']['captain']) == (None, None, None)
+    assert (doc['input']['out'], doc['input']['in']) == (None, None)
     assert doc['warnings'] == []
     assert doc['predictions_log'] == 'predictions_log.csv' and (tmp_path / 'predictions_log.csv').is_file()
     assert "[*] Solved with" in err             # progress stays on stderr
@@ -143,6 +146,27 @@ def test_check_invalid_text_and_json(monkeypatch, season, capsys):
     d = json.loads(out)['decision_check']
     assert (d['status'], d['violations'][0]['code']) == ('invalid', 'chip_unavailable')
     assert d['g'] is None and d['timing'] is None                 # nothing solved
+
+
+def test_check_transfers_text_and_json(cli_client, capsys, season):
+    """--check TRANSFERS: an owned forward for the cheapest forward not owned, in text and in JSON."""
+    cli_client()
+    owned = build_manager(season)['truth'][0]
+    el = {e['id']: e for e in season.elements}
+    out = owned[14]                                       # an owned forward
+    inn = min((i for i in el if el[i]['element_type'] == 4 and i not in owned), key=lambda i: (el[i]['now_cost'], i))
+    argv = CHECK + ['--check', 'TRANSFERS', '--out', str(out), '--in', str(inn)]
+    status, text, _ = run_cli(argv, capsys)
+    assert status == 0
+    assert f" DECISION CHECK | transfers in GW8: P{out} -> P{inn}" in text
+    assert "G = your transfers - no transfer:" in text and ">> Verdict: " in text
+    status, text, _ = run_cli(argv + ['--json'], capsys)
+    doc = json.loads(text)
+    d = doc['decision_check']
+    assert (doc['input']['out'], doc['input']['in']) == ([out], [inn])
+    assert (d['status'], d['chip'], d['timing'], d['captain']) == ('computed', 'TRANSFERS', None, None)
+    assert d['transfers'] == {'out': [{'id': out, 'name': f"P{out}"}], 'in': [{'id': inn, 'name': f"P{inn}"}]}
+    assert d['g'] + d['r'] == pytest.approx(d['gain_action'], abs=1e-9)
 
 
 class NotFoundClient(FakeClient):

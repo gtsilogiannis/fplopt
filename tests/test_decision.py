@@ -234,3 +234,46 @@ def test_verdict(res, codes):
     """The verdict uses only the gap bounds and the timing rule; every code it returns is defined."""
     assert verdict(res) == codes
     assert set(codes) <= set(VERDICTS)
+
+
+# --------------------------------------------------------------------------- step 7: transfers (D3)
+def _targets(n):
+    """Toy pool with n target DEFs (101, ...) of 4 xP in every GW, and the squad with the first n
+    squad DEFs (sq[2], ...) replaced by them."""
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    targets = [101 + k for k in range(n)]
+    for t in targets:
+        add(pool, t, 2, 5.0, {g: 4.0 for g in H3})
+    return pool, sq, [i for i in sq if i not in sq[2:2 + n]] + targets
+
+
+def test_transfers_by_hand():
+    """One transfer, one FT: G = +2 (the target one GW earlier than with no transfer), R = 0 (the
+    model makes the same transfer), gain of transferring = 2; verdict 'agrees'."""
+    pool, sq, new = _targets(1)
+    dc = check(pool, sq, main_plan(pool, sq), 'TRANSFERS', 8, squad=new)
+    assert dc['status'] == 'computed'
+    assert (dc['g'], dc['r'], dc['gain_action']) == pytest.approx((2.0, 0.0, 2.0), abs=1e-6)
+    assert dc['plan_decision']['in'] == [101] and dc['plan_decision']['hits'] == 0
+    assert dc['timing'] is None and dc['captain_bought'] is None
+    assert verdict(dc) == ['agrees']
+
+
+def test_transfers_with_a_hit_by_hand():
+    """Two transfers, one FT: +4 - 4 = 0 against no transfer; the model buys one now and one next
+    GW: R = 2. Verdict: no clear gain, and a better set of transfers exists."""
+    pool, sq, new = _targets(2)
+    dc = check(pool, sq, main_plan(pool, sq), 'TRANSFERS', 8, squad=new)
+    assert (dc['g'], dc['r'], dc['gain_action']) == pytest.approx((0.0, 2.0, 2.0), abs=1e-6)
+    assert dc['plan_decision']['hits'] == 1 and len(dc['plan_best']['in']) == 1
+    assert dc['points_gw'] == pytest.approx({'z0': 60.0, 'z_decision': 60.0, 'z_best': 62.0}, abs=1e-6)
+    assert verdict(dc) == ['no_clear_gain', 'better_version']
+
+
+@pytest.mark.parametrize("chip, gw, squad", [('TRANSFERS', 9, 'new'), ('TRANSFERS', 8, None), ('TC', 8, 'new')])
+def test_invalid_transfer_requests(chip, gw, squad):
+    """Transfers only in the current GW and with the new squad; a squad only with TRANSFERS."""
+    pool, sq, new = _targets(1)
+    kw = {'squad': new} if squad else {}
+    with pytest.raises(ValueError):
+        check(pool, sq, {'plan': {}}, chip, gw, sq[14] if chip == 'TC' else None, **kw)

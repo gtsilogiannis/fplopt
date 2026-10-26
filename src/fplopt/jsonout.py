@@ -33,6 +33,7 @@ def optimize_to_dict(r):
             'time_limit': o.time_limit, 'solver': o.solver, 'chip_report': o.chip_report,
             'write_log': o.write_log,
             'check': o.check, 'check_gw': o.check_gw, 'captain': o.check_captain,   # decision check
+            'out': o.check_out, 'in': o.check_in,
         },
         'context': {
             'current_gw': r.current_gw,
@@ -106,7 +107,8 @@ def optimize_to_dict(r):
 
 def _decision(d):
     """engine.DecisionSection -> dict; None without --check. Keys 'no_chip', 'best', 'decision' name
-    Z0 (plan without the chip), Z+ (best version of the chip) and Z(D) (the user's decision)."""
+    Z0 (plan without the action: no chip, or no transfer), Z+ (best version of the action: the best
+    plan with the chip, or the model's transfers) and Z(D) (the user's decision)."""
     if d is None:
         return None
     x = d.result or {}                                    # {} when the check is invalid (nothing solved)
@@ -134,6 +136,8 @@ def _decision(d):
         'points_gw': {k: x.get('points_gw', {}).get(src) for k, src in keys},
         'best': plan_gw(x.get('plan_best')), 'decision': plan_gw(x.get('plan_decision')),
         'captain_bought': x.get('captain_bought'),
+        'transfers': ({'out': [who(i) for i in d.transfers_out], 'in': [who(i) for i in d.transfers_in]}
+                      if d.chip == 'TRANSFERS' else None),
         'timing': None if t is None else {
             'window_end': t['window_end'], 'at_gw': t['at_gw'], 'best_gw': t['best_gw'], 'best': t['best'],
             'is_best': t['is_best'], 'estimates': [{'gw': g, 'delta': v} for g, v in sorted(t['estimates'].items())]},
