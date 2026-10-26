@@ -13,7 +13,7 @@ must pass a fixed acceptance criterion on both (see [Validation](#validation)).
 > Not affiliated with the Premier League or Fantasy Premier League. The program reads the public,
 > undocumented FPL API, which can change without notice.
 
-**Status:** version 0.9.0 (before 1.0 the command-line options and the JSON output may still
+**Status:** version 0.10.0 (before 1.0 the command-line options and the JSON output may still
 change). The test suite runs on Linux and Windows with Python 3.12, 3.13 and 3.14 (GitHub
 Actions); weekly runs on real data are made on Linux.
 
@@ -47,6 +47,10 @@ Actions); weekly runs on real data are made on Linux.
 - **Chip suggestions** (Wildcard, Free Hit, Bench Boost, Triple Captain): the exact gain of
   playing each available chip now, an estimate for every later gameweek until the chip expires,
   and a rule that suggests a chip only when now looks like its best gameweek.
+- **Decision check** for managers who make their own choices: you give a chip decision
+  (Triple Captain on a player of your choice, or Bench Boost, in a gameweek of the horizon) and
+  the program says what it gains against not playing the chip, what it leaves against the best
+  version of the same chip, and whether another gameweek of the chip's window looks better.
 - **Model evaluation**: every run logs its predictions; after the gameweek,
   `--mode evaluate` compares them with the actual points and with FPL's own `ep_next`.
 - **Machine-readable output** (`--json`) and documented exit codes, for use by other programs.
@@ -118,6 +122,33 @@ the 5-gameweek Wildcard plan took 50–740 s (median 190 s) to reach the gap tar
 30–70 s for a Free Hit (2-core machine, two solves at a time). At the time limit the plan is
 printed with its gap; give the Wildcard run more time, e.g. `--time-limit 900`.
 
+### Checking your own chip decision
+
+The plan and the chip suggestions are the model's choices. To check a decision of your own:
+
+```sh
+python -m fplopt --team <TEAM_ID> --explain "Haaland,Salah" --lookahead 1 --no-chip-report --no-log
+python -m fplopt --team <TEAM_ID> --check TC --captain <PLAYER_ID> --no-log
+python -m fplopt --team <TEAM_ID> --check BB --check-gw 12 --lookahead 5 --no-log
+```
+
+The first command prints the FPL id of each named player (`[explain] Haaland (id 430, ...)`).
+The check is solved three ways over the horizon, with the transfers after your gameweek left free
+(the horizon measures the decision; it is not a plan you have to follow):
+
+- **G** = your decision − the plan without the chip: what the decision gains (it can be negative);
+- **R** = the best plan with the same chip − your decision: what your choice leaves (0 for Bench
+  Boost, which has nothing to choose); with Triple Captain, the model's captain is shown;
+- **timing**: the chip's estimate in every gameweek from now to the end of its window, as in the
+  chip suggestions.
+
+Each number comes with the bounds that the solver gaps put on it, and the verdict follows from
+them alone: *worse than not playing the chip*, *no clear gain*, *a better gameweek*, *a better
+captain*, or *agrees*. A captain you do not own is bought in the decision's plan (the transfer
+counts); one below `--min-chance` can still be captain, with 0 expected points. A chip already
+played, or out of its window in that gameweek, makes the check invalid, with the reason; the plan
+is still printed. The check shares `--time-limit` with the plan and the chip suggestions.
+
 ### Options
 
 | Option | Meaning | Default |
@@ -129,10 +160,13 @@ printed with its gap; give the Wildcard run more time, e.g. `--time-limit 900`.
 | `--ft N` | free transfers now, 1–5 | rebuilt from your history |
 | `--chip WC\|FH\|BB\|TC\|NONE` | chip played in the current gameweek | `NONE` |
 | `--no-chip-report` | skip the chip suggestions (saves their solve time) | off |
+| `--check TC\|BB` | check your own chip decision (see above); not with `--chip` | — |
+| `--check-gw N` | gameweek of the checked decision, inside the horizon | current |
+| `--captain ID` | `--check TC`: FPL id of your captain (`--explain NAME` prints it) | — |
 | `--max-hits N` | cap on paid transfers per gameweek | no cap |
 | `--min-chance P` | players below P% chance of playing count as unavailable | 75 |
 | `--override-budget X` | selling value of the squad + bank in £m, as shown in the app | computed |
-| `--time-limit S` | solver seconds for the whole run (plan + chip analysis) | 180 |
+| `--time-limit S` | solver seconds for the whole run (plan, decision check, chip analysis) | 180 |
 | `--solver highs` | MIP solver (HiGHS is the only one) | HiGHS |
 | `--explain "A,B"` | print the xP components of these players (FPL web names) | — |
 | `--no-log` | do not write the predictions of this run to `predictions_log.csv` | off |
@@ -173,14 +207,14 @@ server; normal runs do not need it.
 **Text (default).** Results on stdout: the squad of the current gameweek with roles (`>>` marks a
 player to buy), the players to sell with the price each one returns, the plan of every gameweek
 of the horizon (transfers, hits, captain), the expected points split into their parts, the
-solver's optimality gap, and the chip suggestions. Progress lines (`[*]`, `[INFO]`, `[WARNING]`) go to stderr. Both streams are
+solver's optimality gap, the decision check (with `--check` only) and the chip suggestions. Progress lines (`[*]`, `[INFO]`, `[WARNING]`) go to stderr. Both streams are
 UTF-8 on every platform.
 
 **JSON (`--json`).** Exactly one JSON document on stdout per run, also when the run fails:
 
 ```json
-{"schema_version": "1.0", "engine_version": "0.9.0", "ok": true, "mode": "optimize", ...}
-{"schema_version": "1.0", "engine_version": "0.9.0", "ok": false, "mode": "optimize",
+{"schema_version": "1.0", "engine_version": "0.10.0", "ok": true, "mode": "optimize", ...}
+{"schema_version": "1.0", "engine_version": "0.10.0", "ok": false, "mode": "optimize",
  "error": {"exit_code": 4, "type": "not_found", "message": "..."}, "warnings": []}
 ```
 
@@ -281,6 +315,25 @@ an **estimate** for every later gameweek until the chip expires, made on the squ
 A chip is suggested only if its estimate now is the largest until expiry and its exact gain is
 positive. The Wildcard is not estimated after the current gameweek (no one-gameweek proxy exists).
 
+### 4. Decision check (`src/fplopt/decision.py`)
+
+A decision of the user is a set of variables held fixed in the same MILP: the chip in gameweek
+$g$ ($u_{c,g} = 1$) and, for Triple Captain, the captain ($c_{X,g} = 1$). With $J$ the objective of
+a plan (weighted expected points, hits subtracted, tie-breaks left out):
+
+```math
+Z_0 = \max J \text{ (no chip)}, \qquad Z^+ = \max J \text{ (chip in } g\text{)}, \qquad Z(D) = \max J \text{ (chip in } g \text{, your choices)}
+```
+
+```math
+G = Z(D) - Z_0, \qquad R = Z^+ - Z(D) \ge 0, \qquad G + R = Z^+ - Z_0
+```
+
+$R \ge 0$ because fixing a choice only removes plans. Each solve is proven within its gap $\gamma$
+($\hat Z \le Z \le \hat Z + \gamma$), so a difference $\hat A - \hat B$ lies in
+$[\hat A - \hat B - \gamma_B, \hat A - \hat B + \gamma_A]$; the verdict uses only these bounds and
+the timing rule of the chip suggestions, with no constant of its own.
+
 ## Validation
 
 ### Backtest of the xP model
@@ -339,9 +392,9 @@ club rotates.
 
 ### Tests
 
-`pytest` runs 129 fast tests (10–20 s) on a synthetic season, with no network: the MILP on
+`pytest` runs 182 fast tests (15–25 s) on a synthetic season, with no network: the MILP on
 small pools checked by hand (free transfers, hits, chips, budget, vice-captain), selling prices,
-the chip rules, the JSON output and exit codes, retries against a local HTTP server, the cache.
+the chip rules, the decision check, the JSON output and exit codes, retries against a local HTTP server, the cache.
 `pytest -m slow` runs 14 full optimizer runs (about 5–15 minutes) and compares the output with a
 stored reference run.
 
@@ -360,6 +413,9 @@ stored reference run.
   A number the time limit would cut short is not shown, so the numbers that are shown are the
   same on every machine, except that last-digit floating-point differences can pick another of
   two plans that are equal within the solver's gap target (0.05%).
+- **Decision check**: G and R are differences inside the model. A gain of one or two points over
+  the horizon is real in the model but smaller than the error of the xP itself (RMSE about 2.5
+  per player-gameweek). Only Triple Captain and Bench Boost can be checked so far.
 - **Optimality** is relative to this model: a proven plan is the best plan *for these xP values*,
   not a guarantee of points.
 - **The FPL API** is undocumented and can change; the program retries temporary failures (4
@@ -374,6 +430,7 @@ src/fplopt/     the package
   cli.py          command line, exit codes          engine.py    one run -> result object
   xp_model.py     xP model (self-contained)         milp.py      MILP and solver (only PuLP user)
   chips.py        chip gains and suggestion rule    squad.py     squad, selling prices, free transfers
+  decision.py     decision check (G, R, timing)
   data.py         gameweeks, fixtures, history      api.py       FPL API client, retries, cache
   report.py       text output                       jsonout.py   JSON output
   predictions.py  prediction log and evaluation     rules.py     transfer and chip rules
@@ -441,9 +498,11 @@ letter gives the area:
 | `A1` | hits are weighted like the points of their gameweek |
 | `C2`–`C12` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit) |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
+| `D1`, `D2`, `O1` | decision check: **D1** a captain held fixed in the MILP (`force_captain`); **D2** points of the decision's gameweek, unweighted; **O1** a captain who is not owned is bought |
 | `W1`–`W4` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`) |
 
-`C` alone (solver status) and `C2`–`C11` (chips) are different changes.
+`C` alone (solver status) and `C2`–`C11` (chips) are different changes, and so are `D` alone (reading
+binary variables) and `D1`, `D2` (decision check).
 
 Comments also compare numbers between **development stages**, e.g. `RMSE 2.4996 (6b 2.5064)`:
 the current value, then the value at stage 6b. The stages, in the order they were made:
@@ -458,6 +517,7 @@ the current value, then the value at stage 6b. The stages, in the order they wer
 | 8c | shrinkage of the minutes model |
 | 7 | chips (`C2`–`C11`, `K`) |
 | 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`), chip numbers computed in full (`C12`) |
+| 15 | decision check (`D1`, `D2`, `O1`) |
 
 After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
 change any result.

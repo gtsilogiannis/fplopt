@@ -57,7 +57,7 @@ def build_parser():
     parser.add_argument("--check-gw", type=int, default=None,
                         help="Gameweek of the checked decision, inside the horizon (Default: the current GW)")
     parser.add_argument("--captain", type=int, default=None,
-                        help="--check TC: FPL id of your captain (the number in the player's address on the site)")
+                        help="--check TC: FPL id of your captain (--explain NAME prints it)")
     parser.add_argument("--no-chip-report", action="store_true",
                         help="Skip the Chip suggestions section (saves its solve time)")   # C10
     parser.add_argument("--min-chance", type=int, default=75,
