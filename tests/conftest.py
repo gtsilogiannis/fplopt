@@ -33,6 +33,18 @@ def fake_client(season):
     return make
 
 
+@pytest.fixture(autouse=True)
+def restore_fplopt_logger():
+    """cli.main() points the 'fplopt' logger at the sys.stderr of the test that calls it, and pytest
+    closes that stream when the test ends; a later test that logs through the engine then printed
+    'Logging error ... I/O operation on closed file'. Every test gets back the logger it started with."""
+    logger = logging.getLogger('fplopt')
+    handlers, level = logger.handlers[:], logger.level
+    yield
+    logger.handlers[:] = handlers
+    logger.setLevel(level)
+
+
 @pytest.fixture
 def messages(caplog):
     """The messages the package logged during the test, in order (text as printed on stderr)."""
