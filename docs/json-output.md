@@ -4,7 +4,7 @@
 lines (`[*] ...`, `[WARNING] ...`) still go to stderr. The text is UTF-8; names are written as
 they are (`Ødegaard`, not `Ødegaard`).
 
-This document describes `schema_version` **1.0**, produced by `engine_version` 0.9.0. The code
+This document describes `schema_version` **1.0**, produced by `engine_version` 0.10.0. The code
 that writes it is `src/fplopt/jsonout.py`.
 
 ## Contents
@@ -51,7 +51,7 @@ Every document starts with these fields:
 | Field | Type | Meaning |
 |---|---|---|
 | `schema_version` | string | `"1.0"` |
-| `engine_version` | string | version of the `fplopt` package, e.g. `"0.9.0"` |
+| `engine_version` | string | version of the `fplopt` package, e.g. `"0.10.0"` |
 | `ok` | bool | `true` on success, `false` on error |
 | `mode` | string | `"optimize"` or `"evaluate"` |
 
@@ -69,6 +69,7 @@ Top-level fields after the header:
 | `sales_now` | array | [sales_now](#sales_now) |
 | `expected_points_now` | object | [expected_points_now](#expected_points_now) |
 | `chips` | object | [chips](#chips) |
+| `decision_check` | object or null | [decision_check](#decision_check); `null` without `--check` |
 | `explain` | array | [explain](#explain) |
 | `explain_not_found` | array of string | names given to `--explain` that matched no player (lower case) |
 | `fallback_players` | int | players whose xP is FPL's `ep_next` (no data at their current club yet) |
@@ -94,6 +95,9 @@ The options of the run, as given (defaults filled in by the command line).
 | `solver` | string or null | `--solver`; `null` = default (HiGHS) |
 | `chip_report` | bool | `false` with `--no-chip-report` |
 | `write_log` | bool | `false` with `--no-log` |
+| `check` | string or null | `--check`: `"TC"` or `"BB"`; `null` = no decision check |
+| `check_gw` | int or null | `--check-gw`; `null` = not given (the current gameweek) |
+| `captain` | int or null | `--captain` (player id, with `--check TC`) |
 
 ### context
 
@@ -205,6 +209,36 @@ Expected points of the current gameweek, unweighted, split into the terms of the
 When `status` is not `"computed"`, `exact`, `estimates`, `holds`, `incomplete` and `also_best_now` are empty
 and `suggestion` and `wc_note` are `null`.
 
+### decision_check
+
+The user's own chip decision (`--check`), compared with the plan without the chip (`no_chip`, the
+main plan) and with the best plan with the same chip (`best`); the transfers after the decision's
+gameweek are free in all three. Values are weighted points over the horizon unless the field says
+otherwise. `null` without `--check`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `status` | string | `"computed"`; `"not_computed"` (the time limit cut a solve, see `not_computed`); `"invalid"` (a rule of the game, see `violations`; nothing was solved and the numbers are `null`) |
+| `chip` | string | `"TC"` or `"BB"` |
+| `gw` | int | gameweek of the decision |
+| `captain` | `{id, name}` or null | the user's captain (`TC`); `null` for `BB` |
+| `violations` | array of `{code, message}` | why the decision is not allowed; code `chip_unavailable` (played already, or no unplayed set of the chip covers this gameweek) |
+| `notes` | array of `{code, message}` | `captain_unavailable` (below `--min-chance`: xP 0), `captain_bought` (not owned: the decision's plan buys him) |
+| `verdict` | array of string | `worse_than_none` (G below 0 beyond the gaps; no other code then), `no_clear_gain` (G within the gaps around 0), `better_gw` (another gameweek of the window has a higher estimate), `better_version` (R above 0 beyond the gaps: another captain), `agrees` (none of these). Empty = no verdict, because a number it needs is `null` |
+| `g` | number or null | G = `objective.decision` − `objective.no_chip`: gain of the decision over not playing the chip; may be negative |
+| `g_low`, `g_high` | number or null | bounds on G from the two solver gaps |
+| `r` | number or null | R = `objective.best` − `objective.decision` ≥ 0 up to the gaps: what the user's choice leaves; `0` for `BB` |
+| `r_low`, `r_high` | number or null | bounds on R |
+| `gain_action` | number or null | `objective.best` − `objective.no_chip` = G + R: gain of the chip itself |
+| `objective` | `{no_chip, best, decision}` | J of each plan: weighted points over the horizon, hits subtracted, tie-breaks left out (numbers or `null`) |
+| `gaps` | `{no_chip, best, decision}` | solver gap of each plan, weighted points |
+| `points_gw` | `{no_chip, best, decision}` | expected points of the decision's gameweek alone, **unweighted** |
+| `best`, `decision` | object or null | the plan of the decision's gameweek: `chip`, `captain` `{id, name}`, `vice` `{id, name}` or null, `hits`, `transfers_in`, `transfers_out` (arrays of `{id, name}`), `squad`, `xi` (player ids) |
+| `captain_bought` | int or null | gameweek in which the decision's plan buys the user's captain; `null` if he is owned |
+| `timing` | object or null | `window_end` (last gameweek of the chip's window), `estimates` (array of `{gw, delta}`: the chip's one-gameweek estimate from now to `window_end`, unweighted, as in `chips.estimates`), `at_gw` (estimate in the decision's gameweek), `best_gw`, `best`, `is_best` (bool: the decision's gameweek has the highest estimate; a tie counts). `best_gw`, `best` and `is_best` are `null` if any gameweek was not estimated |
+| `not_computed` | array of string | solves or estimates the time limit left out, e.g. `"z_best"`, `"estimate TC GW14"` |
+| `seconds` | number or null | time of the check |
+
 ### explain
 
 One object per player named in `--explain` (empty without it).
@@ -254,7 +288,7 @@ On any error the document is:
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.9.0",
+  "engine_version": "0.10.0",
   "ok": false,
   "mode": "optimize",
   "error": {"exit_code": 4, "type": "not_found", "message": "..."},
@@ -295,6 +329,7 @@ must accept codes it does not know; an entry logged without a code has `"code": 
 | `time_limit` | the solver stopped at the time limit; the plan is valid and `solver.gap` bounds its distance from the best plan |
 | `bench_not_converged` | the bench weights still changed after the last pass; the last plan is used |
 | `chips_not_computed` | the time limit skipped parts of the chip analysis (`chips.not_computed`) |
+| `decision_invalid` | the checked decision breaks a rule of the game (`decision_check.violations`) |
 | `api_retry` | an API request failed temporarily and was repeated |
 | `cache_unreadable`, `cache_write_failed` | a cache file could not be read (it is downloaded again) or written |
 | `live_fields_missing` | the live gameweek data lack some statistics the model reads; they are taken as 0 |
@@ -308,12 +343,12 @@ lookahead 3; arrays shortened):
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.9.0",
+  "engine_version": "0.10.0",
   "ok": true,
   "mode": "optimize",
   "input": {"team_id": 1, "ft": null, "chip": "NONE", "min_chance": 75, "lookahead": 3,
             "override_budget": null, "max_hits": null, "time_limit": 180, "solver": null,
-            "chip_report": true, "write_log": false},
+            "chip_report": true, "write_log": false, "check": null, "check_gw": null, "captain": null},
   "context": {
     "current_gw": 8,
     "horizon": [8, 9, 10],
@@ -361,6 +396,7 @@ lookahead 3; arrays shortened):
     "not_computed": [],
     "seconds": 82.0
   },
+  "decision_check": null,
   "explain": [],
   "explain_not_found": [],
   "fallback_players": 0,
