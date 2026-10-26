@@ -79,7 +79,9 @@ def chip_timing(pool, plan, horizon, chip, gw, window_end, budget, max_hits, use
         best_gw = max(est, key=est.get)                       # ties: the earliest GW
         timing['best_gw'], timing['best'] = best_gw, est[best_gw]
         # the 1e-9 lets an estimate equal to the maximum count as the maximum (as in chips.advise)
-        timing['is_best'] = est[gw] >= est[best_gw] - 1e-9
+        # bool(): the engine's xP are numpy floats, and comparing them gives numpy.bool_, which is
+        # not a Python bool (isinstance(numpy.False_, bool) is False)
+        timing['is_best'] = bool(est[gw] >= est[best_gw] - 1e-9)
     return timing, missing
 
 

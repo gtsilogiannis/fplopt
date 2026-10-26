@@ -14,7 +14,8 @@ import pandas as pd
 from . import xp_model as xpm
 from .chips import advise, chip_report
 from .data import build_fixture_map, fetch_history, get_current_gw
-from .errors import SolverError, UserActionError
+from .decision import CHECK_CHIPS, check_decision
+from .errors import InputError, SolverError, UserActionError
 from .messages import collect
 from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_4
 from .predictions import PREDICTIONS_FILE, log_predictions
@@ -50,6 +51,9 @@ class Options:
     chip_report: bool = True             # compute the Chip suggestions section
     write_log: bool = True               # append the predictions to log_path
     log_path: str = PREDICTIONS_FILE
+    check: Optional[str] = None          # decision check: chip of the user's decision (TC or BB); None = none
+    check_gw: Optional[int] = None       # GW of that decision; None = the current GW
+    check_captain: Optional[int] = None  # TC: the user's captain (FPL player id)
 
 
 # --------------------------------------------------------------------------- output
@@ -138,6 +142,20 @@ class ChipSection:
 
 
 @dataclass
+class DecisionSection:
+    """Decision check (chat 15): the user's chip decision against the main plan (decision.py)."""
+    chip: str
+    gw: int
+    captain_id: Optional[int]
+    captain_name: Optional[str]
+    status: str                # computed | not_computed (time limit, C12) | invalid (a rule of the game)
+    violations: list = field(default_factory=list)   # [{'code', 'message'}] when status is invalid
+    notes: list = field(default_factory=list)        # [{'code', 'message'}]: facts the user should see
+    result: Optional[dict] = None                    # decision.check_decision(); None when invalid
+    names: dict = field(default_factory=dict)        # {player id: web_name} for the two plans
+
+
+@dataclass
 class ExplainEntry:
     """--explain: the parts of one player's xP."""
     id: int
@@ -198,6 +216,7 @@ class OptimizeResult:
     timings: dict                   # data_s, solve_s, chips_s, total_s
     api_stats: dict                 # requests, retries, cache_hits, cache_writes of the client
     state: EngineState = field(repr=False, default=None)
+    decision: Optional[DecisionSection] = None     # --check; None without it
 
 
 def optimize(client, opts):
@@ -225,6 +244,7 @@ def _optimize(client, opts, warnings):
     gw_weight = {g: TIME_DECAY_RATE ** (g - current_gw) for g in horizon}
     log.info(f"[*] Planning horizon: GW{horizon[0]}-GW{horizon[-1]} | weights: "
              + ", ".join(f"GW{g}={w:.2f}" for g, w in gw_weight.items()))
+    check_gw = _check_decision_inputs(opts, horizon, bootstrap)    # decision check: None without --check
 
     # X3: one request for every fixture of the season (past and future)
     all_fixtures = client.fixtures()
@@ -329,7 +349,9 @@ def _optimize(client, opts, warnings):
         # A: unavailable players are dropped from the pool EXCEPT our own.
         # Our own must stay so that (1) their price counts in the budget and
         # (2) the solver can keep them on the bench or sell them (shown in SELL).
-        if not available and p['id'] not in current_squad:
+        # Decision check: the user's captain stays too (FPL lets an injured player be captain;
+        # his xP is 0 below), so that his decision can be solved and compared.
+        if not available and p['id'] not in current_squad and p['id'] != opts.check_captain:
             continue
 
         pos = p['element_type']
@@ -524,6 +546,15 @@ def _optimize(client, opts, warnings):
     if n_fb:
         log.info(f"[*] {n_fb} player(s) with no GW at their current club yet use FPL's ep_next (marked '(FPL ep)').")  # X5
 
+    # Decision check: after the main plan (its Z0), before the chip analysis (the user asked for it)
+    decision, decision_s = None, 0.0
+    if check_gw is not None:
+        decision = _decision_section(opts, check_gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad,
+                                     total_budget, ft0, res, name_of, avail_dict)
+        if decision.result is not None:
+            decision_s = decision.result['seconds']
+            log.info(f"[*] Decision check: {decision.chip} GW{decision.gw}: {decision_s:.1f} s")
+
     # C10: chip suggestions (opportunity costs)
     chips = ChipSection(source=chip_src, sets=list(chip_rows), status='computed')
     t_chips = time.time()
@@ -533,7 +564,8 @@ def _optimize(client, opts, warnings):
     elif chip_used != 'NONE':
         chips.status = 'skipped_chip'
     else:
-        time_left = (time_limit or SOLVER_TIME_LIMIT) - res['seconds']   # M10: one limit for the whole run
+        # M10: one limit for the whole run (main plan, decision check, chip analysis)
+        time_left = (time_limit or SOLVER_TIME_LIMIT) - res['seconds'] - decision_s
         rep = chip_report(pool, horizon, gw_weight, plan, start_squad, total_budget, ft0, chip_windows,
                           max_hits, use_vice, use_bench, time_left, solver)
         chips.window, chips.exact, chips.error, chips.estimates = rep['window'], rep['exact'], rep['gap'], rep['est']
@@ -570,7 +602,70 @@ def _optimize(client, opts, warnings):
                  'total_s': time.time() - t_start},
         api_stats=dict(getattr(client, 'stats', {})),
         state=EngineState(pool=pool, plan_result=res, horizon=horizon, weights=gw_weight, start_squad=start_squad,
-                          budget=total_budget, ft0=ft0, players=players, chip_plans=chip_plans))
+                          budget=total_budget, ft0=ft0, players=players, chip_plans=chip_plans),
+        decision=decision)
+
+
+def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,
+                      name_of, avail_dict):
+    """Decision check: rules of the game that need the team's data, then decision.check_decision."""
+    chip, cap = opts.check, opts.check_captain
+    sec = DecisionSection(chip=chip, gw=gw, captain_id=cap, captain_name=name_of.get(cap), status='invalid')
+    window_end = next((e for s, e in chip_windows.get(chip, []) if s <= gw <= e), None)
+    if window_end is None:
+        # played already, or its window ended, or (GW1-19 / GW20-38) no unplayed set covers this GW
+        states = [f"GW{s}-{e} {st}" for cp, s, e, st in chip_rows if cp == chip]
+        sec.violations.append({'code': 'chip_unavailable',
+                               'message': f"{chip} cannot be played in GW{gw}: " + (", ".join(states) or "no set")})
+        log.warning(f"[WARNING] Decision check: {sec.violations[0]['message']}", extra={'code': 'decision_invalid'})
+        return sec
+    if cap is not None and not avail_dict.get(cap, False):
+        sec.notes.append({'code': 'captain_unavailable',
+                          'message': f"{sec.captain_name} is below --min-chance: his xP is 0 (the armband "
+                                     f"may pass to the vice-captain)"})
+    # the main plan's own time limit is the budget for the whole run; the check gets what is left
+    # (at least 1 ms: a time limit of 0 would mean 'the default' to check_decision)
+    time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - res['seconds'], 0.001)
+    sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, chip, gw, cap,
+                                opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
+                                window_end=window_end)
+    sec.status = sec.result['status']
+    bought = sec.result.get('captain_bought')
+    if cap is not None and bought is not None:
+        sec.notes.append({'code': 'captain_bought',
+                          'message': f"{sec.captain_name} is not in your squad: the plan of the decision buys "
+                                     f"him in GW{bought} (the transfer counts in the decision)"})
+    for key in ('plan_best', 'plan_decision'):
+        pg = sec.result.get(key)
+        if pg is not None:
+            for i in set(pg['squad']) | set(pg['in']) | set(pg['out']):
+                sec.names[i] = name_of[i]
+    return sec
+
+
+def _check_decision_inputs(opts, horizon, bootstrap):
+    """Decision check: argument errors (InputError, exit 2), found right after bootstrap-static,
+    before the other downloads and any solve. Returns the GW of the decision, or None without a
+    check. The rules of the game that need the team's data (is the chip still available?) are
+    checked later and make the check 'invalid'."""
+    if opts.check is None:
+        return None
+    if opts.check not in CHECK_CHIPS:
+        raise InputError(f"--check {opts.check}: only {', '.join(CHECK_CHIPS)} can be checked so far.")
+    if opts.chip != 'NONE':
+        raise InputError("--check cannot be combined with --chip: the check compares the chip with the plan "
+                         "without it.")
+    gw = horizon[0] if opts.check_gw is None else opts.check_gw
+    if gw not in horizon:
+        raise InputError(f"--check-gw {gw} is outside the horizon GW{horizon[0]}-GW{horizon[-1]}; "
+                         f"raise --lookahead to reach it.")
+    if opts.check == 'TC' and opts.check_captain is None:
+        raise InputError("--check TC needs --captain (the FPL id of your captain).")
+    if opts.check != 'TC' and opts.check_captain is not None:
+        raise InputError(f"--captain is used only with --check TC (not with --check {opts.check}).")
+    if opts.check_captain is not None and opts.check_captain not in {p['id'] for p in bootstrap['elements']}:
+        raise InputError(f"--captain {opts.check_captain}: no player with this id.")
+    return gw
 
 
 def _explain_entry(p, f, comp_now, xp_gw, source, chance, team_name, horizon):
