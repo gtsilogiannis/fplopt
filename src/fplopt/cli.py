@@ -52,12 +52,16 @@ def build_parser():
                         help="Chip played in the current GW (Default: NONE; see the Chip suggestions section)")
     # Decision check: the user's own chip decision, compared with the plan without it and with the
     # best version of the same chip (decision.py)
-    parser.add_argument("--check", type=str, choices=['TC', 'BB'], default=None,
-                        help="Check your own chip decision: TC (with --captain) or BB")
+    parser.add_argument("--check", type=str, choices=['TC', 'BB', 'TRANSFERS'], default=None,
+                        help="Check your own decision: TC (with --captain), BB, or TRANSFERS (with --out, --in)")
     parser.add_argument("--check-gw", type=int, default=None,
                         help="Gameweek of the checked decision, inside the horizon (Default: the current GW)")
     parser.add_argument("--captain", type=int, default=None,
                         help="--check TC: FPL id of your captain (--explain NAME prints it)")
+    parser.add_argument("--out", type=str, default=None, dest="out_ids",
+                        help="--check TRANSFERS: ids of the players you sell now, comma-separated (e.g. 12,40)")
+    parser.add_argument("--in", type=str, default=None, dest="in_ids",
+                        help="--check TRANSFERS: ids of the players you buy now, comma-separated, as many")
     parser.add_argument("--no-chip-report", action="store_true",
                         help="Skip the Chip suggestions section (saves its solve time)")   # C10
     parser.add_argument("--min-chance", type=int, default=75,
@@ -119,6 +123,15 @@ def check_args(args):
         raise InputError("--override-budget must be a positive amount in GBPm (e.g. 100.9).")
     if args.check is None and (args.check_gw is not None or args.captain is not None):
         raise InputError("--check-gw and --captain are used only with --check.")
+    if args.check != 'TRANSFERS' and (args.out_ids is not None or args.in_ids is not None):
+        raise InputError("--out and --in are used only with --check TRANSFERS.")
+    for name in ('out_ids', 'in_ids'):                  # "12,40" -> [12, 40]
+        text = getattr(args, name)
+        if text is not None:
+            try:
+                setattr(args, name, [int(t) for t in text.split(',') if t.strip()])
+            except ValueError:
+                raise InputError(f"--{name[:-4]} needs player ids separated by commas, e.g. 12,40 (got '{text}').")
     if args.check_gw is not None and not 1 <= args.check_gw <= 38:
         raise InputError("--check-gw must be between 1 and 38.")
     if args.solver == 'highs' and highspy is None:  # M10
@@ -170,7 +183,7 @@ def main(argv=None):
                                max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
                                solver=args.solver, chip_report=not args.no_chip_report,
                                write_log=not args.no_log, check=args.check, check_gw=args.check_gw,
-                               check_captain=args.captain)
+                               check_captain=args.captain, check_out=args.out_ids, check_in=args.in_ids)
                 result = optimize(client, opts)
                 if want_json:
                     print(jsonout.dumps(jsonout.optimize_to_dict(result)))

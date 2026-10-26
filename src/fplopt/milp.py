@@ -159,7 +159,7 @@ def is_var(e):
 
 def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max_hits=None,
                beta=None, use_vice=True, use_bench=True, warm=None, time_limit=None, solver=None,
-               chips_avail=None, chip_fix=None, force_captain=None):
+               chips_avail=None, chip_fix=None, force_captain=None, force_squad=None):
     """
     M1-M7: one MILP over the whole horizon.
     pool: dict of dicts keyed by player id: 'pos', 'team', 'price' (now_cost, GBPm),
@@ -176,6 +176,9 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
           captain in GW g (e.g. "Triple Captain on X in GW g"). Everything else stays free; since
           captain <= XI <= squad, the model keeps him in the squad and the XI, and buys him if
           he is not owned (paying for that transfer as usual).
+    force_squad: D3 {g: 15 player ids}: the squad of GW g held fixed (the user's transfers, or
+          'no transfer' with the current squad). The transfers into it are counted and paid for
+          (free transfers, hits) as usual; the XI, captain and the other GWs stay free.
     beta: {g: [b1, b2, b3]} outfield bench weights (None -> no outfield bench value).
     warm: {variable name: value} of a previous solve, given to the solver as a starting
           solution (the bench fixed point re-solves an almost identical problem).
@@ -193,6 +196,11 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     for g, i in fcap.items():
         if i not in pos:
             raise ValueError(f"force_captain: player {i} (GW{g}) is not in the pool")
+    # D3: same for a forced squad
+    fsq = {g: set(sq) for g, sq in (force_squad or {}).items() if g in horizon}
+    for g, sq in fsq.items():
+        if len(sq) != 15 or not sq <= set(pos):
+            raise ValueError(f"force_squad: GW{g} needs 15 distinct players of the pool")
 
     prob = pulp.LpProblem("FPL_Multi_Period", pulp.LpMaximize)
     # --- C3: chip switches u[(c, g)]: a binary variable where the chip may be played,
@@ -288,6 +296,8 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
         prob += pulp.lpSum(c[(i, g)] for i in ids) == 1
         if g in fcap:
             prob += c[(fcap[g], g)] == 1                      # D1: the user's captain in GW g
+        for i in fsq.get(g, ()):
+            prob += x[(i, g)] == 1                            # D3: with 15 squad places, the squad is fixed
         for i in ids:
             prob += l[(i, g)] <= x[(i, g)]
             prob += c[(i, g)] <= l[(i, g)]
@@ -374,7 +384,9 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     # D1: except the user's own captain: FPL lets him start (he scores 0, the armband may pass to
     # the vice-captain), and with the constraint the decision would have no plan at all.
     for i in ids:
-        if not pool['avail'][i] and fcap.get(t0) != i:
+        # D3: nor a player of a forced squad (the user's choice; with xP 0 he starts only if the
+        # formation needs him, as the game allows, instead of the decision having no plan)
+        if not pool['avail'][i] and fcap.get(t0) != i and i not in fsq.get(t0, ()):
             prob += l[(i, t0)] == 0
 
     # --- M4: budget in every GW, with constant prices [assumption] ---
@@ -462,6 +474,8 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
     # D1: the "keep the squad" start below is feasible only if every forced captain is owned;
     # otherwise the plan must buy him, and no start is given (the solver searches without one).
     use_start = bool(S0) and all(i in S0 for i in fcap.values())
+    # D3: likewise only a forced squad equal to the kept one ('no transfer') leaves the start feasible
+    use_start = use_start and all(sq == S0 for sq in fsq.values())
     if warm:
         for var in prob.variables():
             if var.name in warm and warm[var.name] is not None:
@@ -563,7 +577,7 @@ def solve_plan(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
 
 def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max_hits=None,
                use_vice=True, use_bench=True, time_limit=None, solver=None, chips_avail=None, chip_fix=None,
-               force_captain=None):
+               force_captain=None, force_squad=None):
     """M5: fixed point for the outfield bench weights. Pass 1 uses the best XI of
     the current squad (or of the pool at GW1) as reference; each later pass uses the
     XI the solver chose, until the weights change by <= BENCH_BETA_TOL. Each pass
@@ -589,7 +603,7 @@ def plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip='NONE', max
                          beta, use_vice, use_bench, warm=best['values'] if best else None,
                          time_limit=max(left, MIN_PASS_SECONDS), solver=solver,
                          chips_avail=chips_avail, chip_fix=chip_fix,   # C3
-                         force_captain=force_captain)                 # D1
+                         force_captain=force_captain, force_squad=force_squad)   # D1, D3
         seconds += time.time() - t_start
         history.append(beta)
         if 'plan' not in res:

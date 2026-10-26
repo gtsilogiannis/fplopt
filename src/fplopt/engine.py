@@ -14,7 +14,7 @@ import pandas as pd
 from . import xp_model as xpm
 from .chips import advise, chip_report
 from .data import build_fixture_map, fetch_history, get_current_gw
-from .decision import CHECK_CHIPS, check_decision, verdict
+from .decision import CHECK_KINDS, check_decision, verdict
 from .errors import InputError, SolverError, UserActionError
 from .messages import collect
 from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_4
@@ -54,6 +54,8 @@ class Options:
     check: Optional[str] = None          # decision check: chip of the user's decision (TC or BB); None = none
     check_gw: Optional[int] = None       # GW of that decision; None = the current GW
     check_captain: Optional[int] = None  # TC: the user's captain (FPL player id)
+    check_out: Optional[list] = None     # TRANSFERS: the players the user sells now (ids)
+    check_in: Optional[list] = None      # TRANSFERS: the players the user buys now (ids), same count
 
 
 # --------------------------------------------------------------------------- output
@@ -154,6 +156,8 @@ class DecisionSection:
     result: Optional[dict] = None                    # decision.check_decision(); None when invalid
     names: dict = field(default_factory=dict)        # {player id: web_name} for the two plans
     verdict: list = field(default_factory=list)      # decision.verdict() codes; [] = no verdict
+    transfers_out: list = field(default_factory=list)  # TRANSFERS: the user's sales (ids)
+    transfers_in: list = field(default_factory=list)   # TRANSFERS: the user's purchases (ids)
 
 
 @dataclass
@@ -352,7 +356,8 @@ def _optimize(client, opts, warnings):
         # (2) the solver can keep them on the bench or sell them (shown in SELL).
         # Decision check: the user's captain stays too (FPL lets an injured player be captain;
         # his xP is 0 below), so that his decision can be solved and compared.
-        if not available and p['id'] not in current_squad and p['id'] != opts.check_captain:
+        if not available and p['id'] not in current_squad and p['id'] != opts.check_captain \
+                and p['id'] not in (opts.check_in or ()):          # D3: nor the user's purchases
             continue
 
         pos = p['element_type']
@@ -612,6 +617,9 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
     """Decision check: rules of the game that need the team's data, then decision.check_decision."""
     chip, cap = opts.check, opts.check_captain
     sec = DecisionSection(chip=chip, gw=gw, captain_id=cap, captain_name=name_of.get(cap), status='invalid')
+    if chip == 'TRANSFERS':
+        return _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of,
+                                  avail_dict)
     window_end = next((e for s, e in chip_windows.get(chip, []) if s <= gw <= e), None)
     if window_end is None:
         # played already, or its window ended, or (GW1-19 / GW20-38) no unplayed set covers this GW
@@ -630,18 +638,80 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, chip, gw, cap,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
                                 window_end=window_end)
-    sec.status = sec.result['status']
-    sec.verdict = verdict(sec.result)
+    _finish_section(sec, name_of)
     bought = sec.result.get('captain_bought')
     if cap is not None and bought is not None:
         sec.notes.append({'code': 'captain_bought',
                           'message': f"{sec.captain_name} is not in your squad: the plan of the decision buys "
                                      f"him in GW{bought} (the transfer counts in the decision)"})
+    return sec
+
+
+def _finish_section(sec, name_of):
+    """Status, verdict and the names of the players of the two plans of a solved check."""
+    sec.status = sec.result['status']
+    sec.verdict = verdict(sec.result)
     for key in ('plan_best', 'plan_decision'):
         pg = sec.result.get(key)
         if pg is not None:
             for i in set(pg['squad']) | set(pg['in']) | set(pg['out']):
                 sec.names[i] = name_of[i]
+
+
+def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of, avail_dict):
+    """D3: the user's transfers of the current GW. Rules of the game first (the new squad must be a
+    valid FPL squad within the budget); a broken rule makes the check 'invalid' with no solve."""
+    outs, ins = list(opts.check_out), list(opts.check_in)
+    sec.transfers_out, sec.transfers_in = outs, ins
+    for i in outs + ins:
+        sec.names[i] = name_of.get(i, str(i))     # an unavailable player you do not own is not in the pool
+    owned = set(start_squad)
+    bad = [sec.names[i] for i in outs if i not in owned]
+    if bad:
+        sec.violations.append({'code': 'not_owned', 'message': f"not in your squad, so they cannot be sold: "
+                                                                f"{', '.join(bad)}"})
+    bad = [name_of[i] for i in ins if i in owned]
+    if bad:
+        sec.violations.append({'code': 'already_owned', 'message': f"already in your squad: {', '.join(bad)}"})
+    if not sec.violations:
+        squad = [i for i in start_squad if i not in outs] + ins
+        pos, team = pool['pos'], pool['team']
+        counts = {p_: sum(1 for i in squad if pos[i] == p_) for p_ in (1, 2, 3, 4)}
+        if counts != {1: 2, 2: 5, 3: 5, 4: 3}:
+            sec.violations.append({'code': 'positions', 'message': "the new squad needs 2 GK, 5 DEF, 5 MID, 3 FWD "
+                                   f"(it would have {counts[1]}, {counts[2]}, {counts[3]}, {counts[4]}): sell and "
+                                   f"buy the same positions"})
+        over = sorted({team[i] for i in squad if sum(1 for j in squad if team[j] == team[i]) > 3})
+        if over:
+            sec.violations.append({'code': 'club_limit', 'message': "more than 3 players from one club: "
+                                   + ", ".join(", ".join(name_of[i] for i in squad if team[i] == t) for t in over)})
+        # budget in whole tenths of GBPm, as the game counts it (no float rounding at the limit):
+        # a kept player costs his selling price, a bought one his current price (S2)
+        cost = sum(round(10 * pool['sell'][i]) for i in squad if i in owned) + \
+            sum(round(10 * pool['price'][i]) for i in ins)
+        if cost > round(10 * budget):
+            sec.violations.append({'code': 'over_budget', 'message': f"the new squad costs £{cost / 10:.1f}m, "
+                                   f"£{(cost - round(10 * budget)) / 10:.1f}m over the budget of £{budget:.1f}m"})
+        if ft0 is not None and opts.max_hits is not None and len(ins) - ft0 > opts.max_hits:
+            # not a rule of the game but the user's own cap: the decision could not be solved under it
+            sec.violations.append({'code': 'max_hits', 'message': f"{len(ins) - ft0} hit(s) needed, above "
+                                                                   f"--max-hits {opts.max_hits}"})
+    if sec.violations:
+        for v in sec.violations:
+            log.warning(f"[WARNING] Decision check: {v['message']}", extra={'code': 'decision_invalid'})
+        return sec
+    for i in ins:
+        if not avail_dict.get(i, False):
+            sec.notes.append({'code': 'player_unavailable',
+                              'message': f"{name_of[i]} is below --min-chance: his xP is 0 for the whole horizon"})
+    if ft0 is not None and len(ins) > ft0:
+        k = len(ins) - ft0
+        sec.notes.append({'code': 'hits', 'message': f"{len(ins)} transfers with {ft0} free: {k} hit(s), "
+                                                       f"-{4 * k} points (counted in G)"})
+    time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - res['seconds'], 0.001)
+    sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, 'TRANSFERS', sec.gw, None,
+                                opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver, squad=squad)
+    _finish_section(sec, name_of)
     return sec
 
 
@@ -652,8 +722,8 @@ def _check_decision_inputs(opts, horizon, bootstrap):
     checked later and make the check 'invalid'."""
     if opts.check is None:
         return None
-    if opts.check not in CHECK_CHIPS:
-        raise InputError(f"--check {opts.check}: only {', '.join(CHECK_CHIPS)} can be checked so far.")
+    if opts.check not in CHECK_KINDS:
+        raise InputError(f"--check {opts.check}: only {', '.join(CHECK_KINDS)} can be checked so far.")
     if opts.chip != 'NONE':
         raise InputError("--check cannot be combined with --chip: the check compares the chip with the plan "
                          "without it.")
@@ -665,8 +735,24 @@ def _check_decision_inputs(opts, horizon, bootstrap):
         raise InputError("--check TC needs --captain (the FPL id of your captain).")
     if opts.check != 'TC' and opts.check_captain is not None:
         raise InputError(f"--captain is used only with --check TC (not with --check {opts.check}).")
-    if opts.check_captain is not None and opts.check_captain not in {p['id'] for p in bootstrap['elements']}:
+    ids = {p['id'] for p in bootstrap['elements']}
+    if opts.check_captain is not None and opts.check_captain not in ids:
         raise InputError(f"--captain {opts.check_captain}: no player with this id.")
+    outs, ins = opts.check_out or [], opts.check_in or []
+    if opts.check != 'TRANSFERS':
+        if outs or ins:
+            raise InputError(f"--out and --in are used only with --check TRANSFERS (not with --check {opts.check}).")
+        return gw
+    # D3: transfers
+    if gw != horizon[0]:
+        raise InputError(f"--check TRANSFERS is for the current GW (GW{horizon[0]}), not GW{gw}.")
+    if not outs or len(outs) != len(ins):
+        raise InputError("--check TRANSFERS needs --out and --in with the same number of players.")
+    if len(set(outs)) != len(outs) or len(set(ins)) != len(ins) or set(outs) & set(ins):
+        raise InputError("--out and --in: each player once, and no player in both.")
+    unknown = [i for i in outs + ins if i not in ids]
+    if unknown:
+        raise InputError(f"--out/--in: no player with id {', '.join(map(str, unknown))}.")
     return gw
 
 

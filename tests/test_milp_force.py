@@ -3,7 +3,7 @@ Expected values are computed by hand on the toy pool (toy_pools.py): 15 owned pl
 forward (sq[14]) has 20 xP in every GW, every other player 2 xP, price 5.0, budget 75.0, 1 FT."""
 import pytest
 
-from toy_pools import base_squad, fill, toy_pool, weights
+from toy_pools import add, base_squad, fill, toy_pool, weights
 from fplopt.milp import TRANSFER_TIEBREAK, plan_squad, solve_plan
 
 H3 = [8, 9, 10]
@@ -107,3 +107,55 @@ def test_forced_captain_outside_the_pool_is_an_error():
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     with pytest.raises(ValueError):
         solve(pool, sq, force_captain={8: 999})
+
+
+# --------------------------------------------------------------------------- D3: forced squad
+def test_forced_squad_by_hand():
+    """Target DEF 101 with 4 xP in every GW (2 more than a squad DEF), 1 FT.
+    No transfer in GW8 (current squad forced): F9 = 2, the target is bought in GW9.
+    Your transfer sq[2] -> 101 in GW8: the same plan one GW earlier -> +2 in GW8 (weight 1).
+    The free plan does the same as yours. Both plans make 1 transfer, so the tie-breaks cancel."""
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    add(pool, 101, 2, 5.0, {g: 4.0 for g in H3})
+    new = [i for i in sq if i != sq[2]] + [101]
+    roll = solve(pool, sq, force_squad={8: sq})
+    mine = solve(pool, sq, force_squad={8: new})
+    free = solve(pool, sq)
+    assert roll['plan'][8]['in'] == [] and roll['plan'][9]['in'] == [101]
+    assert mine['plan'][8]['in'] == [101] and sorted(mine['plan'][8]['squad']) == sorted(new)
+    assert mine['objective'] - roll['objective'] == pytest.approx(2.0, abs=1e-6)
+    assert free['objective'] == pytest.approx(mine['objective'], abs=1e-6)
+
+
+def test_forced_squad_pays_the_hit():
+    """Two targets (101, 102), both bought in GW8 with 1 FT: +4 - 4 (one hit) = 0 against no transfer,
+    which buys both in GW9 with 2 FT. The free plan buys one now (free) and one in GW9: +2."""
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    add(pool, 101, 2, 5.0, {g: 4.0 for g in H3})
+    add(pool, 102, 2, 5.0, {g: 4.0 for g in H3})
+    new = [i for i in sq if i not in (sq[2], sq[3])] + [101, 102]
+    roll = solve(pool, sq, force_squad={8: sq})
+    mine = solve(pool, sq, force_squad={8: new})
+    free = solve(pool, sq)
+    assert mine['plan'][8]['hits'] == 1
+    assert mine['objective'] - roll['objective'] == pytest.approx(0.0, abs=1e-6)
+    assert free['objective'] - roll['objective'] == pytest.approx(2.0, abs=1e-6)
+
+
+def test_forced_squad_may_start_unavailable_players():
+    """Both goalkeepers of the forced squad unavailable: the decision still has a plan (one of them
+    starts with xP 0, as the game allows); without the forced squad the model would buy a goalkeeper."""
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    for i in (sq[0], sq[1]):
+        pool['avail'][i] = False
+        pool['xp'][(i, 8)] = 0.0
+    res = solve(pool, sq, force_squad={8: sq})
+    assert 'plan' in res and res['plan'][8]['in'] == []
+    free = solve(pool, sq)
+    assert any(pool['pos'][i] == 1 for i in free['plan'][8]['in'])
+
+
+def test_forced_squad_needs_15_players():
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    with pytest.raises(ValueError):
+        solve(pool, sq, force_squad={8: sq[:14]})
