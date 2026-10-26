@@ -90,8 +90,8 @@ def _transfers(r, pg):
         'hit_points': HIT_COST * pg.hits, 'moves': moves,
         'bank_before': bank / 10 if bank is not None else None,
         'bank_after': (bank + sum(deltas)) / 10 if known else None,
-        # unweighted gain over making no transfer (step 2 of 15c fills it in the engine)
-        'vs_no_transfer': getattr(r, 'no_transfer', None),
+        # unweighted gain over making no transfer (engine, decision.transfer_gain); None = not computed
+        'vs_no_transfer': r.no_transfer,
     }
 
 
@@ -217,7 +217,7 @@ def _alerts(r):
         if not s.available and s.action == 'KEEP':
             where = "on your bench" if s.role == 'Bench' else "in your starting XI"
             out.append({'code': 'player_unavailable', 'message': f"{s.name} is injured or doubtful and is {where}."})
-    hi = getattr(r, 'squad_value_high', None)                # step 2 of 15c fills it in the engine
+    hi = r.squad_value_high                                  # None: selling value exact (or --override-budget)
     if hi is not None and r.squad_value is not None and tenths(hi) > tenths(r.squad_value):
         extra = (tenths(hi) - tenths(r.squad_value)) / 10
         out.append({'code': 'selling_value_range', 'message':
@@ -242,7 +242,7 @@ def build_summary(r, tz=None):
     lineup = {p: [s.name for s in xi if s.position == p] for p in ('GK', 'DEF', 'MID', 'FWD')}
     lineup['bench'] = [s.name for s in bench]
     cap = rows[pg.captain_id]
-    deadline = getattr(r, 'deadline', None)                  # step 2 of 15c fills it in the engine
+    deadline = r.deadline                                    # UTC, as the API gives it; None if missing
     total = float(r.expected_now.total)                # plain float: numpy types are not JSON
     s = {
         'gw': g0, 'deadline_utc': deadline,

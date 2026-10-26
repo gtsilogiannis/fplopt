@@ -24,11 +24,14 @@ from fplopt.milp import MIP_REL_GAP
 GOLDEN = Path(__file__).parent / "data" / "full_run_L3.txt"
 TIME = re.compile(r"(in |Chip analysis: )\d+\.\d s")      # solve times vary between runs and machines
 GAP = re.compile(r"(proven within |error <= )\d+\.\d+")  # optimality gaps vary between machines (see above)
+# 15c: the gain over no transfer is a difference of two solves, each exact only to its gap -> its value is
+# checked by tests/test_engine_summary.py, here only the line and its place
+GAIN = re.compile(r"(no transfer: )[+-]\d+\.\d+( in GW\d+, )[+-]\d+\.\d+")
 LOG_PREFIXES = ('[*]', '[WARNING]', '[INFO]')
 
 
 def mask(lines):
-    return [GAP.sub(r"\1<gap>", TIME.sub(r"\1<t> s", ln)) for ln in lines]
+    return [GAIN.sub(r"\1<g>\2<g>", GAP.sub(r"\1<gap>", TIME.sub(r"\1<t> s", ln))) for ln in lines]
 
 
 @pytest.mark.slow
