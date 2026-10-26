@@ -89,6 +89,33 @@ def chip_timing(pool, plan, horizon, chip, gw, window_end, budget, max_hits, use
     return timing, missing
 
 
+def transfer_gain(pool, horizon, weight, start_squad, budget, ft0, base, chip='NONE', max_hits=None,
+                  use_vice=True, use_bench=True, time_limit=None, solver=None):
+    """15c (decision A): what the main plan's transfers of the current GW are worth, in UNWEIGHTED
+    expected points, against making no transfer now (the current squad fixed in that GW; the later
+    GWs are planned freely, so the 'no transfer' plan may make the same moves a GW later).
+    base: the main plan (milp.plan_squad, same pool and options); chip: the chip fixed in the current
+    GW of that plan (TC/BB keep it; the engine does not call this for WC/FH: their transfers are free).
+    Returns ({'this_gw', 'next_gws', 'n_gws'} or None, seconds). None (C12) when the main plan or the
+    'no transfer' solve did not reach the gap target, or there is no time left."""
+    t0 = time.time()
+    g0 = horizon[0]
+    if 'plan' not in base or not base.get('complete') or (time_limit or SOLVER_TIME_LIMIT) < MIN_PASS_SECONDS:
+        return None, time.time() - t0
+    roll = plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip, max_hits, use_vice, use_bench,
+                      time_limit=time_limit, solver=solver, force_squad={g0: list(start_squad)})
+    if 'plan' not in roll or not roll.get('complete'):
+        return None, time.time() - t0
+
+    def pts(res, g):          # unweighted points of GW g of a plan, hits included (chips.gw_points)
+        return gw_points(res['plan'][g], g, pool, (res.get('beta') or {}).get(g), use_bench)['total']
+
+    gain = {'this_gw': float(pts(base, g0) - pts(roll, g0)),
+            'next_gws': float(sum(pts(base, g) - pts(roll, g) for g in horizon)),
+            'n_gws': len(horizon)}
+    return gain, time.time() - t0
+
+
 def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, gw, captain=None,
                    max_hits=None, use_vice=True, use_bench=True, time_limit=None, solver=None,
                    window_end=None, squad=None):

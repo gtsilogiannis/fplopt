@@ -15,7 +15,7 @@ def test_selling_price(purchase, now, expected):
 
 def load(season, client, messages):
     """Runs load_current_squad against the fake API; returns its result, its messages and the truth."""
-    squad, bank, sell = load_current_squad(client, 1, CUR, {'elements': season.elements})
+    squad, bank, sell, _ = load_current_squad(client, 1, CUR, {'elements': season.elements})
     t_sq, t_pur, t_bank = client.api.manager['truth']
     truth_sell = {p: sell_rule(t_pur[p], season.price(p, CUR)) / 10 for p in t_sq}
     return squad, bank, sell, messages(), (t_sq, t_pur, t_bank, truth_sell)

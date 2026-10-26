@@ -28,7 +28,8 @@ def load_current_squad(client, team_id, current_gw, bootstrap, history=None):
         prices are rebuilt: the picks of the manager's first GW, then every later
         transfer in time order (element_in_cost = purchase price), skipping
         Free Hit transfers because they are reverted.
-    Returns (list of player ids, bank in GBPm, {player id: selling price in GBPm}).
+    Returns (list of player ids, bank in GBPm, {player id: selling price in GBPm},
+             {player id: selling price from the upper bound of an unknown purchase price}).
     """
     if history is None:   # M8: the engine passes it (also used for the free transfers)
         history = client.entry_history(team_id)
@@ -122,8 +123,10 @@ def load_current_squad(client, team_id, current_gw, bootstrap, history=None):
         unsure = ", ".join(name.get(pid, str(pid)) for pid in squad if sell_hi[pid] != sell[pid])
         log.info(f"[*] Selling value of the squad is between £{sum(sell.values()):.1f}m and "
                  f"£{sum(sell_hi.values()):.1f}m (purchase price not exactly known: {unsure}). "
-                 f"Using the lower value; --override-budget sets the exact one from the app.")
-    return squad, bank / 10.0, sell
+                 f"Using the lower value; --override-budget sets the exact one from the app.",
+                 extra={'code': 'selling_value_range'})    # 15c: shown in the summary too
+    # sell_hi: selling prices from the upper bound of the purchase prices (= sell when all are known)
+    return squad, bank / 10.0, sell, sell_hi
 
 
 def free_transfers_from_history(history, current_gw):

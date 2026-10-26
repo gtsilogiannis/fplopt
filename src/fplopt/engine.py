@@ -14,7 +14,7 @@ import pandas as pd
 from . import xp_model as xpm
 from .chips import advise, chip_report
 from .data import build_fixture_map, fetch_history, get_current_gw
-from .decision import CHECK_KINDS, check_decision, verdict
+from .decision import CHECK_KINDS, check_decision, transfer_gain, verdict
 from .errors import InputError, SolverError, UserActionError
 from .messages import collect
 from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_4
@@ -56,6 +56,7 @@ class Options:
     check_captain: Optional[int] = None  # TC: the user's captain (FPL player id)
     check_out: Optional[list] = None     # TRANSFERS: the players the user sells now (ids)
     check_in: Optional[list] = None      # TRANSFERS: the players the user buys now (ids), same count
+    transfer_gain: bool = True           # 15c: solve 'no transfer now' for the summary (one more solve)
 
 
 # --------------------------------------------------------------------------- output
@@ -222,6 +223,10 @@ class OptimizeResult:
     api_stats: dict                 # requests, retries, cache_hits, cache_writes of the client
     state: EngineState = field(repr=False, default=None)
     decision: Optional[DecisionSection] = None     # --check; None without it
+    # 15c (summary.py): facts for the plain-English summary
+    deadline: Optional[str] = None                 # deadline of the current GW as the API gives it (UTC)
+    squad_value_high: Optional[float] = None       # upper bound of the squad's selling value; None = exact
+    no_transfer: Optional[dict] = None             # decision.transfer_gain(); None = not computed
 
 
 def optimize(client, opts):
@@ -315,7 +320,8 @@ def _optimize(client, opts, warnings):
         sell_price = {}
     else:
         # R1 + S1: squad after a possible Free Hit revert, bank, selling prices
-        current_squad, bank, sell_price = load_current_squad(client, team_id, current_gw, bootstrap, history)
+        current_squad, bank, sell_price, sell_hi = load_current_squad(client, team_id, current_gw, bootstrap,
+                                                                      history)
         # M8: free transfers rebuilt from the GW history; --ft overrides
         ft_api, issues = free_transfers_from_history(history, current_gw)
         for msg in issues:
@@ -430,7 +436,7 @@ def _optimize(client, opts, warnings):
     df = pd.DataFrame(players)
 
     # Financial state
-    squad_sell_value = None
+    squad_sell_value = squad_value_high = None
     if new_team:                      # R2: GW1 or a team created during the season
         total_budget = override_budget if override_budget else 100.0
         budget_source = 'override' if override_budget else 'default'
@@ -439,6 +445,8 @@ def _optimize(client, opts, warnings):
         # players, 'sum of costs <= budget' means: each sale returns the selling price and each
         # purchase costs now_cost. Unavailable squad players are in df, so their cost counts.
         squad_sell_value = df[df['id'].isin(current_squad)]['cost'].sum()
+        # 15c: the upper bound, for the summary; an exact budget from the user makes it moot
+        squad_value_high = None if override_budget else float(sum(sell_hi[i] for i in current_squad))
         if override_budget:
             total_budget, budget_source = override_budget, 'override'
             log.info(f"[*] Budget (--override-budget): £{total_budget:.1f}m "
@@ -552,11 +560,26 @@ def _optimize(client, opts, warnings):
     if n_fb:
         log.info(f"[*] {n_fb} player(s) with no GW at their current club yet use FPL's ep_next (marked '(FPL ep)').")  # X5
 
+    # 15c (decision A): the gain of this GW's transfers over making none, for the summary. Not with
+    # WC/FH (their transfers are free) nor before the first deadline (no squad to keep).
+    no_transfer, no_transfer_s = None, 0.0
+    if opts.transfer_gain and now['in'] and not new_team and now['chip'] not in ('WC', 'FH'):
+        no_transfer, no_transfer_s = transfer_gain(pool, horizon, gw_weight, start_squad, total_budget, ft0, res,
+                                                   chip_used, max_hits, use_vice, use_bench,
+                                                   (time_limit or SOLVER_TIME_LIMIT) - res['seconds'], solver)
+        if no_transfer is not None:
+            log.info(f"[*] Transfers vs no transfer: {no_transfer['this_gw']:+.2f} in GW{current_gw}, "
+                     f"{no_transfer['next_gws']:+.2f} over the horizon (unweighted); solved in {no_transfer_s:.1f} s")
+        else:
+            log.info("[*] Transfers vs no transfer: not computed in the time limit.",
+                     extra={'code': 'no_transfer_not_computed'})
+    spent = res['seconds'] + no_transfer_s           # M10: one time limit for the whole run
+
     # Decision check: after the main plan (its Z0), before the chip analysis (the user asked for it)
     decision, decision_s = None, 0.0
     if check_gw is not None:
         decision = _decision_section(opts, check_gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad,
-                                     total_budget, ft0, res, name_of, avail_dict)
+                                     total_budget, ft0, res, name_of, avail_dict, spent)
         if decision.result is not None:
             decision_s = decision.result['seconds']
             log.info(f"[*] Decision check: {decision.chip} GW{decision.gw}: {decision_s:.1f} s")
@@ -571,7 +594,7 @@ def _optimize(client, opts, warnings):
         chips.status = 'skipped_chip'
     else:
         # M10: one limit for the whole run (main plan, decision check, chip analysis)
-        time_left = (time_limit or SOLVER_TIME_LIMIT) - res['seconds'] - decision_s
+        time_left = (time_limit or SOLVER_TIME_LIMIT) - spent - decision_s
         rep = chip_report(pool, horizon, gw_weight, plan, start_squad, total_budget, ft0, chip_windows,
                           max_hits, use_vice, use_bench, time_left, solver)
         chips.window, chips.exact, chips.error, chips.estimates = rep['window'], rep['exact'], rep['gap'], rep['est']
@@ -604,22 +627,24 @@ def _optimize(client, opts, warnings):
                           gap=res['gap'], objective=res['objective'], beta_change=res.get('beta_change', 0.0)),
         chips=chips, fallback_players=n_fb, explain=explained, explain_not_found=explain_not_found,
         log_written=log_written, warnings=warnings,
-        timings={'data_s': t_solve - t_start, 'solve_s': res['seconds'], 'chips_s': chips_s,
-                 'total_s': time.time() - t_start},
+        timings={'data_s': t_solve - t_start, 'solve_s': res['seconds'], 'no_transfer_s': no_transfer_s,
+                 'chips_s': chips_s, 'total_s': time.time() - t_start},
         api_stats=dict(getattr(client, 'stats', {})),
         state=EngineState(pool=pool, plan_result=res, horizon=horizon, weights=gw_weight, start_squad=start_squad,
                           budget=total_budget, ft0=ft0, players=players, chip_plans=chip_plans),
-        decision=decision)
+        decision=decision,
+        deadline=next((e.get('deadline_time') for e in bootstrap['events'] if e['id'] == current_gw), None),
+        squad_value_high=squad_value_high, no_transfer=no_transfer)
 
 
 def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,
-                      name_of, avail_dict):
+                      name_of, avail_dict, spent):
     """Decision check: rules of the game that need the team's data, then decision.check_decision."""
     chip, cap = opts.check, opts.check_captain
     sec = DecisionSection(chip=chip, gw=gw, captain_id=cap, captain_name=name_of.get(cap), status='invalid')
     if chip == 'TRANSFERS':
         return _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of,
-                                  avail_dict)
+                                  avail_dict, spent)
     window_end = next((e for s, e in chip_windows.get(chip, []) if s <= gw <= e), None)
     if window_end is None:
         # played already, or its window ended, or (GW1-19 / GW20-38) no unplayed set covers this GW
@@ -634,7 +659,7 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
                                      f"may pass to the vice-captain)"})
     # the main plan's own time limit is the budget for the whole run; the check gets what is left
     # (at least 1 ms: a time limit of 0 would mean 'the default' to check_decision)
-    time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - res['seconds'], 0.001)
+    time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, chip, gw, cap,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
                                 window_end=window_end)
@@ -658,7 +683,8 @@ def _finish_section(sec, name_of):
                 sec.names[i] = name_of[i]
 
 
-def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of, avail_dict):
+def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of, avail_dict,
+                       spent):
     """D3: the user's transfers of the current GW. Rules of the game first (the new squad must be a
     valid FPL squad within the budget); a broken rule makes the check 'invalid' with no solve."""
     outs, ins = list(opts.check_out), list(opts.check_in)
@@ -708,7 +734,7 @@ def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget,
         k = len(ins) - ft0
         sec.notes.append({'code': 'hits', 'message': f"{len(ins)} transfers with {ft0} free: {k} hit(s), "
                                                        f"-{4 * k} points (counted in G)"})
-    time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - res['seconds'], 0.001)
+    time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, 'TRANSFERS', sec.gw, None,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver, squad=squad)
     _finish_section(sec, name_of)

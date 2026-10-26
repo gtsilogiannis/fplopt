@@ -5,6 +5,7 @@
 [*] Free transfers: 3 (rebuilt from history; --ft overrides)
 [*] Budget: £99.1m = squad selling value £96.2m + bank £2.9m
 [*] Solved with HiGHS in 19.1 s (3 pass(es) for the bench weights); proven within 0.07 weighted points of the best plan of this model
+[*] Transfers vs no transfer: +7.38 in GW8, +13.12 over the horizon (unweighted); solved in 2.5 s
 
 ====================================================================================
  SQUAD PLAN | GW8 (horizon: GW8-GW10)
