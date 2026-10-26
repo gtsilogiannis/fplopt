@@ -93,3 +93,20 @@ def test_summary_text_has_the_gain(plain):
     nt = plain.no_transfer
     x = " ".join("\n".join(build_summary(plain)['text']).split())
     assert f"Compared with making no transfer: {nt['this_gw']:+.1f} expected points this gameweek" in x
+
+
+@pytest.mark.parametrize("chip, expected", [
+    ('TC', ["CHIPS  You are playing Triple Captain in GW8: the plan above uses it.", "tripled (Triple Captain)"]),
+    ('BB', ["Bench Boost: they all score"]),
+    ('WC', ["TRANSFERS  Wildcard: unlimited free transfers this gameweek"]),
+    ('FH', ["TRANSFERS  Free Hit: unlimited free transfers this gameweek",
+            "After GW8 your squad goes back to the one you have now."]),
+])
+def test_summary_with_a_chip_played(season, chip, expected):
+    """--chip: the summary says the plan uses it; WC/FH list sales and buys, no 'no transfer' solve."""
+    r = run(season, chip=chip, chip_report=True)
+    x = "\n".join(build_summary(r)['text'])
+    for e in expected:
+        assert e in x
+    if chip in ('WC', 'FH'):
+        assert r.no_transfer is None

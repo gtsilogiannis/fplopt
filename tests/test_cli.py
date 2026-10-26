@@ -94,7 +94,7 @@ def test_no_log(cli_client, capsys, monkeypatch, tmp_path):
 def test_optimize_text(cli_client, capsys, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     cli_client()
-    status, out, err = run_cli(['--team', '1', '--lookahead', '1', '--no-chip-report'], capsys)
+    status, out, err = run_cli(['--team', '1', '--lookahead', '1', '--no-chip-report', '--details'], capsys)
     assert status == 0
     assert " SQUAD PLAN | GW8 (horizon: GW8-GW8)" in out and "   Skipped (--no-chip-report)." in out
     assert not any(ln.startswith('[*]') for ln in out.splitlines())
@@ -125,7 +125,7 @@ def test_check_tc_json(cli_client, capsys, season):
 
 def test_check_bb_text(cli_client, capsys):
     cli_client()
-    status, out, _ = run_cli(CHECK + ['--check', 'BB'], capsys)
+    status, out, _ = run_cli(CHECK + ['--check', 'BB', '--details'], capsys)
     assert status == 0
     assert " DECISION CHECK | BB in GW8" in out
     assert "R = best BB - your decision:      0 (Bench Boost leaves nothing to choose)" in out
@@ -138,7 +138,7 @@ def test_check_invalid_text_and_json(monkeypatch, season, capsys):
     manager = build_manager(season)
     manager['chips'].append({'name': '3xc', 'event': 3})
     monkeypatch.setattr(cli, 'FplClient', lambda base_url, **kw: FakeClient(FakeApi(season, manager)))
-    status, out, _ = run_cli(CHECK + ['--check', 'TC', '--captain', '1'], capsys)
+    status, out, _ = run_cli(CHECK + ['--check', 'TC', '--captain', '1', '--details'], capsys)
     assert status == 0
     assert "   Invalid: TC cannot be played in GW8: GW1-19 played GW3, GW20-38 available." in out
     assert ">> Verdict: this decision is not allowed by the rules of the game." in out
@@ -156,7 +156,7 @@ def test_check_transfers_text_and_json(cli_client, capsys, season):
     out = owned[14]                                       # an owned forward
     inn = min((i for i in el if el[i]['element_type'] == 4 and i not in owned), key=lambda i: (el[i]['now_cost'], i))
     argv = CHECK + ['--check', 'TRANSFERS', '--out', str(out), '--in', str(inn)]
-    status, text, _ = run_cli(argv, capsys)
+    status, text, _ = run_cli(argv + ['--details'], capsys)
     assert status == 0
     assert f" DECISION CHECK | transfers in GW8: P{out} -> P{inn}" in text
     assert "G = your transfers - no transfer:" in text and ">> Verdict: " in text
@@ -214,15 +214,59 @@ def test_subprocess_utf8_output(tmp_path):
     env = dict(os.environ, PYTHONIOENCODING='cp1252', LC_ALL='C', LANG='C')
     with FakeServer(FakeApi(season, build_manager(season))) as url:
         env[cli.API_URL_ENV] = url
-        for extra in (['--json'], []):
+        for extra in (['--json'], ['--details'], []):
             proc = subprocess.run([sys.executable, '-m', 'fplopt', '--team', '1', '--lookahead', '1',
                                    '--no-chip-report', *extra], cwd=tmp_path, env=env, capture_output=True,
                                   timeout=300)
             assert proc.returncode == 0, proc.stderr.decode('utf-8', 'replace')
             out = proc.stdout.decode('utf-8')                # raises if the bytes are not UTF-8
+            if not extra:                                    # 15c summary: the lineup, written as it is
+                assert out.startswith("FPL plan for GW8")
+                assert any(name in out for name in names.values())
+                continue
             for name in names.values():
                 assert name in out
-            if extra:
+            if extra == ['--json']:
                 json.loads(out)
             else:
                 assert "£" in out
+
+
+# --------------------------------------------------------------------------- 15c: summary by default
+QUICK = ['--team', '1', '--lookahead', '1', '--no-chip-report', '--no-log']
+
+
+def test_summary_is_the_default(cli_client, capsys):
+    """Without --details or --json: stdout = the lines of the summary, nothing else; stderr = one
+    'Working' line and no '[*]' progress lines."""
+    cli_client()
+    status, out, err = run_cli(QUICK, capsys)
+    assert status == 0
+    status, doc, _ = run_cli(QUICK + ['--json'], capsys)          # the same run, as JSON
+    assert out == "\n".join(json.loads(doc)['summary']['text']) + "\n"
+    assert out.startswith("FPL plan for GW8") and "SQUAD PLAN" not in out
+    assert err.splitlines() == ["Working... this can take a few minutes."]
+
+
+def test_details_is_the_full_output(cli_client, capsys, season):
+    """--details prints exactly what report.print_optimize prints for the same options (S6)."""
+    import io
+    from fplopt import report
+    from fplopt.engine import Options, optimize
+    cli_client()
+    status, out, err = run_cli(QUICK + ['--details'], capsys)
+    assert status == 0 and err.splitlines()[0].startswith("[*] MILP Optimizer")
+    r = optimize(FakeClient(FakeApi(season, build_manager(season))),
+                 Options(team_id=1, lookahead=1, chip_report=False, write_log=False))
+    buf = io.StringIO()
+    report.print_optimize(r, buf)
+    assert out == buf.getvalue()
+
+
+def test_json_has_the_summary(cli_client, capsys):
+    cli_client()
+    status, out, _ = run_cli(QUICK + ['--json'], capsys)
+    s = json.loads(out)['summary']
+    assert status == 0 and s['gw'] == 8 and s['text'][0].startswith("FPL plan for GW8")
+    assert set(s) >= {'deadline_utc', 'transfers', 'captain', 'vice', 'lineup', 'chip', 'expected_points',
+                      'expected_range', 'alerts', 'decision', 'text'}

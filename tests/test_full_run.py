@@ -13,6 +13,7 @@ the same plan, objective and Deltas). They are checked against their guarantee i
 Slow (~1.5 minutes): pytest -m slow"""
 import io
 import re
+from datetime import timezone
 from pathlib import Path
 
 import pytest
@@ -20,8 +21,10 @@ import pytest
 from fplopt import report
 from fplopt.engine import Options, optimize
 from fplopt.milp import MIP_REL_GAP
+from fplopt.summary import build_summary
 
 GOLDEN = Path(__file__).parent / "data" / "full_run_L3.txt"
+GOLDEN_SUMMARY = Path(__file__).parent / "data" / "full_run_L3_summary.txt"   # 15c: the default output
 TIME = re.compile(r"(in |Chip analysis: )\d+\.\d s")      # solve times vary between runs and machines
 GAP = re.compile(r"(proven within |error <= )\d+\.\d+")  # optimality gaps vary between machines (see above)
 # 15c: the gain over no transfer is a difference of two solves, each exact only to its gap -> its value is
@@ -52,6 +55,10 @@ def test_full_run_equals_reference(fake_client, messages, tmp_path):
     golden_log[-1] = golden_log[-1].replace("predictions_log.csv", str(log_path))   # written to tmp
     assert mask(out.getvalue().splitlines()) == mask(golden_out)
     assert mask(messages()) == mask(golden_log)
+    # 15c (S5): the plain-English summary of the same run; the deadline in UTC, so that the reference
+    # does not depend on the time zone of the machine. Rounded numbers: not masked.
+    summary = build_summary(result, timezone.utc)['text']
+    assert summary == GOLDEN_SUMMARY.read_text(encoding='utf-8').splitlines()
 
     # the same numbers as data (what --json returns)
     assert result.current_gw == 8 and result.horizon == [8, 9, 10]

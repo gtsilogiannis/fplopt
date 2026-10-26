@@ -3,11 +3,23 @@ are not printed here: the engine logs them while it runs and the command line se
 stderr. The text below is the same as the output of the original fpl_v2.py."""
 import sys
 
+from .summary import build_summary
 
-def print_optimize(r, out=None):
-    """Prints an engine.OptimizeResult."""
+
+def print_summary(r, out=None):
+    """15c, the default output: the plain-English summary (summary.py); --explain blocks first, as in
+    the full output, because the user asked for them."""
     out = out or sys.stdout
+    print_explain(r, out)
+    for line in build_summary(r)['text']:
+        print(line, file=out)
+    if r.decision is not None:
+        # [temporary, 15c step 3] until the decision check has its own plain-English lines (step 4)
+        print_decision(r, out)
 
+
+def print_explain(r, out):
+    """X7: the --explain blocks (nothing without --explain)."""
     def p(line=""):
         print(line, file=out)
 
@@ -28,6 +40,15 @@ def print_optimize(r, out=None):
     for n in r.explain_not_found:
         p(f"[explain] '{n}' not found (check web_name; unavailable players outside your squad are skipped)")
 
+
+def print_optimize(r, out=None):
+    """Prints an engine.OptimizeResult in full (--details)."""
+    out = out or sys.stdout
+
+    def p(line=""):
+        print(line, file=out)
+
+    print_explain(r, out)
     g0 = r.current_gw
     p("\n" + "=" * 84)
     p(f" SQUAD PLAN | GW{g0} (horizon: GW{r.horizon[0]}-GW{r.horizon[-1]})")

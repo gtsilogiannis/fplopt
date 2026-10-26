@@ -13,6 +13,7 @@ import math
 
 from . import __version__
 from .errors import EXIT_INTERNAL
+from .summary import build_summary
 
 SCHEMA_VERSION = "1.0"
 
@@ -89,6 +90,9 @@ def optimize_to_dict(r):
             'seconds': c.seconds,
         },
         'decision_check': _decision(r.decision),
+        # 15c: plain-English summary. Its text gives the deadline in the time zone of the machine that runs
+        # the engine (the user's own with the C frontend); a server reads 'deadline_utc' instead.
+        'summary': build_summary(r),
         'explain': [{
             'id': e.id, 'name': e.name, 'team': e.team_name, 'pos_id': e.pos_id, 'price': e.price,
             'source': e.source, 'chance': e.chance, 'minutes_model': e.minutes_model,
