@@ -114,21 +114,35 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
         chips_t = [cp for cp in now_chips if t <= out['window'][cp] and cp != 'WC']
         if not chips_t:
             continue
-        v0 = squad_value(pool, q, t, 'NONE', use_vice, use_bench, solver)
+        est_t = estimate_gw(pool, q, t, t0, chips_t, budget, max_hits, use_vice, use_bench, solver)
         for cp in chips_t:
-            if cp in ('TC', 'BB'):
-                v = squad_value(pool, q, t, cp, use_vice, use_bench, solver)
-            else:   # FH: whole pool, start from Q_t, sell = price ([assumption] constant prices)
-                sub = dict(pool)
-                sub['sell'] = {i: pool['sell'].get(i, pool['price'][i]) for i in q}
-                sub['avail'] = {i: True for i in pool['ids']} if t > t0 else pool['avail']
-                res = plan_squad(sub, [t], {t: 1.0}, list(q), budget, 1, 'FH', max_hits, use_vice, use_bench,
-                                 time_limit=30, solver=solver)
-                v = plan_points(res, sub, [t], use_bench) if res.get('complete') else None   # C12
-            if v is not None and v0 is not None:
-                out['est'].setdefault(cp, {})[t] = v - v0
+            if est_t[cp] is not None:
+                out['est'].setdefault(cp, {})[t] = est_t[cp]
             else:
                 out['skipped'].append(f"estimate {cp} GW{t}")     # C12: not computed in time
+    return out
+
+
+def estimate_gw(pool, q, t, t0, chips_t, budget, max_hits, use_vice, use_bench, solver=None):
+    """C8-C9: one-GW estimate of Delta_c(t) for each chip c in chips_t (TC, BB, FH) on the squad q
+    (the squad the main plan holds in GW t). Moved out of chip_report unchanged (decision check,
+    step 3), so that the timing of a user's chip uses the same numbers:
+      TC, BB: squad_value(q, chip) - squad_value(q);
+      FH: best one-GW Free Hit squad from the whole pool - squad_value(q).
+    Returns {chip: estimate, or None if a solve behind it was not complete (C12)}."""
+    v0 = squad_value(pool, q, t, 'NONE', use_vice, use_bench, solver)
+    out = {}
+    for cp in chips_t:
+        if cp in ('TC', 'BB'):
+            v = squad_value(pool, q, t, cp, use_vice, use_bench, solver)
+        else:   # FH: whole pool, start from Q_t, sell = price ([assumption] constant prices)
+            sub = dict(pool)
+            sub['sell'] = {i: pool['sell'].get(i, pool['price'][i]) for i in q}
+            sub['avail'] = {i: True for i in pool['ids']} if t > t0 else pool['avail']
+            res = plan_squad(sub, [t], {t: 1.0}, list(q), budget, 1, 'FH', max_hits, use_vice, use_bench,
+                             time_limit=30, solver=solver)
+            v = plan_points(res, sub, [t], use_bench) if res.get('complete') else None   # C12
+        out[cp] = v - v0 if (v is not None and v0 is not None) else None
     return out
 
 
