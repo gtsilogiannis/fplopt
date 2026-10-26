@@ -94,6 +94,9 @@ def build_parser():
                         help=f"Download the cached live data of final GWs again ({CACHE_DIR}/fpl_live/)")
     parser.add_argument("--json", action="store_true",
                         help="Print the result as one JSON document (UTF-8) on stdout instead of text")
+    # 15c: the default text is a short plain-English summary; --details prints everything as before
+    parser.add_argument("--details", action="store_true",
+                        help="Print the full output (every number, progress lines) instead of the summary")
     return parser
 
 
@@ -149,10 +152,13 @@ def use_utf8_streams():
             pass
 
 
-def configure_logging():
-    """Every message of the package goes to stderr, as it is (the text carries its own prefix)."""
+def configure_logging(level=logging.INFO):
+    """Every message of the package goes to stderr, as it is (the text carries its own prefix).
+    level: the lowest level PRINTED (WARNING hides the '[*]' / '[INFO]' progress lines). The logger
+    itself stays at INFO, so the coded INFO messages still reach the JSON 'warnings' (messages.py)."""
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(logging.Formatter("%(message)s"))
+    handler.setLevel(level)
     log.handlers[:] = [handler]
     log.setLevel(logging.INFO)
 
@@ -178,6 +184,10 @@ def main(argv=None):
                 else:
                     report.print_evaluate(result)
             else:
+                summary = not (want_json or args.details)          # 15c: the default output
+                if summary:
+                    configure_logging(logging.WARNING)             # no '[*]' lines; warnings and errors stay
+                    print("Working... this can take a few minutes.", file=sys.stderr, flush=True)
                 opts = Options(team_id=args.team, ft=args.ft, chip=args.chip, min_chance=args.min_chance,
                                lookahead=args.lookahead, override_budget=args.override_budget,
                                max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
@@ -187,6 +197,8 @@ def main(argv=None):
                 result = optimize(client, opts)
                 if want_json:
                     print(jsonout.dumps(jsonout.optimize_to_dict(result)))
+                elif summary:
+                    report.print_summary(result)
                 else:
                     report.print_optimize(result)
             return 0
