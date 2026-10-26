@@ -50,6 +50,14 @@ def build_parser():
     # the model does not choose chips inside the main plan.
     parser.add_argument("--chip", type=str, choices=['WC', 'FH', 'BB', 'TC', 'NONE'], default='NONE',
                         help="Chip played in the current GW (Default: NONE; see the Chip suggestions section)")
+    # Decision check: the user's own chip decision, compared with the plan without it and with the
+    # best version of the same chip (decision.py)
+    parser.add_argument("--check", type=str, choices=['TC', 'BB'], default=None,
+                        help="Check your own chip decision: TC (with --captain) or BB")
+    parser.add_argument("--check-gw", type=int, default=None,
+                        help="Gameweek of the checked decision, inside the horizon (Default: the current GW)")
+    parser.add_argument("--captain", type=int, default=None,
+                        help="--check TC: FPL id of your captain (the number in the player's address on the site)")
     parser.add_argument("--no-chip-report", action="store_true",
                         help="Skip the Chip suggestions section (saves its solve time)")   # C10
     parser.add_argument("--min-chance", type=int, default=75,
@@ -109,6 +117,10 @@ def check_args(args):
         raise InputError("--time-limit must be 1 second or more.")
     if args.override_budget is not None and args.override_budget <= 0:
         raise InputError("--override-budget must be a positive amount in GBPm (e.g. 100.9).")
+    if args.check is None and (args.check_gw is not None or args.captain is not None):
+        raise InputError("--check-gw and --captain are used only with --check.")
+    if args.check_gw is not None and not 1 <= args.check_gw <= 38:
+        raise InputError("--check-gw must be between 1 and 38.")
     if args.solver == 'highs' and highspy is None:  # M10
         raise UserActionError("--solver highs needs the highspy package: pip install highspy")
 
@@ -157,7 +169,8 @@ def main(argv=None):
                                lookahead=args.lookahead, override_budget=args.override_budget,
                                max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
                                solver=args.solver, chip_report=not args.no_chip_report,
-                               write_log=not args.no_log)
+                               write_log=not args.no_log, check=args.check, check_gw=args.check_gw,
+                               check_captain=args.captain)
                 result = optimize(client, opts)
                 if want_json:
                     print(jsonout.dumps(jsonout.optimize_to_dict(result)))

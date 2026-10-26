@@ -6,7 +6,7 @@ import pytest
 from toy_pools import add, base_squad, fill, toy_pool, weights
 import fplopt.decision
 from fplopt.chips import chip_report, estimate_gw
-from fplopt.decision import check_decision, plan_value
+from fplopt.decision import VERDICTS, check_decision, plan_value, verdict
 from fplopt.milp import TRANSFER_TIEBREAK, plan_squad
 
 H3 = [8, 9, 10]
@@ -211,3 +211,26 @@ def test_gw_after_the_window_is_an_error():
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     with pytest.raises(ValueError):
         check(pool, sq, {'plan': {}}, 'TC', 10, sq[14], window_end=9)
+
+
+# --------------------------------------------------------------------------- verdict (spec 0.4)
+def _res(g, g_lo, g_hi, r=0.0, r_lo=-0.1, r_hi=0.1, is_best=True):
+    return {'g': g, 'g_low': g_lo, 'g_high': g_hi, 'r': r, 'r_low': r_lo, 'r_high': r_hi,
+            'timing': {'is_best': is_best}}
+
+
+@pytest.mark.parametrize("res, codes", [
+    (_res(-3.0, -3.1, -2.9), ['worse_than_none']),                       # G below 0 beyond the gaps
+    (_res(0.05, -0.05, 0.10), ['no_clear_gain']),                       # G within the gaps around 0
+    (_res(5.0, 4.9, 5.1), ['agrees']),
+    (_res(5.0, 4.9, 5.1, is_best=False), ['better_gw']),
+    (_res(5.0, 4.9, 5.1, r=2.0, r_lo=1.9, r_hi=2.1), ['better_version']),
+    (_res(5.0, 4.9, 5.1, r=2.0, r_lo=1.9, r_hi=2.1, is_best=False), ['better_gw', 'better_version']),
+    (_res(5.0, 4.9, 5.1, is_best=None), []),                            # timing incomplete (C12)
+    (_res(None, None, None), []),                                       # G not computed (C12)
+    (dict(_res(5.0, 4.9, 5.1), timing=None), ['agrees']),               # no timing asked
+])
+def test_verdict(res, codes):
+    """The verdict uses only the gap bounds and the timing rule; every code it returns is defined."""
+    assert verdict(res) == codes
+    assert set(codes) <= set(VERDICTS)

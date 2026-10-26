@@ -32,6 +32,7 @@ def optimize_to_dict(r):
             'lookahead': o.lookahead, 'override_budget': o.override_budget, 'max_hits': o.max_hits,
             'time_limit': o.time_limit, 'solver': o.solver, 'chip_report': o.chip_report,
             'write_log': o.write_log,
+            'check': o.check, 'check_gw': o.check_gw, 'captain': o.check_captain,   # decision check
         },
         'context': {
             'current_gw': r.current_gw,
@@ -86,6 +87,7 @@ def optimize_to_dict(r):
             'not_computed': list(c.not_computed),
             'seconds': c.seconds,
         },
+        'decision_check': _decision(r.decision),
         'explain': [{
             'id': e.id, 'name': e.name, 'team': e.team_name, 'pos_id': e.pos_id, 'price': e.price,
             'source': e.source, 'chance': e.chance, 'minutes_model': e.minutes_model,
@@ -100,6 +102,44 @@ def optimize_to_dict(r):
         'api': dict(r.api_stats),
     })
     return doc
+
+
+def _decision(d):
+    """engine.DecisionSection -> dict; None without --check. Keys 'no_chip', 'best', 'decision' name
+    Z0 (plan without the chip), Z+ (best version of the chip) and Z(D) (the user's decision)."""
+    if d is None:
+        return None
+    x = d.result or {}                                    # {} when the check is invalid (nothing solved)
+    def who(i):                                           # a player as {id, name}; None stays None
+        return None if i is None else {'id': i, 'name': d.names.get(i)}
+
+    def plan_gw(pg):                                      # the plan of the decision's GW
+        if pg is None:
+            return None
+        return {'chip': pg['chip'], 'captain': who(pg['captain']), 'vice': who(pg['vice']), 'hits': pg['hits'],
+                'transfers_in': [who(i) for i in pg['in']], 'transfers_out': [who(i) for i in pg['out']],
+                'squad': list(pg['squad']), 'xi': list(pg['xi'])}
+
+    keys = (('no_chip', 'z0'), ('best', 'z_best'), ('decision', 'z_decision'))
+    t = x.get('timing')
+    return {
+        'status': d.status, 'chip': d.chip, 'gw': d.gw,
+        'captain': {'id': d.captain_id, 'name': d.captain_name} if d.captain_id is not None else None,
+        'violations': list(d.violations), 'notes': list(d.notes), 'verdict': list(d.verdict),
+        'g': x.get('g'), 'g_low': x.get('g_low'), 'g_high': x.get('g_high'),
+        'r': x.get('r'), 'r_low': x.get('r_low'), 'r_high': x.get('r_high'),
+        'gain_action': x.get('gain_action'),
+        'objective': {k: x.get(src) for k, src in keys},
+        'gaps': {k: x.get('gaps', {}).get(src) for k, src in keys},
+        'points_gw': {k: x.get('points_gw', {}).get(src) for k, src in keys},
+        'best': plan_gw(x.get('plan_best')), 'decision': plan_gw(x.get('plan_decision')),
+        'captain_bought': x.get('captain_bought'),
+        'timing': None if t is None else {
+            'window_end': t['window_end'], 'at_gw': t['at_gw'], 'best_gw': t['best_gw'], 'best': t['best'],
+            'is_best': t['is_best'], 'estimates': [{'gw': g, 'delta': v} for g, v in sorted(t['estimates'].items())]},
+        'not_computed': list(x.get('not_computed', [])),
+        'seconds': x.get('seconds'),
+    }
 
 
 def evaluate_to_dict(r, warnings=()):

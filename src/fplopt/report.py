@@ -73,7 +73,82 @@ def print_optimize(r, out=None):
       f"+ autosubs {ep.autosubs:.2f} - hits {ep.hits} = {ep.total:.2f}")
     p(f"Objective (weighted over horizon, hits included): {r.solver.objective:.2f}")
 
+    if r.decision is not None:                            # --check only: the text without it is unchanged
+        print_decision(r, out)
     print_chips(r, out)
+
+
+def _signed(v, lo=None, hi=None):
+    """+1.23 (between +1.10 and +1.30); 'not computed' for None (C12)."""
+    if v is None:
+        return "not computed"
+    return f"{v:+.2f}" + (f" (between {lo:+.2f} and {hi:+.2f})" if lo is not None and hi is not None else "")
+
+
+def print_decision(r, out):
+    """Decision check: the user's chip decision against the plan without it and the best version."""
+    def p(line=""):
+        print(line, file=out)
+
+    d = r.decision
+    who = f" on {d.captain_name}" if d.captain_id is not None else ""
+    p("\n" + "=" * 84)
+    p(f" DECISION CHECK | {d.chip}{who} in GW{d.gw}")
+    p("=" * 84)
+    if d.status == 'invalid':
+        for v in d.violations:
+            p(f"   Invalid: {v['message']}.")
+        p(">> Verdict: this decision is not allowed by the rules of the game.")
+        return
+    x = d.result
+    hz = f"GW{r.horizon[0]}-GW{r.horizon[-1]}"
+    p(f"   Expected points over {hz}, weighted as in the plan; the transfers after GW{d.gw} stay free:")
+    p(f"      G = your decision - no {d.chip}:      {_signed(x['g'], x['g_low'], x['g_high'])}")
+    if d.chip == 'BB':
+        p("      R = best BB - your decision:      0 (Bench Boost leaves nothing to choose)")
+    else:
+        p(f"      R = best {d.chip} - your decision:    {_signed(x['r'], x['r_low'], x['r_high'])}")
+    p(f"      Gain of {d.chip} itself (G + R):      {_signed(x['gain_action'])}")
+    pts = x['points_gw']
+    cells = [f"{label} {pts[k]:.2f}" for k, label in (('z0', 'no chip'), ('z_decision', 'your decision'),
+                                                       ('z_best', f'best {d.chip}')) if k in pts]
+    if cells:
+        p(f"   GW{d.gw} alone, unweighted: " + " | ".join(cells))
+    best = x['plan_best']
+    if d.chip == 'TC' and best is not None and best['captain'] != d.captain_id:
+        p(f"   Best {d.chip} in GW{d.gw}: captain {d.names.get(best['captain'], best['captain'])}.")
+    t = x['timing']
+    if t is not None:
+        est = t['estimates']
+        top = max(est.values()) if est else None
+        cells = [f"GW{g} {v:+.1f}{'*' if v == top else ''}" for g, v in sorted(est.items())]
+        p(f"   {d.chip} estimates by GW (squad of the plan, best captain; * = highest to GW{t['window_end']}):")
+        for k in range(0, len(cells), 8):                 # 8 GWs per line, as in the chip section
+            p("      " + "  ".join(cells[k:k + 8]))
+    for n in d.notes:
+        p(f"   Note: {n['message']}.")
+    if x['not_computed']:
+        p(f"   Not computed in the time limit: {', '.join(x['not_computed'])} (raise --time-limit).")
+    for code in d.verdict:
+        p(">> Verdict: " + _verdict_text(code, d, x))
+    if not d.verdict:
+        p(">> Verdict: none: a number it needs was not computed (raise --time-limit).")
+    p("   Expected points of the model (xP error ~2.5 per player-GW): differences of a few tenths are noise.")
+
+
+def _verdict_text(code, d, x):
+    t = x['timing']
+    if code == 'worse_than_none':
+        return f"worse than not playing {d.chip} in GW{d.gw} ({x['g']:+.2f}): keep the chip."
+    if code == 'no_clear_gain':
+        return f"no clear gain from {d.chip} in GW{d.gw}: G is within the solver tolerance."
+    if code == 'better_gw':
+        return (f"{d.chip} is estimated higher in GW{t['best_gw']} ({t['best']:+.1f}) than in GW{d.gw} "
+                f"({t['at_gw']:+.1f}).")
+    if code == 'better_version':
+        cap = d.names.get(x['plan_best']['captain'], x['plan_best']['captain'])
+        return f"captain {cap} gains {x['r']:+.2f} more with {d.chip} than your choice."
+    return f"play it: it gains {x['g']:+.2f}, GW{d.gw} is the best GW of the window and no better version exists."
 
 
 def print_chips(r, out):

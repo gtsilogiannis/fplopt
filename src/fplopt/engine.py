@@ -14,7 +14,7 @@ import pandas as pd
 from . import xp_model as xpm
 from .chips import advise, chip_report
 from .data import build_fixture_map, fetch_history, get_current_gw
-from .decision import CHECK_CHIPS, check_decision
+from .decision import CHECK_CHIPS, check_decision, verdict
 from .errors import InputError, SolverError, UserActionError
 from .messages import collect
 from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, plan_squad, require_pulp_4
@@ -153,6 +153,7 @@ class DecisionSection:
     notes: list = field(default_factory=list)        # [{'code', 'message'}]: facts the user should see
     result: Optional[dict] = None                    # decision.check_decision(); None when invalid
     names: dict = field(default_factory=dict)        # {player id: web_name} for the two plans
+    verdict: list = field(default_factory=list)      # decision.verdict() codes; [] = no verdict
 
 
 @dataclass
@@ -630,6 +631,7 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
                                 window_end=window_end)
     sec.status = sec.result['status']
+    sec.verdict = verdict(sec.result)
     bought = sec.result.get('captain_bought')
     if cap is not None and bought is not None:
         sec.notes.append({'code': 'captain_bought',
