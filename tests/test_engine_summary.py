@@ -85,6 +85,9 @@ def test_selling_value_range(season, plain, messages):
     assert 'selling_value_range' in [w['code'] for w in r.warnings]
     s = build_summary(r)
     assert any(a['code'] == 'selling_value_range' and '£0.1m' in a['message'] for a in s['alerts'])
+    i = s['text'].index("== BEFORE YOU DECIDE ==")                     # one sentence per line, no marker
+    assert s['text'][i + 1:i + 4] == ["Some selling prices are known only to within £0.1m.",
+                                      "Your budget may be £0.1m higher than shown.", "Check it in the app."]
     r = run(season, manager=build_manager(season, first_gw=2), override_budget=100.0)
     assert r.squad_value_high is None                    # an exact budget from the user
 
@@ -92,11 +95,11 @@ def test_selling_value_range(season, plain, messages):
 def test_summary_text_has_the_gain(plain):
     nt = plain.no_transfer
     x = " ".join("\n".join(build_summary(plain)['text']).split())
-    assert f"Gain vs no transfer: {nt['this_gw']:+.1f} points this gameweek" in x
+    assert f"Gain: {nt['this_gw']:+.1f} points vs no transfer this gameweek" in x
 
 
 @pytest.mark.parametrize("chip, expected", [
-    ('TC', ["You are playing Triple Captain in GW8: the plan above uses it.", "tripled (Triple Captain)"]),
+    ('TC', ["Triple Captain: playing it this gameweek: the plan above uses it", "as Triple Captain)"]),
     ('BB', ["Bench Boost: the bench players score too."]),
     ('WC', ["Free transfers: unlimited (Wildcard)", "Sell: ", "Buy: "]),
     ('FH', ["Free transfers: unlimited (Free Hit)", "After GW8 your squad goes back to the one you have now."]),

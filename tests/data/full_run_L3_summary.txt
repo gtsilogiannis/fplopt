@@ -1,20 +1,16 @@
-FPL plan for GW8
+Fantasy Premier League plan for GW8
 Deadline: Sat 3 Oct, 10:00 (your time)
 
 == TRANSFERS ==
-Free transfers:      3 (2 extra transfers: -8 points)
-  P153 -> P30    (same price)
-  P189 -> P47    (+£1.3m)
-  P231 -> P108   (+£0.4m)
-  P321 -> P214   (-£2.0m)
-  P267 -> P360   (-£1.6m)
-Bank:                £2.9m now -> £1.0m after
+Free transfers: 3 (2 extra transfers: -8 points)
+    P153 -> P30    (same price)
+    P189 -> P47    (+£1.3m)
+    P231 -> P108   (+£0.4m)
+    P321 -> P214   (-£2.0m)
+    P267 -> P360   (-£1.6m)
+Bank: £2.9m now -> £1.0m after
 Selling P189 is what makes the other purchases fit your budget.
-Gain vs no transfer: +7.4 points this gameweek, +13.1 over GW8-GW10
-
-== CAPTAINS ==
-C:  P214 (about 7 expected points, doubled)
-VC: P108
+Gain: +7.4 points vs no transfer this gameweek, +13.1 over GW8-GW10
 
 == STARTING XI (3-4-3) ==
 GK:    P19
@@ -23,10 +19,17 @@ MID:   P30, P47, P171, P297
 FWD:   P108, P214, P360
 Bench: P1 (GK), 1. P207, 2. P75, 3. P111
 
+== CAPTAINS ==
+C:  P214 (about 7 expected points, about 13 as captain)
+VC: P108
+
 == CHIPS ==
-Suggested:      no chip this gameweek
 Bench Boost:    keep it (now +2.8, best GW18: +3.4)
 Triple Captain: keep it (now +7.3, best GW17: +7.5)
+Wildcard:       used in GW5; the next one from GW20
+Free Hit:       used in GW7; the next one from GW20
+
+Suggested: no chip this gameweek.
 Chip gains are estimates: differences of a few tenths are within the
 model's error.
 

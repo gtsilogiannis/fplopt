@@ -221,7 +221,7 @@ def test_subprocess_utf8_output(tmp_path):
             assert proc.returncode == 0, proc.stderr.decode('utf-8', 'replace')
             out = proc.stdout.decode('utf-8')                # raises if the bytes are not UTF-8
             if not extra:                                    # 15c summary: the lineup, written as it is
-                assert out.startswith("FPL plan for GW8")
+                assert out.startswith("Fantasy Premier League plan for GW8")
                 assert any(name in out for name in names.values())
                 continue
             for name in names.values():
@@ -244,7 +244,7 @@ def test_summary_is_the_default(cli_client, capsys):
     assert status == 0
     status, doc, _ = run_cli(QUICK + ['--json'], capsys)          # the same run, as JSON
     assert out == "\n".join(json.loads(doc)['summary']['text']) + "\n"
-    assert out.startswith("FPL plan for GW8") and "SQUAD PLAN" not in out
+    assert out.startswith("Fantasy Premier League plan for GW8") and "SQUAD PLAN" not in out
     assert err.splitlines() == ["Working... this can take a few minutes."]
 
 
@@ -267,6 +267,6 @@ def test_json_has_the_summary(cli_client, capsys):
     cli_client()
     status, out, _ = run_cli(QUICK + ['--json'], capsys)
     s = json.loads(out)['summary']
-    assert status == 0 and s['gw'] == 8 and s['text'][0].startswith("FPL plan for GW8")
+    assert status == 0 and s['gw'] == 8 and s['text'][0].startswith("Fantasy Premier League plan for GW8")
     assert set(s) >= {'deadline_utc', 'transfers', 'captain', 'vice', 'lineup', 'chip', 'expected_points',
                       'expected_range', 'alerts', 'decision', 'text'}
