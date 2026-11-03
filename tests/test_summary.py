@@ -93,13 +93,14 @@ def test_text_numbers_equal_fields(plain):
     lo, hi = s['expected_range']
     assert f"About {half_up(s['expected_points'])} this gameweek" in x
     assert f"In 8 of 10 gameweeks: between {half_up(lo)} and {half_up(hi)}" in f
-    assert f"C: {s['captain']['name']} (about {half_up(s['captain']['expected_points'])} expected points" in f
+    xp = s['captain']['expected_points']
+    assert f"C: {s['captain']['name']} (about {half_up(xp)} expected points, about {half_up(2 * xp)} as captain)" in f
     assert f"VC: {s['vice']['name']}" in f
     t = s['transfers']
     if t['moves']:
         assert f"Bank: £{t['bank_before']:.1f}m now -> £{t['bank_after']:.1f}m after" in f
         for m in t['moves']:
-            assert re.search(rf"^  {m['out']['name']} +-> {m['in']['name']}\b", x, re.M)
+            assert re.search(rf"^    {m['out']['name']} +-> {m['in']['name']}\b", x, re.M)
     assert x.endswith("Full numbers: run again with --details")
 
 
@@ -136,24 +137,42 @@ def test_no_transfer_saves_it(plain):
 
 def test_chip_texts(plain):
     r = with_chips(plain, window={'FH': 19, 'TC': 19}, exact={'FH': 1.76, 'TC': 10.82},
-                   advice=advice('FH', holds=[('TC', 10.82, 16, 11.0, 19)]))
+                   advice=advice('FH', holds=[('TC', 10.82, 16, 11.0, 19)]),
+                   sets=[('BB', 1, 19, 'available'), ('TC', 1, 19, 'available'), ('WC', 2, 19, 'played GW5'),
+                         ('WC', 20, 38, 'available'), ('FH', 2, 19, 'available')])
     s = build_summary(r)
     x = flat(s)
-    assert "Suggested: Free Hit this gameweek (+1.8 points)." in x
-    assert "does not use it: run again with --chip FH to see it." in x     # the plan shown is without it
+    assert "Wildcard: used in GW5; the next one from GW20" in x
+    assert "Free Hit: play it this gameweek (+1.8 points)" in x
+    assert "Suggested: Free Hit. The plan above does not use it: run again with --chip FH" in x
     assert "Triple Captain: keep it (now +10.8, best GW16: +11.0)" in x
     assert "within the model's error" in x
-    # one value column per section: the values start at the same position after labels of any length
-    lines = [ln for ln in s['text'] if ln.startswith(('Suggested:', 'Triple Captain:'))]
+    # every chip has a line, in the order of the app; the values start in one column
+    lines = [ln for ln in s['text'] if ln.split(':')[0] in ('Bench Boost', 'Triple Captain', 'Wildcard', 'Free Hit')]
+    assert [ln.split(':')[0] for ln in lines] == ['Bench Boost', 'Triple Captain', 'Wildcard', 'Free Hit']
     starts = {len(ln) - len(ln.split(':', 1)[1].lstrip()) for ln in lines}
-    assert len(lines) == 2 and starts == {len("Triple Captain: ")}
+    assert starts == {len("Triple Captain: ")}
     assert s['chip']['play'] == {'chip': 'FH', 'gain': 1.76}
-    x = text(build_summary(replace(with_chips(plain, status='skipped_chip'), options=replace(plain.options, chip='TC'))))
-    assert "the plan above uses it" in x
+    # BB is available but was not analysed here (not in the window of this hand-made chip section)
+    assert [c['status'] for c in s['chip']['by_chip']] == ['not_estimated', 'hold', 'used', 'play']
+    x = flat(build_summary(replace(with_chips(plain, status='skipped_chip'), options=replace(plain.options, chip='TC'))))
+    assert "Triple Captain: playing it this gameweek: the plan above uses it" in x and "Suggested" not in x
     r = with_chips(plain, window={'TC': 19}, advice=advice(incomplete=['TC']))
     s = build_summary(r)
     assert "Triple Captain: no advice" in text(s)
     assert 'chips_not_computed' in [a['code'] for a in s['alerts']]
+
+
+@pytest.mark.parametrize("sets, text_", [
+    ([('TC', 1, 19, 'expired'), ('TC', 20, 38, 'available')], "expired; the next one from GW20"),
+    ([('TC', 20, 38, 'available')], "can be played from GW20"),
+    ([('TC', 1, 19, 'played GW3'), ('TC', 20, 38, 'played GW21')], "used in GW3"),
+    ([], "none left this season"),
+])
+def test_chip_not_playable_now(plain, sets, text_):
+    """A chip with no window now says why, from the sets of the season."""
+    s = build_summary(with_chips(plain, window={}, advice=advice(), sets=sets))
+    assert f"Triple Captain: {text_}" in flat(s)
 
 
 def test_alerts(plain):
@@ -198,4 +217,4 @@ def test_header_with_deadline(plain):
     r = replace(plain)
     r.deadline = "2026-10-31T11:00:00Z"        # the engine sets it from step 2 of 15c
     assert build_summary(r, tz=ZoneInfo("Europe/Athens"))['text'][:2] == \
-        ["FPL plan for GW8", "Deadline: Sat 31 Oct, 13:00 (your time)"]
+        ["Fantasy Premier League plan for GW8", "Deadline: Sat 31 Oct, 13:00 (your time)"]

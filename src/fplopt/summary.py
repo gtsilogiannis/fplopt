@@ -7,6 +7,7 @@ result (S1), so the summary can never disagree with the full output (--details).
 and wording are added here.
 """
 import math
+import re
 import textwrap
 from datetime import datetime
 
@@ -23,6 +24,7 @@ RANGE_LOW = -25.4
 RANGE_HIGH = 24.0
 
 CHIP_NAME = {'WC': 'Wildcard', 'FH': 'Free Hit', 'BB': 'Bench Boost', 'TC': 'Triple Captain'}
+CHIP_ORDER = ('BB', 'TC', 'WC', 'FH')      # display order of the CHIPS section (the order of the FPL app)
 # English names, NOT strftime('%a'): strftime follows the system locale (e.g. 'Σαβ' in Greek)
 DAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
@@ -118,16 +120,16 @@ def _transfer_rows(r, t, chip):
                     (None, f"No transfer this gameweek: you will have {ft + 1} next gameweek.")]
         return [(None, "No transfer this gameweek.")]
     hits = t['hits']
-    cost = "no points cost" if hits == 0 else \
-        f"{hits} extra transfer{'s' if hits != 1 else ''}: -{t['hit_points']} points"
-    rows = [('Free transfers', f"{ft} ({cost})")]
+    # the points cost is shown only when there is one
+    cost = "" if hits == 0 else f" ({hits} extra transfer{'s' if hits != 1 else ''}: -{t['hit_points']} points)"
+    rows = [('Free transfers', f"{ft}{cost}")]
     w = max(len(m['out']['name']) for m in t['moves'])        # dynamic columns: the longest name sets them
     v = max(len(m['in']['name']) for m in t['moves'])
     for m in t['moves']:
         d = m['money']
         # money of the move: '-' = you pay more than the sale returns, '+' = money left over
         price = "" if d is None else ("(same price)" if d == 0 else f"({'+' if d > 0 else '-'}{money(d)})")
-        rows.append(('', f"  {m['out']['name']:<{w}} -> {m['in']['name']:<{v}}   {price}".rstrip()))
+        rows.append(('', f"    {m['out']['name']:<{w}} -> {m['in']['name']:<{v}}   {price}".rstrip()))
     if t['bank_before'] is not None and t['bank_after'] is not None:
         rows.append(('Bank', f"{money(t['bank_before'])} now -> {money(t['bank_after'])} after"))
     payers = [m['out']['name'] for m in t['moves'] if m['pays_for_others']]
@@ -136,8 +138,14 @@ def _transfer_rows(r, t, chip):
     vs = t['vs_no_transfer']
     if vs is not None:
         h = r.horizon
-        rows.append(('Gain vs no transfer', f"{signed(vs['this_gw'])} points this gameweek, "
-                                            f"{signed(vs['next_gws'])} over GW{h[0]}-GW{h[-1]}"))
+        now, all_ = signed(vs['this_gw']), signed(vs['next_gws'])
+        if vs['n_gws'] == 1:
+            gain = f"{now} points vs no transfer this gameweek"
+        elif now == all_:                       # the same after rounding: the gain is all in this GW
+            gain = f"{now} points vs no transfer, all of it this gameweek"
+        else:
+            gain = f"{now} points vs no transfer this gameweek, {all_} over GW{h[0]}-GW{h[-1]}"
+        rows.append(('Gain', gain))
     return rows
 
 
@@ -162,35 +170,73 @@ def _chips(r):
     return res
 
 
+def _with_states(r, res):
+    """Adds 'by_chip': one {chip, status, text} per chip, in the display order (for the text and the JSON)."""
+    if res['status'] != 'skipped_flag':
+        res['by_chip'] = [dict(zip(('chip', 'status', 'text'), (cp,) + _chip_state(r, res, cp)))
+                          for cp in CHIP_ORDER]
+    else:
+        res['by_chip'] = []
+    return res
+
+
+def _chip_state(r, ch, cp):
+    """(status code, text) of one chip this gameweek, for the CHIPS section and the JSON."""
+    g0, c = r.current_gw, r.chips
+    if ch['playing'] is not None:
+        if cp == ch['playing']:
+            return 'playing', "playing it this gameweek: the plan above uses it"
+        if cp in c.window or any(st == 'available' and s0 <= g0 <= s1 for x, s0, s1, st in c.sets if x == cp):
+            return 'other_chip', "not this gameweek (one chip per gameweek)"
+    if ch['play'] is not None and cp == ch['play']['chip']:
+        return 'play', f"play it this gameweek ({signed(ch['play']['gain'])} points)"
+    if cp in ch['also']:
+        return 'also', f"also good now ({signed(c.exact[cp])} points; one chip per gameweek)"
+    for h in ch['hold']:
+        if h['chip'] == cp:
+            now = f"now {signed(h['now'])}, " if h['now'] is not None else ""
+            return 'hold', f"keep it ({now}best GW{h['best_gw']}: {signed(h['best'])})"
+    if cp == 'WC' and ch['wildcard_now'] is not None:
+        return 'wildcard_now', (f"now {signed(ch['wildcard_now'])}; later gameweeks are not estimated, "
+                                f"so the timing is your call")
+    if cp in ch['no_advice']:
+        return 'no_advice', "no advice (not enough time; see below)"
+    # not playable now: say why, from the chip sets of the season (state: available / played GWn / expired)
+    sets = sorted((s0, s1, st) for x, s0, s1, st in c.sets if x == cp)
+    now_set = next(((s0, s1, st) for s0, s1, st in sets if s0 <= g0 <= s1), None)
+    later = next((s0 for s0, s1, st in sets if s0 > g0 and st == 'available'), None)
+    nxt = f"; the next one from GW{later}" if later is not None else ""
+    if now_set is not None and now_set[2].startswith('played'):
+        return 'used', f"used in {now_set[2].split()[-1]}{nxt}"
+    if now_set is not None and now_set[2] == 'expired':
+        return 'expired', f"expired{nxt}"
+    if now_set is None and later is not None:
+        return 'not_yet', f"can be played from GW{later}"
+    if now_set is None:
+        return 'unavailable', "none left this season"
+    return 'not_estimated', "not estimated this gameweek"     # e.g. WC/FH before a team's first deadline
+
+
 def _chip_rows(r, ch):
     """Rows of the CHIPS section for _layout(); [] = no section (--no-chip-report)."""
-    g0 = r.current_gw
     if ch['status'] == 'skipped_flag':
         return []
+    rows = [(CHIP_NAME[st['chip']], st['text']) for st in ch['by_chip']]
+    rows.append(('', ''))
     if ch['playing'] is not None:
-        return [(None, f"You are playing {CHIP_NAME[ch['playing']]} in GW{g0}: the plan above uses it.")]
-    if ch['status'] == 'no_chip_now':
-        return [(None, f"No chip can be played in GW{g0}.")]
-    rows = []
-    if ch['play'] is not None:
+        pass                                                   # the plan already uses it: nothing to suggest
+    elif ch['play'] is not None:
         cp = ch['play']['chip']
-        rows.append(('Suggested', f"{CHIP_NAME[cp]} this gameweek ({signed(ch['play']['gain'])} points). "
-                                  f"The plan above does not use it: run again with --chip {cp} to see it."))
-        if ch['also']:
-            rows.append(('Also good now', ", ".join(CHIP_NAME[c] for c in ch['also'])
-                         + " (only one chip per gameweek)"))
+        rows.append((None, f"Suggested: {CHIP_NAME[cp]}. The plan above does not use it: run again with "
+                           f"--chip {cp} to see the {CHIP_NAME[cp]} squad."))
+    elif ch['status'] == 'no_chip_now':
+        rows.append((None, "Suggested: no chip can be played this gameweek."))
     else:
-        rows.append(('Suggested', "no chip this gameweek"))
-    for h in ch['hold']:
-        now = f"now {signed(h['now'])}, " if h['now'] is not None else ""
-        rows.append((CHIP_NAME[h['chip']], f"keep it ({now}best GW{h['best_gw']}: {signed(h['best'])})"))
-    if ch['wildcard_now'] is not None:
-        rows.append(('Wildcard', f"now {signed(ch['wildcard_now'])}; later gameweeks are not estimated, "
-                                 f"so the timing is your call"))
-    for cp in ch['no_advice']:
-        rows.append((CHIP_NAME[cp], "no advice (not enough time; see below)"))
+        rows.append((None, "Suggested: no chip this gameweek."))
     if ch['play'] is not None or ch['hold'] or ch['wildcard_now'] is not None:
         rows.append((None, NOISE))
+    while rows and rows[-1] == ('', ''):
+        rows.pop()
     return rows
 
 
@@ -220,16 +266,17 @@ def _alerts(r):
     if hi is not None and r.squad_value is not None and tenths(hi) > tenths(r.squad_value):
         extra = (tenths(hi) - tenths(r.squad_value)) / 10
         out.append({'code': 'selling_value_range', 'message':
-                    f"Some selling prices are known only to within {money(extra)}: your budget may be "
+                    f"Some selling prices are known only to within {money(extra)}. Your budget may be "
                     f"{money(extra)} higher than shown. Check it in the app."})
     return out
 
 
 # --------------------------------------------------------------------------- whole summary
-def _layout(title, rows):
-    """One section: '== TITLE ==', then its rows. (label, value) -> 'label: value' with every value of
-    the section in one column (the longest label sets it; a long value wraps under that column);
-    (None, sentence) -> the sentence wrapped from the left margin; ('', line) -> the line as it is."""
+def _layout(title, rows, align=True):
+    """One section: '== TITLE ==', then its rows. (label, value) -> 'label: value'; align=True puts
+    every value of the section in one column (the longest label sets it; a long value wraps under
+    that column), align=False leaves one space after each label. (None, sentence) -> the sentence
+    wrapped from the left margin; ('', line) -> the line as it is ('' = an empty line)."""
     w = max((len(lb) for lb, _ in rows if lb), default=0) + 2          # 'label:' plus one space
     out = [f"== {title} =="]
     for label, value in rows:
@@ -238,7 +285,8 @@ def _layout(title, rows):
         elif label is None:
             out += textwrap.wrap(value, WIDTH)
         else:
-            out += textwrap.wrap(value, WIDTH, initial_indent=f"{label}:".ljust(w), subsequent_indent=" " * w)
+            head = f"{label}:".ljust(w) if align else f"{label}: "
+            out += textwrap.wrap(value, WIDTH, initial_indent=head, subsequent_indent=" " * len(head))
     return out
 
 
@@ -261,12 +309,14 @@ def build_summary(r, tz=None):
         'captain': {'id': int(cap.id), 'name': cap.name, 'expected_points': float(cap.xp_now)},
         'vice': {'id': int(pg.vice_id), 'name': pg.vice_name} if pg.vice_id is not None else None,
         'lineup': lineup,
-        'chip': _chips(r),
+        'chip': None,                                        # filled below (the chip states need it)
         'expected_points': total,
         'expected_range': [max(0.0, total + RANGE_LOW), total + RANGE_HIGH],
         'alerts': _alerts(r),
         'decision': None,                                    # decision check: step 4 of 15c
     }
+
+    s['chip'] = _with_states(r, _chips(r))
 
     def tag(row):
         """Plain words for a player's flags in the lineup."""
@@ -279,15 +329,10 @@ def build_summary(r, tz=None):
             t.append("plays twice this gameweek")
         return f"{row.name} ({', '.join(t)})" if t else row.name
 
-    lines = [f"FPL plan for GW{g0}"]
+    lines = [f"Fantasy Premier League plan for GW{g0}"]
     if deadline:
         lines.append(f"Deadline: {format_deadline(deadline, tz)} (your time)")
-    lines += [""] + _layout("TRANSFERS", _transfer_rows(r, s['transfers'], chip))
-    mult = "tripled (Triple Captain)" if chip == 'TC' else "doubled"
-    caps = [('C', f"{cap.name} ({about(cap.xp_now)} expected points, {mult})")]
-    if s['vice'] is not None:
-        caps.append(('VC', s['vice']['name']))
-    lines += [""] + _layout("CAPTAINS", caps)
+    lines += [""] + _layout("TRANSFERS", _transfer_rows(r, s['transfers'], chip), align=False)
     n = {p: len(lineup[p]) for p in ('DEF', 'MID', 'FWD')}
     xi_rows = [(p, ", ".join(tag(x) for x in xi if x.position == p)) for p in ('GK', 'DEF', 'MID', 'FWD')]
     # bench in its order: the GK first (his own slot), then outfield slots 1-3
@@ -296,6 +341,13 @@ def build_summary(r, tz=None):
     if chip == 'BB':
         xi_rows.append((None, "Bench Boost: the bench players score too."))
     lines += [""] + _layout(f"STARTING XI ({n['DEF']}-{n['MID']}-{n['FWD']})", xi_rows)
+    # the captain's own points and what they count for with the armband (x2, or x3 with Triple Captain)
+    as_cap = f"about {half_up(3 * cap.xp_now)} as Triple Captain" if chip == 'TC' else \
+        f"about {half_up(2 * cap.xp_now)} as captain"
+    caps = [('C', f"{cap.name} ({about(cap.xp_now)} expected points, {as_cap})")]
+    if s['vice'] is not None:
+        caps.append(('VC', s['vice']['name']))
+    lines += [""] + _layout("CAPTAINS", caps)
     chip_rows = _chip_rows(r, s['chip'])
     if chip_rows:
         lines += [""] + _layout("CHIPS", chip_rows)
@@ -305,7 +357,8 @@ def build_summary(r, tz=None):
     if s['alerts']:
         lines += ["", "== BEFORE YOU DECIDE =="]
         for a in s['alerts']:
-            lines += textwrap.wrap(a['message'], WIDTH, initial_indent="! ", subsequent_indent="  ")
+            for sentence in re.split(r"(?<=\.)\s+", a['message']):     # one sentence per line
+                lines += textwrap.wrap(sentence, WIDTH, subsequent_indent="  ")
     lines += ["", "Full numbers: run again with --details"]
     s['text'] = lines
     return s
