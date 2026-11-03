@@ -12,7 +12,7 @@ from typing import Optional
 import pandas as pd
 
 from . import xp_model as xpm
-from .chips import advise, chip_report
+from .chips import advise, chip_report, formation_values
 from .data import build_fixture_map, fetch_history, get_current_gw
 from .decision import CHECK_KINDS, check_decision, transfer_gain, verdict
 from .errors import InputError, SolverError, UserActionError
@@ -57,6 +57,7 @@ class Options:
     check_out: Optional[list] = None     # TRANSFERS: the players the user sells now (ids)
     check_in: Optional[list] = None      # TRANSFERS: the players the user buys now (ids), same count
     transfer_gain: bool = True           # 15c: solve 'no transfer now' for the summary (one more solve)
+    formations: bool = True              # 15c: value every formation of the current GW's squad (--details)
 
 
 # --------------------------------------------------------------------------- output
@@ -227,6 +228,7 @@ class OptimizeResult:
     deadline: Optional[str] = None                 # deadline of the current GW as the API gives it (UTC)
     squad_value_high: Optional[float] = None       # upper bound of the squad's selling value; None = exact
     no_transfer: Optional[dict] = None             # decision.transfer_gain(); None = not computed
+    formations: list = field(default_factory=list)  # chips.formation_values() for the current GW; [] = none
 
 
 def optimize(client, opts):
@@ -573,7 +575,18 @@ def _optimize(client, opts, warnings):
         else:
             log.info("[*] Transfers vs no transfer: not computed in the time limit.",
                      extra={'code': 'no_transfer_not_computed'})
-    spent = res['seconds'] + no_transfer_s           # M10: one time limit for the whole run
+    # 15c (--details): every formation of the current GW's squad; not with Bench Boost (all 15 score)
+    formations, formations_s = [], 0.0
+    if opts.formations and now['chip'] != 'BB':
+        t_f = time.time()
+        left = (time_limit or SOLVER_TIME_LIMIT) - res['seconds'] - no_transfer_s
+        formations = formation_values(pool, now['squad'], current_gw, now['chip'] or 'NONE', use_vice, use_bench,
+                                      solver, time_limit=min(60.0, left))
+        formations_s = time.time() - t_f
+        if any(f['points'] is None for f in formations):
+            log.info("[*] Formations: not every formation was computed in the time limit.",
+                     extra={'code': 'formations_not_computed'})
+    spent = res['seconds'] + no_transfer_s + formations_s   # M10: one time limit for the whole run
 
     # Decision check: after the main plan (its Z0), before the chip analysis (the user asked for it)
     decision, decision_s = None, 0.0
@@ -628,13 +641,13 @@ def _optimize(client, opts, warnings):
         chips=chips, fallback_players=n_fb, explain=explained, explain_not_found=explain_not_found,
         log_written=log_written, warnings=warnings,
         timings={'data_s': t_solve - t_start, 'solve_s': res['seconds'], 'no_transfer_s': no_transfer_s,
-                 'chips_s': chips_s, 'total_s': time.time() - t_start},
+                 'formations_s': formations_s, 'chips_s': chips_s, 'total_s': time.time() - t_start},
         api_stats=dict(getattr(client, 'stats', {})),
         state=EngineState(pool=pool, plan_result=res, horizon=horizon, weights=gw_weight, start_squad=start_squad,
                           budget=total_budget, ft0=ft0, players=players, chip_plans=chip_plans),
         decision=decision,
         deadline=next((e.get('deadline_time') for e in bootstrap['events'] if e['id'] == current_gw), None),
-        squad_value_high=squad_value_high, no_transfer=no_transfer)
+        squad_value_high=squad_value_high, no_transfer=no_transfer, formations=formations)
 
 
 def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,

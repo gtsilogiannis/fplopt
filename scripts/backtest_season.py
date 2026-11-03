@@ -331,7 +331,8 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, 
                 pickle.dump(vars(m), fh)       # the fields only: loadable from any script
         opts = Options(team_id=1, lookahead=lookahead, write_log=False, time_limit=time_limit,
                        chip_report=(chips == 'advice'),
-                       transfer_gain=False)        # 15c: the summary's extra solve is not part of the decision
+                       transfer_gain=False,        # 15c: the summary's extra solve is not part of the decision
+                       formations=False)           # 15c: nor the comparison of formations (--details)
         r = optimize(Client(VaastavApi(data, m, t)), opts)
         played_chip = 'NONE'
         if chips == 'advice' and r.chips.advice and r.chips.advice.get('pick'):

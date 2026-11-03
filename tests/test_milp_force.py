@@ -159,3 +159,27 @@ def test_forced_squad_needs_15_players():
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     with pytest.raises(ValueError):
         solve(pool, sq, force_squad={8: sq[:14]})
+
+
+# --------------------------------------------------------------------------- 15c: forced formation
+def test_formation_values_by_hand():
+    """Fixed squad (2/5/5/3) in GW8, no vice-captain or bench terms: GK 2, every DEF 3, every MID 2.5,
+    sq[14] FWD 20 (captain, +20), the other two FWD 2. Formation (d, m, f):
+        V = 2 + 3d + 2.5m + 20 + 2(f - 1) + 20 = 40 + 3d + 2.5m + 2f
+    3-4-3 65, 3-5-2 65.5, 4-3-3 65.5, 4-4-2 66, 4-5-1 66.5, 5-2-3 66, 5-3-2 66.5, 5-4-1 67."""
+    from fplopt.chips import FORMATIONS, formation_values
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    for i in sq:
+        if pool['pos'][i] in (2, 3):
+            pool['xp'][(i, 8)] = 3.0 if pool['pos'][i] == 2 else 2.5
+    got = formation_values(pool, sq, 8, use_vice=False, use_bench=False)
+    assert [f['formation'] for f in got] == [f"{d}-{m}-{f}" for d, m, f in FORMATIONS]
+    assert len(got) == 8
+    for f in got:
+        assert f['points'] == pytest.approx(40 + 3 * f['def'] + 2.5 * f['mid'] + 2 * f['fwd'], abs=1e-6)
+
+
+def test_invalid_forced_formation_is_an_error():
+    pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
+    with pytest.raises(ValueError):
+        solve(pool, sq, force_formation={8: (2, 5, 3)})          # fewer than 3 DEF
