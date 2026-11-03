@@ -90,6 +90,7 @@ def optimize_to_dict(r):
             'seconds': c.seconds,
         },
         'decision_check': _decision(r.decision),
+        'formations': [dict(f) for f in r.formations],  # 15c: every formation of the current GW's squad
         # 15c: plain-English summary. Its text gives the deadline in the time zone of the machine that runs
         # the engine (the user's own with the C frontend); a server reads 'deadline_utc' instead.
         'summary': build_summary(r),

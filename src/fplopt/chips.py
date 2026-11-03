@@ -35,20 +35,49 @@ def plan_points(res, pool, horizon, use_bench=True):
     return sum(gw_points(res['plan'][g], g, pool, beta.get(g), use_bench)['total'] for g in horizon)
 
 
-def squad_value(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solver=None):
+def squad_value(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solver=None, formation=None,
+                time_limit=30):
     """C9: best one-GW value (unweighted) of a FIXED 15-man squad: plan_squad on a pool that
     holds only these 15 players, so the XI, captain, vice-captain and autosubs come from the
     same model as the plan. Every player may start: an unavailable one has xP 0 and P(app) 0,
-    so the model benches him or counts him as autosubbed (as the game would)."""
+    so the model benches him or counts him as autosubbed (as the game would).
+    formation: 15c (DEF, MID, FWD) of the XI held fixed; None = the best one."""
     sub = {k: pool[k] for k in ('pos', 'team', 'price', 'xp', 'papp')}
     sub['ids'] = list(squad)
     sub['avail'] = {i: True for i in squad}
     sub['sell'] = {i: pool['price'][i] for i in squad}           # no transfers: prices do not matter
     budget = sum(sub['sell'].values()) + 1.0
     res = plan_squad(sub, [g], {g: 1.0}, list(squad), budget, 1, chip, 0, use_vice, use_bench,
-                     time_limit=30, solver=solver)
+                     time_limit=time_limit, solver=solver,
+                     force_formation={g: formation} if formation else None)
     # C12: a value cut by the time limit would differ between machines: None (not computed) instead
     return plan_points(res, sub, [g], use_bench) if res.get('complete') else None
+
+
+# 15c: every formation the game allows (1 GK + DEF-MID-FWD = 10; DEF >= 3, MID >= 2, FWD >= 1). A 2/5/5/3
+# squad also caps them at 5 DEF, 5 MID, 3 FWD, which leaves these 8.
+FORMATIONS = [(d, m, 10 - d - m) for d in range(3, 6) for m in range(2, 6) if 1 <= 10 - d - m <= 3]
+
+
+def formation_values(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solver=None, time_limit=60):
+    """15c (--details): the best one-GW expected points (unweighted, same terms as the plan: XI,
+    captain, vice-captain, autosubs) of the fixed squad in GW g with each formation of FORMATIONS.
+    The captain, vice-captain and bench order are solved again with each formation. Not for Bench
+    Boost (all 15 score, so the formation changes nothing). time_limit: for all 8 solves.
+    Returns [{'formation': '3-4-3', 'def', 'mid', 'fwd', 'points'}] in the order of FORMATIONS; points
+    is None for a formation the squad cannot field or a solve not completed in time (C12)."""
+    out, deadline = [], time.time() + time_limit
+    cp = chip if chip == 'TC' else 'NONE'          # WC/FH: the squad is fixed here, only TC changes the points
+    have = {p_: sum(1 for i in squad if pool['pos'][i] == p_) for p_ in (2, 3, 4)}
+    for d, m, f in FORMATIONS:
+        pts = None
+        left = deadline - time.time()
+        if have[2] >= d and have[3] >= m and have[4] >= f and left >= MIN_PASS_SECONDS:
+            pts = squad_value(pool, squad, g, cp, use_vice, use_bench, solver, formation=(d, m, f),
+                              time_limit=left)
+        out.append({'formation': f"{d}-{m}-{f}", 'def': d, 'mid': m, 'fwd': f,
+                    'points': None if pts is None else float(pts)})
+    return out
 
 
 def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_windows, max_hits,

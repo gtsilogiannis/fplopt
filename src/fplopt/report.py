@@ -92,11 +92,34 @@ def print_optimize(r, out=None):
           + "  [approximation]")
     p(f"Expected points GW{g0}: XI {ep.xi:.2f} + captain {ep.captain:.2f} + vice {ep.vice:.2f} "
       f"+ autosubs {ep.autosubs:.2f} - hits {ep.hits} = {ep.total:.2f}")
+    print_formations(r, out)                              # 15c: the formations of the same squad
     p(f"Objective (weighted over horizon, hits included): {r.solver.objective:.2f}")
 
     if r.decision is not None:                            # --check only: the text without it is unchanged
         print_decision(r, out)
     print_chips(r, out)
+
+
+def print_formations(r, out):
+    """15c: the plan's formation in the current GW and the next two best ones for the same squad
+    (unweighted expected points of the GW, captain and bench solved again with each formation)."""
+    if not r.formations:
+        return
+    pg = r.plan[0]
+    pos = {s.id: s.pos_id for s in r.squad}
+    mine = "-".join(str(sum(1 for i in pg.xi if pos[i] == p_)) for p_ in (2, 3, 4))
+    done = [f for f in r.formations if f['points'] is not None]
+    chosen = next((f for f in done if f['formation'] == mine), None)
+    if chosen is None:
+        print(f"   Formation GW{r.current_gw}: {mine} (formations not computed in the time limit)", file=out)
+        return
+    others = sorted((f for f in done if f is not chosen), key=lambda f: -f['points'])[:2]
+    cells = [f"{f['formation']} {f['points']:.2f} ({f['points'] - chosen['points']:+.2f})" for f in others]
+    if cells:
+        cells[0] = "next best " + cells[0]
+    # points before hits: the hits are the same with every formation of the same squad
+    print(f"   Formation GW{r.current_gw} (points before hits): {mine} {chosen['points']:.2f}"
+          + "".join(f" | {c}" for c in cells), file=out)
 
 
 def _signed(v, lo=None, hi=None):

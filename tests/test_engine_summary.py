@@ -112,3 +112,28 @@ def test_summary_with_a_chip_played(season, chip, expected):
         assert e in x
     if chip in ('WC', 'FH'):
         assert r.no_transfer is None
+
+
+
+# --------------------------------------------------------------------------- 15c: formations (--details)
+def test_formations_of_the_plan(season, plain):
+    """The 8 formations of the current GW's squad: the plan's own formation is worth the plan's points of
+    the GW before hits, and no other formation is worth more (both within the solver gaps)."""
+    import io
+    from fplopt import report
+    assert len(plain.formations) == 8 and all(f['points'] is not None for f in plain.formations)
+    pg = plain.plan[0]
+    pos = {s.id: s.pos_id for s in plain.squad}
+    mine = "-".join(str(sum(1 for i in pg.xi if pos[i] == p_)) for p_ in (2, 3, 4))
+    v = {f['formation']: f['points'] for f in plain.formations}
+    tol = (plain.solver.gap or 0.0) + 0.05
+    assert v[mine] == pytest.approx(plain.expected_now.total + plain.expected_now.hits, abs=tol)
+    assert max(v.values()) <= v[mine] + tol
+    buf = io.StringIO()
+    report.print_formations(plain, buf)
+    assert buf.getvalue().startswith(f"   Formation GW8 (points before hits): {mine} {v[mine]:.2f} | next best ")
+
+
+def test_no_formations_with_bench_boost_or_when_off(season):
+    assert run(season, chip='BB').formations == []
+    assert run(season, formations=False).formations == []

@@ -35,6 +35,7 @@
 Sales now (SELL): P153 £6.5m, P189 £8.0m, P231 £8.5m, P321 £6.5m, P267 £6.1m
    Bench weights GW8 (P(slot used)): 0.79, 0.44, 0.16  [approximation]
 Expected points GW8: XI 45.95 + captain 6.52 + vice 0.79 + autosubs 4.16 - hits 8 = 49.42
+   Formation GW8 (points before hits): 3-4-3 57.42 | next best 3-5-2 56.83 (-0.60) | 4-3-3 56.71 (-0.71)
 Objective (weighted over horizon, hits included): 141.83
 
 ====================================================================================
