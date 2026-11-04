@@ -15,12 +15,13 @@ Modules:
   decision     decision check: the user's own chip decision against the plan
   engine       one optimizer run -> OptimizeResult (data only, no printing)
   predictions  prediction log and its evaluation against actual points
-  report       text output
+  summary      plain-English summary of a run (the default text and the JSON 'summary')
+  report       text output (summary, or everything with --details)
   cli          command line (python -m fplopt / fplopt)
 """
 import logging
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 # A library logs, the application decides where the messages go (cli.py sends them to stderr).
 logging.getLogger(__name__).addHandler(logging.NullHandler())
