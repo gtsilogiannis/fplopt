@@ -92,7 +92,7 @@ def test_text_numbers_equal_fields(plain):
     x, f = text(s), flat(s)
     lo, hi = s['expected_range']
     assert f"About {half_up(s['expected_points'])} this gameweek" in x
-    assert f"In 8 of 10 gameweeks: between {half_up(lo)} and {half_up(hi)}" in f
+    assert f"In 8 of 10 gameweeks: Between {half_up(lo)} and {half_up(hi)}" in f
     xp = s['captain']['expected_points']
     assert f"C: {s['captain']['name']} (about {half_up(xp)} expected points, about {half_up(2 * xp)} as captain)" in f
     assert f"VC: {s['vice']['name']}" in f
@@ -101,7 +101,7 @@ def test_text_numbers_equal_fields(plain):
         assert f"Bank: £{t['bank_before']:.1f}m now -> £{t['bank_after']:.1f}m after" in f
         for m in t['moves']:
             assert re.search(rf"^    {m['out']['name']} +-> {m['in']['name']}\b", x, re.M)
-    assert x.endswith("Full numbers: run again with --details")
+    assert x.endswith("Full numbers: Run again with --details")
 
 
 # --------------------------------------------------------------------------- S4: plain words
@@ -142,10 +142,10 @@ def test_chip_texts(plain):
                          ('WC', 20, 38, 'available'), ('FH', 2, 19, 'available')])
     s = build_summary(r)
     x = flat(s)
-    assert "Wildcard: used in GW5; the next one from GW20" in x
-    assert "Free Hit: play it this gameweek (+1.8 points)" in x
+    assert "Wildcard: Used in GW5; the next one from GW20" in x
+    assert "Free Hit: Play it this gameweek (+1.8 points)" in x
     assert "Suggested: Free Hit. The plan above does not use it: run again with --chip FH" in x
-    assert "Triple Captain: keep it (now +10.8, best GW16: +11.0)" in x
+    assert "Triple Captain: Keep it (now +10.8, best GW16: +11.0)" in x
     assert "within the model's error" in x
     # every chip has a line, in the order of the app; the values start in one column
     lines = [ln for ln in s['text'] if ln.split(':')[0] in ('Bench Boost', 'Triple Captain', 'Wildcard', 'Free Hit')]
@@ -156,18 +156,18 @@ def test_chip_texts(plain):
     # BB is available but was not analysed here (not in the window of this hand-made chip section)
     assert [c['status'] for c in s['chip']['by_chip']] == ['not_estimated', 'hold', 'used', 'play']
     x = flat(build_summary(replace(with_chips(plain, status='skipped_chip'), options=replace(plain.options, chip='TC'))))
-    assert "Triple Captain: playing it this gameweek: the plan above uses it" in x and "Suggested" not in x
+    assert "Triple Captain: Playing it this gameweek: the plan above uses it" in x and "Suggested" not in x
     r = with_chips(plain, window={'TC': 19}, advice=advice(incomplete=['TC']))
     s = build_summary(r)
-    assert "Triple Captain: no advice" in text(s)
+    assert "Triple Captain: No advice" in text(s)
     assert 'chips_not_computed' in [a['code'] for a in s['alerts']]
 
 
 @pytest.mark.parametrize("sets, text_", [
-    ([('TC', 1, 19, 'expired'), ('TC', 20, 38, 'available')], "expired; the next one from GW20"),
-    ([('TC', 20, 38, 'available')], "can be played from GW20"),
-    ([('TC', 1, 19, 'played GW3'), ('TC', 20, 38, 'played GW21')], "used in GW3"),
-    ([], "none left this season"),
+    ([('TC', 1, 19, 'expired'), ('TC', 20, 38, 'available')], "Expired; the next one from GW20"),
+    ([('TC', 20, 38, 'available')], "Can be played from GW20"),
+    ([('TC', 1, 19, 'played GW3'), ('TC', 20, 38, 'played GW21')], "Used in GW3"),
+    ([], "None left this season"),
 ])
 def test_chip_not_playable_now(plain, sets, text_):
     """A chip with no window now says why, from the sets of the season."""

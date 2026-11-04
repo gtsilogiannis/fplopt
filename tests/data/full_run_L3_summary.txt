@@ -24,17 +24,17 @@ C:  P214 (about 7 expected points, about 13 as captain)
 VC: P108
 
 == CHIPS ==
-Bench Boost:    keep it (now +2.8, best GW18: +3.4)
-Triple Captain: keep it (now +7.3, best GW17: +7.5)
-Wildcard:       used in GW5; the next one from GW20
-Free Hit:       used in GW7; the next one from GW20
+Bench Boost:    Keep it (now +2.8, best GW18: +3.4)
+Triple Captain: Keep it (now +7.3, best GW17: +7.5)
+Wildcard:       Used in GW5; the next one from GW20
+Free Hit:       Used in GW7; the next one from GW20
 
-Suggested: no chip this gameweek.
+Suggested: No chip this gameweek.
 Chip gains are estimates: differences of a few tenths are within the
 model's error.
 
 == EXPECTED POINTS ==
 About 49 this gameweek
-In 8 of 10 gameweeks: between 24 and 73
+In 8 of 10 gameweeks: Between 24 and 73
 
-Full numbers: run again with --details
+Full numbers: Run again with --details

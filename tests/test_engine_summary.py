@@ -99,10 +99,10 @@ def test_summary_text_has_the_gain(plain):
 
 
 @pytest.mark.parametrize("chip, expected", [
-    ('TC', ["Triple Captain: playing it this gameweek: the plan above uses it", "as Triple Captain)"]),
+    ('TC', ["Triple Captain: Playing it this gameweek: the plan above uses it", "as Triple Captain)"]),
     ('BB', ["Bench Boost: the bench players score too."]),
-    ('WC', ["Free transfers: unlimited (Wildcard)", "Sell: ", "Buy: "]),
-    ('FH', ["Free transfers: unlimited (Free Hit)", "After GW8 your squad goes back to the one you have now."]),
+    ('WC', ["Free transfers: Unlimited (Wildcard)", "Sell: ", "Buy: "]),
+    ('FH', ["Free transfers: Unlimited (Free Hit)", "After GW8 your squad goes back to the one you have now."]),
 ])
 def test_summary_with_a_chip_played(season, chip, expected):
     """--chip: the summary says the plan uses it; WC/FH list sales and buys, no 'no transfer' solve."""
@@ -137,3 +137,58 @@ def test_formations_of_the_plan(season, plain):
 def test_no_formations_with_bench_boost_or_when_off(season):
     assert run(season, chip='BB').formations == []
     assert run(season, formations=False).formations == []
+
+
+# --------------------------------------------------------------------------- 15c step 4: decision check
+def decision_text(r):
+    """The lines of the YOUR DECISION section, spaces made single (alignment, wrapping)."""
+    t = build_summary(r)['text']
+    i, j = t.index("== YOUR DECISION =="), t.index("== TRANSFERS ==")
+    assert i < j and t[2] == "" and i == 3                       # the first section, after the deadline
+    return " ".join(" ".join(t[i:j]).split())
+
+
+def test_decision_tc_on_the_best_captain(season, plain):
+    """TC on the model's own captain: no better captain; the gain is the unweighted gain of the GW."""
+    cap = plain.plan[0].captain_id
+    r = run(season, check='TC', check_captain=cap)
+    x = decision_text(r)
+    pts = r.decision.result['points_gw']
+    assert f"Decision: Triple Captain on {r.decision.captain_name} in GW8" in x
+    assert f"Gain: {pts['z_decision'] - pts['z0']:+.1f} points vs not playing it this gameweek" in x
+    assert "is the best Triple Captain now)" in x
+    assert "Better captain: None (" in x and "Better gameweek: " in x and "Verdict: " in x
+    s = build_summary(r)['decision']
+    assert s['chip'] == 'TC' and s['better_captain'] is None and s['verdict'] == r.decision.verdict
+
+
+def test_decision_tc_on_a_goalkeeper(season, plain):
+    """TC on a goalkeeper: a better captain is named, and the verdict says so (better_version) or
+    says not to play it (worse_than_none)."""
+    gk = next(s.id for s in plain.squad if s.pos_id == 1 and s.action == 'KEEP')
+    r = run(season, check='TC', check_captain=gk)
+    x = decision_text(r)
+    assert f"Better captain: {plain.plan[0].captain_name} (+" in x
+    assert ("Captain " in x and "gains more with the chip." in x) or "Don't: it is worse than not playing it." in x
+
+
+def test_decision_transfers_and_invalid(season, plain, messages):
+    pg = plain.plan[0]
+    r = run(season, check='TRANSFERS', check_out=[t.out_id for t in pg.transfers],
+            check_in=[t.in_id for t in pg.transfers])
+    x = decision_text(r)
+    assert "Decision: Transfers in GW8" in x and f"{pg.transfers[0].out_name} -> {pg.transfers[0].in_name}" in x
+    assert "Make them: no better set of transfers was found." in x or "No clear gain" in x
+    manager = build_manager(season)
+    manager['chips'].append({'name': '3xc', 'event': 3})          # TC already played
+    r = run(season, manager=manager, check='TC', check_captain=pg.captain_id)
+    x = decision_text(r)
+    assert "Not allowed: Triple Captain cannot be played in GW8: GW1-19 played GW3" in x and "Verdict" not in x
+    assert build_summary(r)['decision']['violations'] == ['chip_unavailable']
+
+
+def test_no_technical_words_in_the_decision(season, plain):
+    cap = plain.plan[0].captain_id
+    x = decision_text(run(season, check='TC', check_captain=cap))
+    for w in ('xP', 'P(app)', 'gap', 'objective', 'Delta', 'horizon', 'weighted', '[assumption]', ' G ', ' R '):
+        assert w not in x, w

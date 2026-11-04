@@ -13,9 +13,6 @@ def print_summary(r, out=None):
     print_explain(r, out)
     for line in build_summary(r)['text']:
         print(line, file=out)
-    if r.decision is not None:
-        # [temporary, 15c step 3] until the decision check has its own plain-English lines (step 4)
-        print_decision(r, out)
 
 
 def print_explain(r, out):
