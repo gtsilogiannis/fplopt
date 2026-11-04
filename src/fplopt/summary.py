@@ -173,8 +173,8 @@ def _chips(r):
 def _with_states(r, res):
     """Adds 'by_chip': one {chip, status, text} per chip, in the display order (for the text and the JSON)."""
     if res['status'] != 'skipped_flag':
-        res['by_chip'] = [dict(zip(('chip', 'status', 'text'), (cp,) + _chip_state(r, res, cp)))
-                          for cp in CHIP_ORDER]
+        res['by_chip'] = [{'chip': cp, 'status': st, 'text': cap(tx)}
+                          for cp, (st, tx) in ((cp, _chip_state(r, res, cp)) for cp in CHIP_ORDER)]
     else:
         res['by_chip'] = []
     return res
@@ -230,14 +230,125 @@ def _chip_rows(r, ch):
         rows.append((None, f"Suggested: {CHIP_NAME[cp]}. The plan above does not use it: run again with "
                            f"--chip {cp} to see the {CHIP_NAME[cp]} squad."))
     elif ch['status'] == 'no_chip_now':
-        rows.append((None, "Suggested: no chip can be played this gameweek."))
+        rows.append((None, "Suggested: No chip can be played this gameweek."))
     else:
-        rows.append((None, "Suggested: no chip this gameweek."))
+        rows.append((None, "Suggested: No chip this gameweek."))
     if ch['play'] is not None or ch['hold'] or ch['wildcard_now'] is not None:
         rows.append((None, NOISE))
     while rows and rows[-1] == ('', ''):
         rows.pop()
     return rows
+
+
+# --------------------------------------------------------------------------- decision check
+def _decision(r):
+    """15c step 4: the user's own decision (--check) in plain words: (dict for the JSON, rows for _layout).
+    No new number: the gains come from decision.check_decision, the verdict from its codes.
+    Gains in the decision's GW are unweighted (decision B); the gain over the horizon is the G of the
+    check (later gameweeks count less) and is shown only when it differs after rounding."""
+    d = r.decision
+    if d is None:
+        return None, []
+    gw, x, h = d.gw, d.result or {}, r.horizon
+    when = "this gameweek" if gw == r.current_gw else f"in GW{gw}"     # the decision's GW, in words
+    name = lambda i: d.names.get(i, str(i))
+    moves = []
+    if d.chip == 'TRANSFERS':
+        what, none_ = f"Transfers in GW{gw}", "no transfer"
+        w = max(len(name(o)) for o in d.transfers_out)           # one move per line, OUT column aligned
+        moves = [('', f"    {name(o):<{w}} -> {name(i)}") for o, i in zip(d.transfers_out, d.transfers_in)]
+    else:
+        on = f" on {d.captain_name}" if d.captain_id is not None else ""
+        what, none_ = f"{CHIP_NAME[d.chip]}{on} in GW{gw}", "not playing it"
+    out = {'chip': d.chip, 'gw': gw, 'status': d.status, 'verdict': list(d.verdict), 'gain_this_gw': None,
+           'gain_horizon': x.get('g'), 'better_captain': None, 'better_gw': None, 'model_transfers': None,
+           'violations': [v['code'] for v in d.violations]}
+    rows = [('Decision', what)] + moves
+    if d.status == 'invalid':
+        for v in d.violations:
+            msg = v['message'].replace(f"{d.chip} cannot", f"{CHIP_NAME.get(d.chip, d.chip)} cannot")
+            rows.append(('Not allowed', msg[0].upper() + msg[1:] + "."))
+        out['text'] = rows
+        return out, rows
+    for n in d.notes:                                      # facts behind the numbers, in plain words
+        if n['code'] == 'captain_unavailable':
+            rows.append(('Note', f"{d.captain_name} is injured or doubtful: he is expected to score 0, and the "
+                                 f"armband may pass to your vice-captain."))
+        elif n['code'] == 'captain_bought':
+            rows.append(('Note', f"{d.captain_name} is not in your squad: the decision includes buying him in "
+                                 f"GW{x.get('captain_bought')}."))
+        elif n['code'] == 'player_unavailable':
+            rows.append(('Note', n['message'].split(' is below')[0] + " is injured or doubtful: he is expected "
+                                                                    "to score 0."))
+        elif n['code'] == 'hits':
+            k = len(d.transfers_in) - (r.ft or 0)
+            rows.append(('Note', f"{k} extra transfer{'s' if k != 1 else ''}: -{HIT_COST * k} points, counted "
+                                 f"in the gain."))
+    pts = x.get('points_gw') or {}
+    if 'z_decision' in pts and 'z0' in pts:
+        now = pts['z_decision'] - pts['z0']
+        out['gain_this_gw'] = float(now)
+        gain = f"{signed(now)} points vs {none_} {when}"
+        if x.get('g') is not None and signed(x['g']) != signed(now) and len(h) > 1:
+            gain += f"; {signed(x['g'])} over GW{h[0]}-GW{h[-1]} (later gameweeks count less)"
+        rows.append(('Gain', gain))
+    best = x.get('plan_best')
+    if d.chip == 'TC' and best is not None:
+        if best['captain'] != d.captain_id and 'z_best' in pts and 'z_decision' in pts:
+            more = pts['z_best'] - pts['z_decision']
+            out['better_captain'] = {'id': int(best['captain']), 'name': name(best['captain']), 'more': float(more)}
+            rows.append(('Better captain', f"{name(best['captain'])} ({signed(more)} points {when})"))
+        else:
+            best_when = "now" if gw == r.current_gw else f"in GW{gw}"
+            rows.append(('Better captain', f"none ({d.captain_name} is the best Triple Captain {best_when})"))
+    if d.chip == 'TRANSFERS' and best is not None and x.get('r') is not None:
+        sell = ", ".join(name(i) for i in best['out']) or "nobody"
+        buy = ", ".join(name(i) for i in best['in']) or "nobody"
+        out['model_transfers'] = {'out': [int(i) for i in best['out']], 'in': [int(i) for i in best['in']],
+                                  'more': float(x['r'])}
+        if 'better_version' in d.verdict:
+            rows.append(('Model\'s transfers', f"sell {sell}; buy {buy} ({signed(x['r'])} more over "
+                                               f"GW{h[0]}-GW{h[-1]}, later gameweeks count less)"))
+        else:
+            rows.append(('Model\'s transfers', "the same, or no better set"))
+    t = x.get('timing')
+    if t is not None and t.get('best_gw') is not None:
+        if t['is_best']:
+            rows.append(('Better gameweek', f"none up to GW{t['window_end']} ({when}: {signed(t['at_gw'])})"))
+        else:
+            out['better_gw'] = {'gw': int(t['best_gw']), 'estimate': float(t['best']), 'at_gw': float(t['at_gw'])}
+            rows.append(('Better gameweek', f"GW{t['best_gw']} is estimated higher ({signed(t['best'])} vs "
+                                            f"{signed(t['at_gw'])} {when})"))
+    rows.append(('Verdict', _verdict_words(d, x, out)))
+    out['text'] = rows
+    return out, rows
+
+
+def _verdict_words(d, x, out):
+    """One sentence per verdict code (decision.verdict), joined."""
+    if not d.verdict:
+        return "none: not every number was computed in the time limit. Run again with --time-limit 900."
+    tr = d.chip == 'TRANSFERS'
+    words = []
+    for code in d.verdict:
+        if code == 'agrees':
+            words.append("make them: no better set of transfers was found." if tr else
+                         "play it: no better captain or gameweek in the model." if d.chip == 'TC' else
+                         "play it: no better gameweek in the model.")
+        elif code == 'worse_than_none':
+            words.append("don't: it is worse than making no transfer." if tr else
+                         "don't: it is worse than not playing it. Keep the chip.")
+        elif code == 'no_clear_gain':
+            words.append("no clear gain: the difference is within the model's error.")
+        elif code == 'better_gw':
+            b = out['better_gw'] or {}
+            words.append(f"a good chip, but GW{b.get('gw')} looks better. {NOISE}")
+        elif code == 'better_version':
+            if tr:
+                words.append("the model's transfers gain more (see above).")
+            elif out['better_captain']:
+                words.append(f"captain {out['better_captain']['name']} gains more with the chip.")
+    return " ".join(w[0].upper() + w[1:] for w in words)
 
 
 # --------------------------------------------------------------------------- alerts
@@ -272,6 +383,11 @@ def _alerts(r):
 
 
 # --------------------------------------------------------------------------- whole summary
+def cap(text):
+    """First letter upper case ('keep it' -> 'Keep it'); names and numbers stay as they are."""
+    return text[:1].upper() + text[1:] if text[:1].islower() else text
+
+
 def _layout(title, rows, align=True):
     """One section: '== TITLE ==', then its rows. (label, value) -> 'label: value'; align=True puts
     every value of the section in one column (the longest label sets it; a long value wraps under
@@ -286,7 +402,7 @@ def _layout(title, rows, align=True):
             out += textwrap.wrap(value, WIDTH)
         else:
             head = f"{label}:".ljust(w) if align else f"{label}: "
-            out += textwrap.wrap(value, WIDTH, initial_indent=head, subsequent_indent=" " * len(head))
+            out += textwrap.wrap(cap(value), WIDTH, initial_indent=head, subsequent_indent=" " * len(head))
     return out
 
 
@@ -313,8 +429,11 @@ def build_summary(r, tz=None):
         'expected_points': total,
         'expected_range': [max(0.0, total + RANGE_LOW), total + RANGE_HIGH],
         'alerts': _alerts(r),
-        'decision': None,                                    # decision check: step 4 of 15c
+        'decision': None,                                    # --check: filled below
     }
+    decision, decision_rows = _decision(r)
+    if decision is not None:
+        s['decision'] = {k: v for k, v in decision.items() if k != 'text'}
 
     s['chip'] = _with_states(r, _chips(r))
 
@@ -332,6 +451,8 @@ def build_summary(r, tz=None):
     lines = [f"Fantasy Premier League plan for GW{g0}"]
     if deadline:
         lines.append(f"Deadline: {format_deadline(deadline, tz)} (your time)")
+    if decision_rows:                                        # what the user asked for comes first
+        lines += [""] + _layout("YOUR DECISION", decision_rows)
     lines += [""] + _layout("TRANSFERS", _transfer_rows(r, s['transfers'], chip), align=False)
     n = {p: len(lineup[p]) for p in ('DEF', 'MID', 'FWD')}
     xi_rows = [(p, ", ".join(tag(x) for x in xi if x.position == p)) for p in ('GK', 'DEF', 'MID', 'FWD')]
@@ -359,6 +480,6 @@ def build_summary(r, tz=None):
         for a in s['alerts']:
             for sentence in re.split(r"(?<=\.)\s+", a['message']):     # one sentence per line
                 lines += textwrap.wrap(sentence, WIDTH, subsequent_indent="  ")
-    lines += ["", "Full numbers: run again with --details"]
+    lines += ["", "Full numbers: Run again with --details"]
     s['text'] = lines
     return s
