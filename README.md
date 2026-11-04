@@ -13,7 +13,7 @@ must pass a fixed acceptance criterion on both (see [Validation](#validation)).
 > Not affiliated with the Premier League or Fantasy Premier League. The program reads the public,
 > undocumented FPL API, which can change without notice.
 
-**Status:** version 0.11.0 (before 1.0 the command-line options and the JSON output may still
+**Status:** version 0.12.0 (before 1.0 the command-line options and the JSON output may still
 change). The test suite runs on Linux and Windows with Python 3.12, 3.13 and 3.14 (GitHub
 Actions); weekly runs on real data are made on Linux.
 
@@ -51,6 +51,10 @@ Actions); weekly runs on real data are made on Linux.
   transfers this gameweek; Triple Captain on a player of your choice; Bench Boost, in a gameweek
   of the horizon) and the program says what it gains against not doing it, what it leaves against
   the model's best version of it, and, for a chip, whether another gameweek looks better.
+- **Plain-English summary** (the default output): what to do this gameweek — transfers with the
+  money they free or cost, the starting XI and bench order, captain and vice-captain, each chip's
+  state, the expected points with a measured range — written for readers with no background in
+  statistics. Every number of the model is printed with `--details`.
 - **Model evaluation**: every run logs its predictions; after the gameweek,
   `--mode evaluate` compares them with the actual points and with FPL's own `ep_next`.
 - **Machine-readable output** (`--json`) and documented exit codes, for use by other programs.
@@ -104,7 +108,8 @@ and bonus until then; the program says so with an `[INFO]` line if it is not):
 python -m fplopt --team <TEAM_ID>
 ```
 
-`fplopt --team <TEAM_ID>` is the same command. A run takes about 1–3 minutes, most of it in the
+`fplopt --team <TEAM_ID>` is the same command. It prints a short summary of what to do this
+gameweek (see [Output](#output)); add `--details` for every number of the model. A run takes about 1–3 minutes, most of it in the
 solver: with the default 5-gameweek horizon, about 40–60 s for the plan and 90 s for the chip
 analysis on a recent laptop. `--time-limit` caps the solver time of the whole run. A number of
 the chip section that the time limit would cut short is not shown (`not computed`), and a chip
@@ -132,6 +137,10 @@ python -m fplopt --team <TEAM_ID> --check TRANSFERS --out <ID>,<ID> --in <ID>,<I
 python -m fplopt --team <TEAM_ID> --check TC --captain <PLAYER_ID> --no-log
 python -m fplopt --team <TEAM_ID> --check BB --check-gw 12 --lookahead 5 --no-log
 ```
+
+The summary shows the check first, as **YOUR DECISION**: the gain this gameweek, a better captain
+or set of transfers if the model finds one, a better gameweek for a chip, and a verdict in plain
+words. `--details` prints the numbers below.
 
 The first command prints the FPL id of each named player (`[explain] Haaland (id 430, ...)`);
 the squad table of any run shows your own players. The check is solved three ways over the
@@ -181,6 +190,7 @@ the reason; the plan is still printed. The check shares `--time-limit` with the 
 | `--explain "A,B"` | print the xP components of these players (FPL web names) | — |
 | `--no-log` | do not write the predictions of this run to `predictions_log.csv` | off |
 | `--refresh-cache` | download the cached live data of final gameweeks again | off |
+| `--details` | print every number of the model (the full output) instead of the summary | off |
 | `--json` | print the result as one JSON document instead of text | off |
 
 `--no-log` is for comparison runs: the log keeps one run per gameweek (the last one), so it
@@ -214,22 +224,79 @@ server; normal runs do not need it.
 
 ## Output
 
-**Text (default).** Results on stdout: the squad of the current gameweek with roles (`>>` marks a
+**Summary (default).** A short plain-English answer to "what do I do this gameweek", for readers
+with no background in statistics:
+
+```text
+Fantasy Premier League plan for GW10
+Deadline: Fri 6 Nov, 20:30 (your time)
+
+== TRANSFERS ==
+Free transfers: 2
+    Calafiori     -> Konsa   (+£1.1m)
+    Calvert-Lewin -> Isak    (-£3.1m)
+Bank: £3.0m now -> £1.0m after
+Selling Calafiori is what makes the other purchases fit your budget.
+Gain: +2.6 points vs no transfer this gameweek, +2.7 over GW10-GW14
+
+== STARTING XI (3-4-3) ==
+GK:    Verbruggen
+DEF:   Konsa, De Cuyper, Van Hecke
+MID:   Rice, Ødegaard, Tavernier, Groß
+FWD:   Evanilson, Isak, Haaland
+Bench: Tzolakis (GK), 1. Muharemović, 2. Araujo, 3. Cherki
+
+== CAPTAINS ==
+C:  Haaland (about 9 expected points, about 17 as captain)
+VC: Isak
+
+== CHIPS ==
+Bench Boost:    Keep it (now +9.1, best GW12: +10.9)
+Triple Captain: Keep it (now +8.9, best GW16: +10.6)
+Wildcard:       Used in GW8; the next one from GW20
+Free Hit:       Used in GW9; the next one from GW20
+
+Suggested: No chip this gameweek.
+Chip gains are estimates: differences of a few tenths are within the
+model's error.
+
+== EXPECTED POINTS ==
+About 64 this gameweek
+In 8 of 10 gameweeks: Between 38 and 88
+
+== BEFORE YOU DECIDE ==
+Some selling prices are known only to within £0.1m.
+Your budget may be £0.1m higher than shown.
+Check it in the app.
+```
+
+Nothing in it is computed apart from the model: it is a plain-words reading of the same result,
+rounded (totals to whole points, differences to one decimal). Two numbers are added for it: the
+gain of this gameweek's transfers over making none (one more solve), and the range of the
+expected points. That range is measured, not assumed: the 10th to 90th percentile of (actual −
+predicted) points of the best XI + captain per gameweek in the walk-forward backtest, −25 to +24
+over 44 gameweeks of 2024/25 and 2025/26 (`RANGE_LOW`, `RANGE_HIGH` in `src/fplopt/summary.py`).
+While it runs, stderr shows one line (`Working...`) and any warning; the deadline is shown in the
+time zone of the computer.
+
+**Full output (`--details`).** Results on stdout: the squad of the current gameweek with roles (`>>` marks a
 player to buy), the players to sell with the price each one returns, the plan of every gameweek
-of the horizon (transfers, hits, captain), the expected points split into their parts, the
-solver's optimality gap, the decision check (with `--check` only) and the chip suggestions. Progress lines (`[*]`, `[INFO]`, `[WARNING]`) go to stderr. Both streams are
-UTF-8 on every platform.
+of the horizon (transfers, hits, captain), the expected points split into their parts, the plan's
+formation against the next two best formations of the same squad, the solver's optimality gap,
+the decision check (with `--check` only) and the chip suggestions. Progress lines (`[*]`,
+`[INFO]`, `[WARNING]`) go to stderr. Both streams are UTF-8 on every platform.
 
 **JSON (`--json`).** Exactly one JSON document on stdout per run, also when the run fails:
 
 ```json
-{"schema_version": "1.0", "engine_version": "0.11.0", "ok": true, "mode": "optimize", ...}
-{"schema_version": "1.0", "engine_version": "0.11.0", "ok": false, "mode": "optimize",
+{"schema_version": "1.0", "engine_version": "0.12.0", "ok": true, "mode": "optimize", ...}
+{"schema_version": "1.0", "engine_version": "0.12.0", "ok": false, "mode": "optimize",
  "error": {"exit_code": 4, "type": "not_found", "message": "..."}, "warnings": []}
 ```
 
 Per-gameweek values are arrays of `{"gw": ..., ...}` objects, numbers are not rounded and
-`null` means "not applicable" or "unknown". The full schema is in
+`null` means "not applicable" or "unknown". The field `summary` holds the summary, both as data
+and as the printed lines, so a frontend can show it without rebuilding it. The full schema is in
 [docs/json-output.md](docs/json-output.md).
 
 **Exit status.**
@@ -405,11 +472,12 @@ club rotates.
 
 ### Tests
 
-`pytest` runs 203 fast tests (15–30 s) on a synthetic season, with no network: the MILP on
-small pools checked by hand (free transfers, hits, chips, budget, vice-captain), selling prices,
-the chip rules, the decision check, the JSON output and exit codes, retries against a local HTTP server, the cache.
-`pytest -m slow` runs 14 full optimizer runs (about 5–15 minutes) and compares the output with a
-stored reference run.
+`pytest` runs 245 fast tests (30–75 s) on a synthetic season, with no network: the MILP on
+small pools checked by hand (free transfers, hits, chips, budget, vice-captain, formations), selling prices,
+the chip rules, the decision check, the summary (every field against its source, no technical
+words, the deadline in local time), the JSON output and exit codes, retries against a local HTTP server, the cache.
+`pytest -m slow` runs 14 full optimizer runs (about 5–15 minutes) and compares the output (full
+and summary) with a stored reference run.
 
 ## Limitations and assumptions
 
@@ -430,6 +498,9 @@ stored reference run.
   the horizon is real in the model but smaller than the error of the xP itself (RMSE about 2.5
   per player-gameweek). Transfers (current gameweek), Triple Captain and Bench Boost can be
   checked; Wildcard and Free Hit not yet (each Wildcard solve can take several minutes).
+- **Summary**: its words are a reading of the model's numbers, not a separate judgement. The range
+  of the expected points is measured on the 11 highest predictions of each gameweek with no budget
+  or formation, which is close to, but not the same as, the plan's XI.
 - **Optimality** is relative to this model: a proven plan is the best plan *for these xP values*,
   not a guarantee of points.
 - **The FPL API** is undocumented and can change; the program retries temporary failures (4
@@ -444,9 +515,9 @@ src/fplopt/     the package
   cli.py          command line, exit codes          engine.py    one run -> result object
   xp_model.py     xP model (self-contained)         milp.py      MILP and solver (only PuLP user)
   chips.py        chip gains and suggestion rule    squad.py     squad, selling prices, free transfers
-  decision.py     decision check (G, R, timing)
+  decision.py     decision check (G, R, timing)     summary.py   plain-English summary (default output)
   data.py         gameweeks, fixtures, history      api.py       FPL API client, retries, cache
-  report.py       text output                       jsonout.py   JSON output
+  report.py       text output (summary, --details)  jsonout.py   JSON output
   predictions.py  prediction log and evaluation     rules.py     transfer and chip rules
 scripts/        backtest, calibration and acceptance check of the xP model; solver timing
 tests/          pytest suite (offline)
@@ -532,6 +603,7 @@ the current value, then the value at stage 6b. The stages, in the order they wer
 | 7 | chips (`C2`–`C11`, `K`) |
 | 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`), chip numbers computed in full (`C12`) |
 | 15 | decision check (`D1`–`D3`, `O1`) |
+| 15c | plain-English summary as the default output, `--details`, formations (comments marked `15c`) |
 
 After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
 change any result.

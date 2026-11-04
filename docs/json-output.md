@@ -4,7 +4,7 @@
 lines (`[*] ...`, `[WARNING] ...`) still go to stderr. The text is UTF-8; names are written as
 they are (`Ødegaard`, not `Ødegaard`).
 
-This document describes `schema_version` **1.0**, produced by `engine_version` 0.11.0. The code
+This document describes `schema_version` **1.0**, produced by `engine_version` 0.12.0. The code
 that writes it is `src/fplopt/jsonout.py`.
 
 ## Contents
@@ -51,7 +51,7 @@ Every document starts with these fields:
 | Field | Type | Meaning |
 |---|---|---|
 | `schema_version` | string | `"1.0"` |
-| `engine_version` | string | version of the `fplopt` package, e.g. `"0.11.0"` |
+| `engine_version` | string | version of the `fplopt` package, e.g. `"0.12.0"` |
 | `ok` | bool | `true` on success, `false` on error |
 | `mode` | string | `"optimize"` or `"evaluate"` |
 
@@ -70,6 +70,8 @@ Top-level fields after the header:
 | `expected_points_now` | object | [expected_points_now](#expected_points_now) |
 | `chips` | object | [chips](#chips) |
 | `decision_check` | object or null | [decision_check](#decision_check); `null` without `--check` |
+| `formations` | array | [formations](#formations); empty with Bench Boost |
+| `summary` | object | [summary](#summary): the plain-English summary, as data and as text |
 | `explain` | array | [explain](#explain) |
 | `explain_not_found` | array of string | names given to `--explain` that matched no player (lower case) |
 | `fallback_players` | int | players whose xP is FPL's `ep_next` (no data at their current club yet) |
@@ -243,6 +245,38 @@ unless the field says otherwise. `null` without `--check`.
 | `not_computed` | array of string | solves or estimates the time limit left out, e.g. `"z_best"`, `"estimate TC GW14"` |
 | `seconds` | number or null | time of the check |
 
+### formations
+
+The best expected points of the current gameweek's squad with each formation the game allows
+(captain, vice-captain and bench order solved again for each), in the order 3-4-3, 3-5-2, 4-3-3,
+4-4-2, 4-5-1, 5-2-3, 5-3-2, 5-4-1. Empty with Bench Boost (all 15 score).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `formation` | string | e.g. `"3-4-3"` (DEF-MID-FWD) |
+| `def`, `mid`, `fwd` | int | the same as numbers |
+| `points` | number or null | unweighted expected points of the gameweek, before hits; `null` = not computed in the time limit, or the squad cannot field it |
+
+### summary
+
+The plain-English summary that the command line prints by default. Numbers are not rounded here;
+`text` holds the printed lines (rounded), so a frontend can show it as it is.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `gw` | int | the current gameweek |
+| `deadline_utc` | string or null | its deadline as the API gives it (UTC); the text shows it in the time zone of the machine that runs the engine |
+| `transfers` | object | `free_transfers` (int or null), `unlimited` (bool), `hits`, `hit_points`, `moves` (array of `{out, in, money, pays_for_others}`: `out`/`in` are `{id, name}`, `money` = selling price out − price in, £m; `pays_for_others` = without this sale the other purchases do not fit the budget), `bank_before`, `bank_after` (£m or null), `vs_no_transfer` (`{this_gw, next_gws, n_gws}`: unweighted gain over making no transfer now, this gameweek and over the horizon; `null` without transfers or when not computed) |
+| `captain` | `{id, name, expected_points}` | expected points before the armband |
+| `vice` | `{id, name}` or null | vice-captain |
+| `lineup` | object | `GK`, `DEF`, `MID`, `FWD`: names of the XI; `bench`: names in bench order (goalkeeper first) |
+| `chip` | object | `status` (as `chips.status`), `playing` (chip given with `--chip`, or null), `play` (`{chip, gain}` or null: the suggestion), `also`, `hold` (array of `{chip, now, best_gw, best}`), `no_advice`, `wildcard_now`, `by_chip` (array of `{chip, status, text}` in the order BB, TC, WC, FH; `status`: `playing`, `other_chip`, `play`, `also`, `hold`, `wildcard_now`, `no_advice`, `used`, `expired`, `not_yet`, `unavailable`, `not_estimated`) |
+| `expected_points` | number | as `expected_points_now.total` |
+| `expected_range` | `[low, high]` | the range that holds in 8 of 10 gameweeks: `expected_points` −25.4 / +24.0, measured in the backtest (README, Output); `low` is at least 0 |
+| `alerts` | array of `{code, message}` | only what changes what to do: `previous_gw_not_final`, `time_limit`, `chips_not_computed`, `player_unavailable`, `selling_value_range` |
+| `decision` | object or null | with `--check`: `chip`, `gw`, `status`, `verdict` (as `decision_check.verdict`), `gain_this_gw` (unweighted, the decision's gameweek), `gain_horizon` (= `decision_check.g`), `better_captain` (`{id, name, more}` or null), `better_gw` (`{gw, estimate, at_gw}` or null), `model_transfers` (`{out, in, more}` or null), `violations` (codes) |
+| `text` | array of string | the printed lines |
+
 ### explain
 
 One object per player named in `--explain` (empty without it).
@@ -266,6 +300,8 @@ One object per player named in `--explain` (empty without it).
 |---|---|---|
 | `timings.data_s` | number | downloading and preparing the data, xP included |
 | `timings.solve_s` | number | main plan |
+| `timings.no_transfer_s` | number | the 'no transfer' solve of the summary |
+| `timings.formations_s` | number | the solves of `formations` |
 | `timings.chips_s` | number | chip analysis |
 | `timings.total_s` | number | whole run |
 | `api.requests` | int | HTTP requests sent (retries included) |
@@ -292,7 +328,7 @@ On any error the document is:
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.11.0",
+  "engine_version": "0.12.0",
   "ok": false,
   "mode": "optimize",
   "error": {"exit_code": 4, "type": "not_found", "message": "..."},
@@ -334,6 +370,9 @@ must accept codes it does not know; an entry logged without a code has `"code": 
 | `bench_not_converged` | the bench weights still changed after the last pass; the last plan is used |
 | `chips_not_computed` | the time limit skipped parts of the chip analysis (`chips.not_computed`) |
 | `decision_invalid` | the checked decision breaks a rule of the game (`decision_check.violations`) |
+| `selling_value_range` | some purchase prices are not known exactly, so the selling value of the squad lies in a range; the budget uses its lower end |
+| `no_transfer_not_computed` | the 'no transfer' solve of the summary did not finish in the time limit (`summary.transfers.vs_no_transfer` is `null`) |
+| `formations_not_computed` | not every formation was computed in the time limit |
 | `api_retry` | an API request failed temporarily and was repeated |
 | `cache_unreadable`, `cache_write_failed` | a cache file could not be read (it is downloaded again) or written |
 | `live_fields_missing` | the live gameweek data lack some statistics the model reads; they are taken as 0 |
@@ -347,7 +386,7 @@ lookahead 3; arrays shortened):
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.11.0",
+  "engine_version": "0.12.0",
   "ok": true,
   "mode": "optimize",
   "input": {"team_id": 1, "ft": null, "chip": "NONE", "min_chance": 75, "lookahead": 3,
@@ -401,12 +440,17 @@ lookahead 3; arrays shortened):
     "seconds": 82.0
   },
   "decision_check": null,
+  "formations": [{"formation": "3-4-3", "def": 3, "mid": 4, "fwd": 3, "points": 57.42}],
+  "summary": {"gw": 8, "deadline_utc": "2026-10-03T10:00:00+00:00", "expected_points": 49.42,
+              "expected_range": [24.02, 73.42], "alerts": [], "decision": null,
+              "text": ["Fantasy Premier League plan for GW8", "..."]},
   "explain": [],
   "explain_not_found": [],
   "fallback_players": 0,
   "predictions_log": null,
   "warnings": [],
-  "timings": {"data_s": 0.30, "solve_s": 22.6, "chips_s": 82.0, "total_s": 105.0},
+  "timings": {"data_s": 0.30, "solve_s": 22.6, "no_transfer_s": 1.9, "formations_s": 0.2, "chips_s": 82.0,
+              "total_s": 107.1},
   "api": {"requests": 0, "retries": 0, "cache_hits": 0, "cache_writes": 0}
 }
 ```
