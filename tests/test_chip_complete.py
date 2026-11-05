@@ -81,3 +81,31 @@ def test_advise_needs_every_number_of_the_window():
     assert adv['pick'] == 'TC'
     assert sorted(adv['incomplete']) == ['BB', 'FH']
     assert adv['holds'] == [] and adv['also'] == []
+
+
+def test_chip_report_reuses_a_complete_main_plan(monkeypatch):
+    """S1: with a horizon of <= 3 GWs the 'no chip' solve of the chip analysis is the same model as the main
+    plan, so a complete main plan is used instead of a second solve; the numbers equal those of the second
+    solve. An incomplete main plan is solved again as before."""
+    pool, sq = toy()
+    w = weights(H3)
+    main = plan_squad(pool, H3, w, sq, 75.0, 1)
+    windows = {'TC': [(2, 10)], 'BB': [(2, 10)]}
+    args = (pool, H3, w, main['plan'], sq, 75.0, 1, windows, None, True, True, 10 ** 6)
+    original, chips_solved = chips.plan_squad, []
+
+    def counted(*a, **k):
+        chips_solved.append((tuple(a[1]), a[6]))               # (horizon, chip) of each solve
+        return original(*a, **k)
+    monkeypatch.setattr(chips, 'plan_squad', counted)
+    again = chip_report(*args)                                  # without the main plan: solved again
+    assert (tuple(H3), 'NONE') in chips_solved
+    chips_solved.clear()
+    reused = chip_report(*args, main_result=main)
+    assert (tuple(H3), 'NONE') not in chips_solved              # not solved a second time
+    assert reused['exact'] == pytest.approx(again['exact'], abs=1e-9)
+    assert reused['gap'] == pytest.approx(again['gap'], abs=1e-9)
+    assert reused['plans']['NONE'] == again['plans']['NONE']
+    chips_solved.clear()
+    chip_report(*args, main_result=dict(main, complete=False))  # incomplete main plan: solved again
+    assert (tuple(H3), 'NONE') in chips_solved
