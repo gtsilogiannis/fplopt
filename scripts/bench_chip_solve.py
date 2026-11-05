@@ -13,6 +13,8 @@ gap of every bench-weight pass, the final change of the bench weights, and
           (the fixed point the passes aim for). Two runs with different bench weights have
           objectives that cannot be compared; their 'value' can.
 Times depend on the machine and on its load; run nothing else meanwhile.
+--highs adds HiGHS options to every solve, for measurements only (the program itself does not use them), e.g.
+    --highs parallel=on threads=4 mip_heuristic_effort=0.3
 """
 import argparse
 import csv
@@ -24,6 +26,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import backtest_season as B                                         # noqa: E402
+
+import pulp                                                         # noqa: E402
 
 import fplopt.milp as milp                                          # noqa: E402
 from fplopt.chips import gw_points                                  # noqa: E402
@@ -45,6 +49,35 @@ def record_passes():
         return res
     milp.solve_plan = timed
     return log
+
+
+def highs_options(pairs):
+    """'name=value' strings -> {name: value}: true/false -> bool, digits -> int, numbers -> float, else text."""
+    out = {}
+    for pair in pairs:
+        name, value = pair.split('=', 1)
+        if value in ('true', 'false'):
+            out[name] = value == 'true'
+        else:
+            try:
+                out[name] = int(value)
+            except ValueError:
+                try:
+                    out[name] = float(value)
+                except ValueError:
+                    out[name] = value
+    return out
+
+
+def add_highs_options(extra):
+    """Every HiGHS solver object that milp.run_solver creates gets the extra options (PuLP passes options it
+    does not know to HiGHS by name)."""
+    original = pulp.HiGHS
+
+    def with_options(*args, **kwargs):
+        kwargs.update(extra)
+        return original(*args, **kwargs)
+    milp.pulp.HiGHS = with_options
 
 
 def self_consistent_value(state):
@@ -88,7 +121,10 @@ def main():
     ap.add_argument('--lookahead', nargs='+', type=int, default=[3, 5])
     ap.add_argument('--time-limit', type=int, default=B.NO_LIMIT)
     ap.add_argument('--out')
+    ap.add_argument('--highs', nargs='*', default=[], help="extra HiGHS options name=value (measurements only)")
     args = ap.parse_args()
+    if args.highs:
+        add_highs_options(highs_options(args.highs))
     logging.basicConfig(level=logging.WARNING, format='%(message)s')
     passes = record_passes()
     rows = []
