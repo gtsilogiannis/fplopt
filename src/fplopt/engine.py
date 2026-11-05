@@ -609,7 +609,8 @@ def _optimize(client, opts, warnings):
         # M10: one limit for the whole run (main plan, decision check, chip analysis)
         time_left = (time_limit or SOLVER_TIME_LIMIT) - spent - decision_s
         rep = chip_report(pool, horizon, gw_weight, plan, start_squad, total_budget, ft0, chip_windows,
-                          max_hits, use_vice, use_bench, time_left, solver)
+                          max_hits, use_vice, use_bench, time_left, solver,
+                          main_result=res)          # S1: reused when the horizon is <= 3 GWs (same model)
         chips.window, chips.exact, chips.error, chips.estimates = rep['window'], rep['exact'], rep['gap'], rep['est']
         chip_plans = rep['plans']
         chips.not_computed = list(rep['skipped'])
