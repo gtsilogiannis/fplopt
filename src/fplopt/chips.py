@@ -96,7 +96,7 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
     C12: a number is kept only if every solve behind it was complete (milp.plan_squad: gap target
     reached, bench-weight passes not cut by the time limit), so the numbers that are shown do not
     depend on the speed of the machine; a slower machine shows fewer of them ('skipped').
-    main_result: S1 the result of the main plan (milp.plan_squad, no chip, same pool, budget, FTs, hit limit,
+    main_result: N1 the result of the main plan (milp.plan_squad, no chip, same pool, budget, FTs, hit limit,
     vice-captain and bench options), or None. When the horizon has at most 3 GWs, the 'no chip' solve below is
     the SAME model as the main plan; a complete main plan is then used instead of solving it again (a complete
     solve does not depend on the time limit, see milp.plan_squad, so the numbers are the same).
@@ -123,7 +123,7 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
             out['skipped'].append(f"exact {cp}")
             continue
         if cp == 'NONE' and h3 == horizon and main_result is not None and main_result.get('complete'):
-            res = main_result                       # S1: same model, already solved completely
+            res = main_result                       # N1: same model, already solved completely
         else:
             res = plan_squad(pool, h3, w3, start_squad, budget, ft0, cp, max_hits, use_vice, use_bench,
                              time_limit=tl, solver=solver)

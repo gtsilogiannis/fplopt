@@ -235,7 +235,7 @@ def optimize(client, opts):
     """Runs the optimizer for opts.team_id with data from client (api.FplClient or a fake)."""
     require_pulp_4()
     if opts.time_limit is None and opts.chip == 'WC':
-        # S4: a Wildcard solve often needs more than the general default (see milp.WILDCARD_TIME_LIMIT);
+        # N3: a Wildcard solve often needs more than the general default (see milp.WILDCARD_TIME_LIMIT);
         # only the default changes, an explicit --time-limit is kept
         opts = replace(opts, time_limit=WILDCARD_TIME_LIMIT)
     with collect() as warnings:
@@ -617,7 +617,7 @@ def _optimize(client, opts, warnings):
         time_left = (time_limit or SOLVER_TIME_LIMIT) - spent - decision_s
         rep = chip_report(pool, horizon, gw_weight, plan, start_squad, total_budget, ft0, chip_windows,
                           max_hits, use_vice, use_bench, time_left, solver,
-                          main_result=res)          # S1: reused when the horizon is <= 3 GWs (same model)
+                          main_result=res)          # N1: reused when the horizon is <= 3 GWs (same model)
         chips.window, chips.exact, chips.error, chips.estimates = rep['window'], rep['exact'], rep['gap'], rep['est']
         chip_plans = rep['plans']
         chips.not_computed = list(rep['skipped'])

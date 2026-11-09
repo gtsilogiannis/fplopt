@@ -78,7 +78,7 @@ def price_table(d):
 def predict(d, hist, pos_of, gws, prices=None):
     prices = prices if prices is not None else price_table(d)
     start_all = hist.attrs.get('start_gw_of', {})
-    # S3: pandas deep-copies DataFrame.attrs into every table or row derived from it (filter, groupby,
+    # N2: pandas deep-copies DataFrame.attrs into every table or row derived from it (filter, groupby,
     # .loc, iterrows), so the ~700-entry dict above was copied ~87 000 times per predict: 84% of the run time
     # (measured, 2024/25: 18.9 s -> 3.1 s per predict). A shallow copy without attrs gives the same values.
     hist = hist.copy(deep=False)

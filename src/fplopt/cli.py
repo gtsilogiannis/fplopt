@@ -81,7 +81,7 @@ def build_parser():
                         help="Optional cap on paid transfers (-4 each) per GW (Default: no cap)")
     parser.add_argument("--explain", type=str, default=None,
                         help="Comma-separated web names; print their xP components (e.g. Gabriel,Greaves)")  # X7
-    parser.add_argument("--time-limit", type=int, default=None,   # S4: None = the engine's default
+    parser.add_argument("--time-limit", type=int, default=None,   # N3: None = the engine's default
                         help=f"Seconds for the whole solve; the optimality gap is always printed "
                              f"(Default: {SOLVER_TIME_LIMIT}; {WILDCARD_TIME_LIMIT} with --chip WC)")  # M7/M10
     parser.add_argument("--solver", type=str, choices=['highs'], default=None,
@@ -101,7 +101,7 @@ def build_parser():
 
 
 def _time_limit(args):
-    """S4: --time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC, SOLVER_TIME_LIMIT otherwise
+    """N3: --time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC, SOLVER_TIME_LIMIT otherwise
     (resolved here so that the JSON 'options' shows the limit that was used)."""
     if args.time_limit is not None:
         return args.time_limit

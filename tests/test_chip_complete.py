@@ -84,7 +84,7 @@ def test_advise_needs_every_number_of_the_window():
 
 
 def test_chip_report_reuses_a_complete_main_plan(monkeypatch):
-    """S1: with a horizon of <= 3 GWs the 'no chip' solve of the chip analysis is the same model as the main
+    """N1: with a horizon of <= 3 GWs the 'no chip' solve of the chip analysis is the same model as the main
     plan, so a complete main plan is used instead of a second solve; the numbers equal those of the second
     solve. An incomplete main plan is solved again as before."""
     pool, sq = toy()
