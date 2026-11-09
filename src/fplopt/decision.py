@@ -90,20 +90,24 @@ def chip_timing(pool, plan, horizon, chip, gw, window_end, budget, max_hits, use
 
 
 def transfer_gain(pool, horizon, weight, start_squad, budget, ft0, base, chip='NONE', max_hits=None,
-                  use_vice=True, use_bench=True, time_limit=None, solver=None):
+                  use_vice=True, use_bench=True, time_limit=None, solver=None, solves=None):
     """15c (decision A): what the main plan's transfers of the current GW are worth, in UNWEIGHTED
     expected points, against making no transfer now (the current squad fixed in that GW; the later
     GWs are planned freely, so the 'no transfer' plan may make the same moves a GW later).
     base: the main plan (milp.plan_squad, same pool and options); chip: the chip fixed in the current
     GW of that plan (TC/BB keep it; the engine does not call this for WC/FH: their transfers are free).
     Returns ({'this_gw', 'next_gws', 'n_gws'} or None, seconds). None (C12) when the main plan or the
-    'no transfer' solve did not reach the gap target, or there is no time left."""
+    'no transfer' solve did not reach the gap target, or there is no time left.
+    solves: N4: an optional dict; the 'no transfer' solve is stored in it as solves['no_transfer'] (for the
+    decision check of transfers, which needs the same solve, see check_decision z0_result)."""
     t0 = time.time()
     g0 = horizon[0]
     if 'plan' not in base or not base.get('complete') or (time_limit or SOLVER_TIME_LIMIT) < MIN_PASS_SECONDS:
         return None, time.time() - t0
     roll = plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip, max_hits, use_vice, use_bench,
                       time_limit=time_limit, solver=solver, force_squad={g0: list(start_squad)})
+    if solves is not None:
+        solves['no_transfer'] = roll                # N4: kept for the decision check of transfers
     if 'plan' not in roll or not roll.get('complete'):
         return None, time.time() - t0
 
@@ -118,7 +122,7 @@ def transfer_gain(pool, horizon, weight, start_squad, budget, ft0, base, chip='N
 
 def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, gw, captain=None,
                    max_hits=None, use_vice=True, use_bench=True, time_limit=None, solver=None,
-                   window_end=None, squad=None):
+                   window_end=None, squad=None, z0_result=None):
     """Checks 'chip in GW gw' (with the user's captain for TC), or the user's transfers (the new
     squad 'squad' of the current GW), against the main plan 'base'.
     base: result of milp.plan_squad with chip 'NONE' on the same pool, horizon, weights and options:
@@ -128,6 +132,10 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
     and Z(D) (the user's squad fixed). The time limit is shared by these solves.
     window_end: last GW of the chip's window that contains gw; given -> timing (step 3) with the
           time left after the solves. None -> no timing.
+    z0_result: N4 transfers only: a 'no transfer' solve already made with the same pool, horizon, weights,
+          budget, FTs and options and no chip (decision.transfer_gain, solves['no_transfer']). If it is
+          complete it is used as Z0 instead of solving the same model again (a complete solve does not
+          depend on the time limit, milp.plan_squad); otherwise Z0 is solved here as before.
     C12: a number is given only if every solve behind it was complete; otherwise it is None and
     the missing solve is listed in 'not_computed'."""
     if chip not in CHECK_KINDS:
@@ -163,6 +171,9 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
     # version (TC only). Transfers: no transfer, then the user's squad.
     if chip == 'TRANSFERS':
         runs = [('z0', None, None, {gw: list(start_squad)}), ('z_decision', None, None, {gw: list(squad)})]
+        if z0_result is not None and 'plan' in z0_result and z0_result.get('complete'):
+            solved['z0'] = z0_result                                 # N4: same model, already solved
+            runs = runs[1:]
     else:
         runs = [('z_best', {(chip, gw): 1}, None, None)]
         if chip == 'TC':

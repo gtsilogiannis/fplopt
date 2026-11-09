@@ -277,3 +277,30 @@ def test_invalid_transfer_requests(chip, gw, squad):
     kw = {'squad': new} if squad else {}
     with pytest.raises(ValueError):
         check(pool, sq, {'plan': {}}, chip, gw, sq[14] if chip == 'TC' else None, **kw)
+
+
+def test_transfers_reuse_the_no_transfer_solve(monkeypatch):
+    """N4: a complete 'no transfer' solve of decision.transfer_gain (same model) is used as Z0 instead of a
+    second solve, with the same numbers; an incomplete one is solved again."""
+    pool, sq, new = _targets(2)
+    base = main_plan(pool, sq)
+    solves = {}
+    fplopt.decision.transfer_gain(pool, H3, W3, sq, 75.0, 1, base, solves=solves, **NO_TERMS)
+    assert solves['no_transfer'].get('complete')
+    original, forced = fplopt.decision.plan_squad, []
+
+    def counted(*a, **k):
+        forced.append(k.get('force_squad'))
+        return original(*a, **k)
+    monkeypatch.setattr(fplopt.decision, 'plan_squad', counted)
+    again = check(pool, sq, base, 'TRANSFERS', 8, squad=new)
+    assert {8: list(sq)} in forced                              # Z0 solved without the earlier solve
+    forced.clear()
+    reused = check(pool, sq, base, 'TRANSFERS', 8, squad=new, z0_result=solves['no_transfer'])
+    assert {8: list(sq)} not in forced and len(forced) == 1    # only Z(D) was solved
+    for key in ('z0', 'z_decision', 'g', 'g_low', 'g_high', 'r', 'gain_action'):
+        assert reused[key] == pytest.approx(again[key], abs=1e-9)
+    assert reused['points_gw'] == pytest.approx(again['points_gw'], abs=1e-9)
+    forced.clear()
+    check(pool, sq, base, 'TRANSFERS', 8, squad=new, z0_result=dict(solves['no_transfer'], complete=False))
+    assert {8: list(sq)} in forced                              # incomplete: solved again

@@ -569,10 +569,12 @@ def _optimize(client, opts, warnings):
     # 15c (decision A): the gain of this GW's transfers over making none, for the summary. Not with
     # WC/FH (their transfers are free) nor before the first deadline (no squad to keep).
     no_transfer, no_transfer_s = None, 0.0
+    solves = {}                                     # N4: the 'no transfer' solve, reused by --check TRANSFERS
     if opts.transfer_gain and now['in'] and not new_team and now['chip'] not in ('WC', 'FH'):
         no_transfer, no_transfer_s = transfer_gain(pool, horizon, gw_weight, start_squad, total_budget, ft0, res,
                                                    chip_used, max_hits, use_vice, use_bench,
-                                                   (time_limit or SOLVER_TIME_LIMIT) - res['seconds'], solver)
+                                                   (time_limit or SOLVER_TIME_LIMIT) - res['seconds'], solver,
+                                                   solves=solves)
         if no_transfer is not None:
             log.info(f"[*] Transfers vs no transfer: {no_transfer['this_gw']:+.2f} in GW{current_gw}, "
                      f"{no_transfer['next_gws']:+.2f} over the horizon (unweighted); solved in {no_transfer_s:.1f} s")
@@ -596,7 +598,8 @@ def _optimize(client, opts, warnings):
     decision, decision_s = None, 0.0
     if check_gw is not None:
         decision = _decision_section(opts, check_gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad,
-                                     total_budget, ft0, res, name_of, avail_dict, spent)
+                                     total_budget, ft0, res, name_of, avail_dict, spent,
+                                     no_transfer_result=solves.get('no_transfer') if chip_used == 'NONE' else None)
         if decision.result is not None:
             decision_s = decision.result['seconds']
             log.info(f"[*] Decision check: {decision.chip} GW{decision.gw}: {decision_s:.1f} s")
@@ -656,13 +659,13 @@ def _optimize(client, opts, warnings):
 
 
 def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,
-                      name_of, avail_dict, spent):
+                      name_of, avail_dict, spent, no_transfer_result=None):
     """Decision check: rules of the game that need the team's data, then decision.check_decision."""
     chip, cap = opts.check, opts.check_captain
     sec = DecisionSection(chip=chip, gw=gw, captain_id=cap, captain_name=name_of.get(cap), status='invalid')
     if chip == 'TRANSFERS':
         return _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of,
-                                  avail_dict, spent)
+                                  avail_dict, spent, no_transfer_result)
     window_end = next((e for s, e in chip_windows.get(chip, []) if s <= gw <= e), None)
     if window_end is None:
         # played already, or its window ended, or (GW1-19 / GW20-38) no unplayed set covers this GW
@@ -702,7 +705,7 @@ def _finish_section(sec, name_of):
 
 
 def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of, avail_dict,
-                       spent):
+                       spent, no_transfer_result=None):
     """D3: the user's transfers of the current GW. Rules of the game first (the new squad must be a
     valid FPL squad within the budget); a broken rule makes the check 'invalid' with no solve."""
     outs, ins = list(opts.check_out), list(opts.check_in)
@@ -754,7 +757,8 @@ def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget,
                                                        f"-{4 * k} points (counted in G)"})
     time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, 'TRANSFERS', sec.gw, None,
-                                opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver, squad=squad)
+                                opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver, squad=squad,
+                                z0_result=no_transfer_result)       # N4: Z0 = the 'no transfer' solve
     _finish_section(sec, name_of)
     return sec
 
