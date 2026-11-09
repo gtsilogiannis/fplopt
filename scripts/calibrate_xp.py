@@ -7,7 +7,7 @@ actual points. Data: github.com/vaastav/Fantasy-Premier-League (per-match rows).
 
 Usage (from the repository root; downloads into data_cache/):
   python scripts/calibrate_xp.py --season 2025-26
-  python scripts/calibrate_xp.py --season 2024-25 --tune     # grid search of the [tuned] constants (slow, ~10 min)
+  python scripts/calibrate_xp.py --season 2024-25 --tune     # grid search of the [tuned] constants (60 parameter sets)
 """
 import argparse
 import itertools
@@ -77,10 +77,16 @@ def price_table(d):
 
 def predict(d, hist, pos_of, gws, prices=None):
     prices = prices if prices is not None else price_table(d)
+    start_all = hist.attrs.get('start_gw_of', {})
+    # S3: pandas deep-copies DataFrame.attrs into every table or row derived from it (filter, groupby,
+    # .loc, iterrows), so the ~700-entry dict above was copied ~87 000 times per predict: 84% of the run time
+    # (measured, 2024/25: 18.9 s -> 3.1 s per predict). A shallow copy without attrs gives the same values.
+    hist = hist.copy(deep=False)
+    hist.attrs = {}
     out = []
     for gw in gws:
         # X9: a join date after this GW was not known yet at that time -> ignore it
-        start = {k: v for k, v in hist.attrs.get('start_gw_of', {}).items() if v <= gw}
+        start = {k: v for k, v in start_all.items() if v <= gw}
         feats, teams, L = F.build_features(hist, pos_of, gw, prices.get(gw), start)
         comp = {}
         for r in d[d['gw'] == gw].itertuples():
