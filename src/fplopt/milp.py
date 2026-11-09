@@ -49,6 +49,11 @@ FT_END_VALUE = 0.0
 # most GAP weighted points below the best possible plan of this model".
 # [decision] set from measured solve times (see the --lookahead comment in cli.py).
 SOLVER_TIME_LIMIT = 180
+# S4: [decision] default time limit when a Wildcard is played (--chip WC) and --time-limit is not given.
+# Measured on a recent laptop (i5-12450HX), lookahead 5, 8 squads of past seasons: one Wildcard solve
+# took 24-460 s (median 112 s; 3 of 8 over 180 s), so 180 s often stopped it before the gap target.
+# 900 s is about twice the slowest measured case. A solve that finishes earlier stops earlier.
+WILDCARD_TIME_LIMIT = 900
 # M10: [decision] stop when the plan is proven within 0.05% of the best possible plan of
 # this model (~0.1 weighted points at lookahead 5). The xP error is far larger (RMSE ~3
 # points per player-GW), and proving the last 0.05% took most of the solve time

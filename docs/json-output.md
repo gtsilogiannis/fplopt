@@ -93,7 +93,7 @@ The options of the run, as given (defaults filled in by the command line).
 | `lookahead` | int | `--lookahead` |
 | `override_budget` | number or null | `--override-budget`; `null` = not given |
 | `max_hits` | int or null | `--max-hits`; `null` = no cap |
-| `time_limit` | int | `--time-limit` (seconds) |
+| `time_limit` | int | `--time-limit` (seconds); when not given, the default that was used (180, or 900 with `--chip WC`) |
 | `solver` | string or null | `--solver`; `null` = default (HiGHS) |
 | `chip_report` | bool | `false` with `--no-chip-report` |
 | `write_log` | bool | `false` with `--no-log` |
