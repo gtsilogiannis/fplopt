@@ -17,7 +17,7 @@ from .api import FPL_API, FplClient
 from .engine import Options, optimize
 from .errors import EXIT_INTERNAL, EXIT_INTERRUPTED, FplError, InputError, UserActionError
 from .messages import collect
-from .milp import SOLVER_TIME_LIMIT, highspy
+from .milp import SOLVER_TIME_LIMIT, WILDCARD_TIME_LIMIT, highspy
 from .predictions import evaluate
 from .rules import MAX_FT
 
@@ -81,9 +81,9 @@ def build_parser():
                         help="Optional cap on paid transfers (-4 each) per GW (Default: no cap)")
     parser.add_argument("--explain", type=str, default=None,
                         help="Comma-separated web names; print their xP components (e.g. Gabriel,Greaves)")  # X7
-    parser.add_argument("--time-limit", type=int, default=SOLVER_TIME_LIMIT,
+    parser.add_argument("--time-limit", type=int, default=None,   # S4: None = the engine's default
                         help=f"Seconds for the whole solve; the optimality gap is always printed "
-                             f"(Default: {SOLVER_TIME_LIMIT})")  # M7/M10
+                             f"(Default: {SOLVER_TIME_LIMIT}; {WILDCARD_TIME_LIMIT} with --chip WC)")  # M7/M10
     parser.add_argument("--solver", type=str, choices=['highs'], default=None,
                         help="MIP solver (Default and only choice: highs)")  # M10; CBC was removed after measurement
     # The log keeps one run per GW (the last one), so comparison runs
@@ -98,6 +98,14 @@ def build_parser():
     parser.add_argument("--details", action="store_true",
                         help="Print the full output (every number, progress lines) instead of the summary")
     return parser
+
+
+def _time_limit(args):
+    """S4: --time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC, SOLVER_TIME_LIMIT otherwise
+    (resolved here so that the JSON 'options' shows the limit that was used)."""
+    if args.time_limit is not None:
+        return args.time_limit
+    return WILDCARD_TIME_LIMIT if args.chip == 'WC' else SOLVER_TIME_LIMIT
 
 
 def check_args(args):
@@ -120,7 +128,7 @@ def check_args(args):
         raise InputError("--lookahead must be 1 or greater.")
     if not 0 <= args.min_chance <= 100:
         raise InputError("--min-chance must be between 0 and 100.")
-    if args.time_limit < 1:
+    if args.time_limit is not None and args.time_limit < 1:
         raise InputError("--time-limit must be 1 second or more.")
     if args.override_budget is not None and args.override_budget <= 0:
         raise InputError("--override-budget must be a positive amount in GBPm (e.g. 100.9).")
@@ -190,7 +198,7 @@ def main(argv=None):
                     print("Working... this can take a few minutes.", file=sys.stderr, flush=True)
                 opts = Options(team_id=args.team, ft=args.ft, chip=args.chip, min_chance=args.min_chance,
                                lookahead=args.lookahead, override_budget=args.override_budget,
-                               max_hits=args.max_hits, explain=args.explain, time_limit=args.time_limit,
+                               max_hits=args.max_hits, explain=args.explain, time_limit=_time_limit(args),
                                solver=args.solver, chip_report=not args.no_chip_report,
                                write_log=not args.no_log, check=args.check, check_gw=args.check_gw,
                                check_captain=args.captain, check_out=args.out_ids, check_in=args.in_ids)

@@ -123,9 +123,10 @@ python -m fplopt --team <TEAM_ID> --chip WC --no-log
 ```
 
 A Wildcard is the slowest plan to solve. On 8 squads of past seasons (`bench_chip_solve.py` below)
-the 5-gameweek Wildcard plan took 50–740 s (median 190 s) to reach the gap target, against
-30–70 s for a Free Hit (2-core machine, two solves at a time). At the time limit the plan is
-printed with its gap; give the Wildcard run more time, e.g. `--time-limit 900`.
+the 5-gameweek Wildcard plan took 24–460 s (median 112 s) to reach the gap target on a recent laptop
+(i5-12450HX), against 14–34 s for a Free Hit. With `--chip WC` the default time limit is therefore
+900 s instead of 180 s; a solve that finishes earlier stops earlier, and `--time-limit` still
+overrides it. At the time limit the plan is printed with its gap.
 
 ### Checking your own decision
 
@@ -185,7 +186,7 @@ the reason; the plan is still printed. The check shares `--time-limit` with the 
 | `--max-hits N` | cap on paid transfers per gameweek | no cap |
 | `--min-chance P` | players below P% chance of playing count as unavailable | 75 |
 | `--override-budget X` | selling value of the squad + bank in £m, as shown in the app | computed |
-| `--time-limit S` | solver seconds for the whole run (plan, decision check, chip analysis) | 180 |
+| `--time-limit S` | solver seconds for the whole run (plan, decision check, chip analysis) | 180 (900 with `--chip WC`) |
 | `--solver highs` | MIP solver (HiGHS is the only one) | HiGHS |
 | `--explain "A,B"` | print the xP components of these players (FPL web names) | — |
 | `--no-log` | do not write the predictions of this run to `predictions_log.csv` | off |

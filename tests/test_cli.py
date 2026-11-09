@@ -270,3 +270,28 @@ def test_json_has_the_summary(cli_client, capsys):
     assert status == 0 and s['gw'] == 8 and s['text'][0].startswith("Fantasy Premier League plan for GW8")
     assert set(s) >= {'deadline_utc', 'transfers', 'captain', 'vice', 'lineup', 'chip', 'expected_points',
                       'expected_range', 'alerts', 'decision', 'text'}
+
+
+@pytest.mark.parametrize("argv, expected", [
+    (['--team', '1'], 180),                                  # general default (milp.SOLVER_TIME_LIMIT)
+    (['--team', '1', '--chip', 'FH'], 180),
+    (['--team', '1', '--chip', 'WC'], 900),                  # S4: Wildcard default (milp.WILDCARD_TIME_LIMIT)
+    (['--team', '1', '--chip', 'WC', '--time-limit', '300'], 300),   # an explicit limit is kept
+    (['--team', '1', '--time-limit', '60'], 60),
+])
+def test_default_time_limit(argv, expected):
+    """S4: the time limit the CLI passes to the engine."""
+    args = cli.build_parser().parse_args(argv)
+    assert cli._time_limit(args) == expected
+
+
+def test_engine_wildcard_default(monkeypatch):
+    """S4: an API caller (Options without time_limit) gets the Wildcard default too; other chips keep None,
+    which the engine reads as milp.SOLVER_TIME_LIMIT."""
+    from fplopt import engine
+    seen = []
+    monkeypatch.setattr(engine, '_optimize', lambda client, opts, warnings: seen.append(opts.time_limit))
+    engine.optimize(None, engine.Options(team_id=1, chip='WC'))
+    engine.optimize(None, engine.Options(team_id=1, chip='WC', time_limit=120))
+    engine.optimize(None, engine.Options(team_id=1, chip='BB'))
+    assert seen == [900, 120, None]
