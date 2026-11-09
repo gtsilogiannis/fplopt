@@ -586,6 +586,7 @@ letter gives the area:
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
 | `D1`–`D3`, `O1` | decision check: **D1** a captain held fixed in the MILP (`force_captain`); **D2** points of the decision's gameweek, unweighted; **D3** a squad held fixed (`force_squad`: your transfers, or none); **O1** a captain who is not owned is bought |
 | `W1`–`W4` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`) |
+| `N1`–`N4` | speed, with the same results: **N1** the chip analysis reuses a complete main plan when the horizon has at most 3 gameweeks (same model); **N2** `calibrate_xp.py` no longer copies `DataFrame.attrs` (same output, about 6x faster `--tune`); **N3** default time limit of 900 s with `--chip WC`; **N4** the transfer check reuses the 'no transfer' solve of the summary as Z0 |
 
 `C` alone (solver status) and `C2`–`C11` (chips) are different changes, and so are `D` alone (reading
 binary variables) and `D1`–`D3` (decision check).

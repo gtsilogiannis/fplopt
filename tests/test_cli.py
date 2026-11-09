@@ -275,18 +275,18 @@ def test_json_has_the_summary(cli_client, capsys):
 @pytest.mark.parametrize("argv, expected", [
     (['--team', '1'], 180),                                  # general default (milp.SOLVER_TIME_LIMIT)
     (['--team', '1', '--chip', 'FH'], 180),
-    (['--team', '1', '--chip', 'WC'], 900),                  # S4: Wildcard default (milp.WILDCARD_TIME_LIMIT)
+    (['--team', '1', '--chip', 'WC'], 900),                  # N3: Wildcard default (milp.WILDCARD_TIME_LIMIT)
     (['--team', '1', '--chip', 'WC', '--time-limit', '300'], 300),   # an explicit limit is kept
     (['--team', '1', '--time-limit', '60'], 60),
 ])
 def test_default_time_limit(argv, expected):
-    """S4: the time limit the CLI passes to the engine."""
+    """N3: the time limit the CLI passes to the engine."""
     args = cli.build_parser().parse_args(argv)
     assert cli._time_limit(args) == expected
 
 
 def test_engine_wildcard_default(monkeypatch):
-    """S4: an API caller (Options without time_limit) gets the Wildcard default too; other chips keep None,
+    """N3: an API caller (Options without time_limit) gets the Wildcard default too; other chips keep None,
     which the engine reads as milp.SOLVER_TIME_LIMIT."""
     from fplopt import engine
     seen = []
