@@ -17,7 +17,8 @@ from .data import build_fixture_map, fetch_history, get_current_gw
 from .decision import CHECK_KINDS, check_decision, transfer_gain, verdict
 from .errors import InputError, SolverError, UserActionError
 from .messages import collect
-from .milp import BENCH_BETA_TOL, MIP_REL_GAP, SOLVER_TIME_LIMIT, WILDCARD_TIME_LIMIT, plan_squad, require_pulp_4
+from .milp import (BENCH_BETA_TOL, MIN_PASS_SECONDS, MIP_REL_GAP, SOLVER_TIME_LIMIT, WILDCARD_TIME_LIMIT,
+                   plan_squad, require_pulp_4)
 from .predictions import PREDICTIONS_FILE, log_predictions
 from .rules import HIT_COST
 from .squad import available_chips, free_transfers_from_history, load_current_squad
@@ -58,6 +59,7 @@ class Options:
     check_in: Optional[list] = None      # TRANSFERS: the players the user buys now (ids), same count
     transfer_gain: bool = True           # 15c: solve 'no transfer now' for the summary (one more solve)
     formations: bool = True              # 15c: value every formation of the current GW's squad (--details)
+    chip_plan: bool = True               # C13: plan with the suggested chip (TC/BB/FH), one more solve
 
 
 # --------------------------------------------------------------------------- output
@@ -146,6 +148,20 @@ class ChipSection:
 
 
 @dataclass
+class ChipPlan:
+    """C13: the plan with the chip the analysis suggests for the current GW (the same plan as a run with
+    --chip X: same solve, same options). Only TC, BB, FH: the rule never suggests WC (C11)."""
+    chip: str
+    status: str                # computed | not_computed (time limit, C12: never a partial plan)
+    squad: list = field(default_factory=list)       # [SquadRow] of the current GW
+    plan: list = field(default_factory=list)        # [PlanGW] over the horizon
+    sales_now: list = field(default_factory=list)   # [(id, name, selling price, available)]
+    expected_now: Optional[ExpectedPoints] = None
+    solver: Optional[SolverInfo] = None
+    seconds: float = 0.0
+
+
+@dataclass
 class DecisionSection:
     """Decision check (chat 15): the user's chip decision against the main plan (decision.py)."""
     chip: str
@@ -229,6 +245,7 @@ class OptimizeResult:
     squad_value_high: Optional[float] = None       # upper bound of the squad's selling value; None = exact
     no_transfer: Optional[dict] = None             # decision.transfer_gain(); None = not computed
     formations: list = field(default_factory=list)  # chips.formation_values() for the current GW; [] = none
+    chip_plan: Optional[ChipPlan] = None           # C13: plan with the suggested chip; None = no suggestion
 
 
 def optimize(client, opts):
@@ -503,65 +520,71 @@ def _optimize(client, opts, warnings):
         log.info(f"[*] Time limit reached before the {MIP_REL_GAP:.2%} target: a longer --time-limit "
                  f"can only improve the plan or tighten the gap.", extra={'code': 'time_limit'})
 
-    # Squad of the current GW with roles
-    n_now = {i: n_matches[(team_of[i], current_gw)] for i in ids}
-    squad_rows = []
-    for i in now['squad']:
-        if i == now['captain']:
-            role = 'Captain'
-        elif i == now['vice']:
-            role = 'Vice'                       # M6: logged too (counts as a starter in evaluate)
-        elif i in now['xi']:
-            role = 'Start'
-        else:
-            role = 'Bench'
-        squad_rows.append(SquadRow(
-            id=i, name=name_of[i], team=team_of[i], position=POSITION_NAME[pos_dict[i]], pos_id=pos_dict[i],
-            cost=cost_dict[i], xp_now=xp_dict[(i, current_gw)], papp_now=pool['papp'][(i, current_gw)],
-            xp_horizon=sum(gw_weight[g] * xp_dict[(i, g)] for g in horizon), n_matches_now=n_now[i],
-            role=role, bench_slot=now['bench'].index(i) if i in now['bench'] else -1,
-            action='KEEP' if i in current_squad else 'BUY', available=bool(avail_dict[i]),
-            source=source_dict[i]))
-    # XI by position, then the bench in its order (GK first, then outfield slots 1-3)
-    squad_rows.sort(key=lambda r: (r.role == 'Bench', r.bench_slot, r.pos_id))
+    def outputs(res):
+        """C13: the output rows of a plan result (main plan, or the plan with the suggested chip)."""
+        plan, now = res['plan'], res['plan'][current_gw]
+        # Squad of the current GW with roles
+        n_now = {i: n_matches[(team_of[i], current_gw)] for i in ids}
+        squad_rows = []
+        for i in now['squad']:
+            if i == now['captain']:
+                role = 'Captain'
+            elif i == now['vice']:
+                role = 'Vice'                       # M6: logged too (counts as a starter in evaluate)
+            elif i in now['xi']:
+                role = 'Start'
+            else:
+                role = 'Bench'
+            squad_rows.append(SquadRow(
+                id=i, name=name_of[i], team=team_of[i], position=POSITION_NAME[pos_dict[i]], pos_id=pos_dict[i],
+                cost=cost_dict[i], xp_now=xp_dict[(i, current_gw)], papp_now=pool['papp'][(i, current_gw)],
+                xp_horizon=sum(gw_weight[g] * xp_dict[(i, g)] for g in horizon), n_matches_now=n_now[i],
+                role=role, bench_slot=now['bench'].index(i) if i in now['bench'] else -1,
+                action='KEEP' if i in current_squad else 'BUY', available=bool(avail_dict[i]),
+                source=source_dict[i]))
+        # XI by position, then the bench in its order (GK first, then outfield slots 1-3)
+        squad_rows.sort(key=lambda r: (r.role == 'Bench', r.bench_slot, r.pos_id))
 
-    # M: the whole plan (only the current GW is a decision now; later GWs are re-planned
-    # every week with new data)
-    plan_rows = []
-    for g in horizon:
-        pg = plan[g]
-        by_pos = lambda lst: sorted(lst, key=lambda i: pos_dict[i])   # pair sales and buys by position
-        moves = [Transfer(o, name_of[o], n, name_of[n]) for o, n in zip(by_pos(pg['out']), by_pos(pg['in']))]
-        unlimited = (g == current_gw and ft0 is None) or pg['chip'] in ('WC', 'FH')
-        plan_rows.append(PlanGW(
-            gw=g, chip=pg['chip'], ft=None if unlimited else pg['ft'], ft_unlimited=unlimited, transfers=moves,
-            hits=pg['hits'], captain_id=pg['captain'], captain_name=name_of[pg['captain']],
-            vice_id=pg['vice'], vice_name=name_of[pg['vice']] if pg['vice'] is not None else None,
-            squad=list(pg['squad']), xi=list(pg['xi']), bench=list(pg['bench'])))
+        # M: the whole plan (only the current GW is a decision now; later GWs are re-planned
+        # every week with new data)
+        plan_rows = []
+        for g in horizon:
+            pg = plan[g]
+            by_pos = lambda lst: sorted(lst, key=lambda i: pos_dict[i])   # pair sales and buys by position
+            moves = [Transfer(o, name_of[o], n, name_of[n]) for o, n in zip(by_pos(pg['out']), by_pos(pg['in']))]
+            unlimited = (g == current_gw and ft0 is None) or pg['chip'] in ('WC', 'FH')
+            plan_rows.append(PlanGW(
+                gw=g, chip=pg['chip'], ft=None if unlimited else pg['ft'], ft_unlimited=unlimited, transfers=moves,
+                hits=pg['hits'], captain_id=pg['captain'], captain_name=name_of[pg['captain']],
+                vice_id=pg['vice'], vice_name=name_of[pg['vice']] if pg['vice'] is not None else None,
+                squad=list(pg['squad']), xi=list(pg['xi']), bench=list(pg['bench'])))
 
-    # S3: each sale of the current GW with the selling price it returns
-    sales_now = [(i, name_of[i], cost_dict[i], bool(avail_dict[i])) for i in now['out']] if not new_team else []
+        # S3: each sale of the current GW with the selling price it returns
+        sales_now = [(i, name_of[i], cost_dict[i], bool(avail_dict[i])) for i in now['out']] if not new_team else []
 
-    # G4/M5/M6: current-GW expected points, split into their parts (chip effects included)
-    bb = now['chip'] == 'BB'                      # C3: chip of the current GW in the plan
-    mult = 2.0 if now['chip'] == 'TC' else 1.0
-    xi_pts = sum(xp_dict[(i, current_gw)] for i in (now['squad'] if bb else now['xi']))
-    cap_pts = mult * xp_dict[(now['captain'], current_gw)]
-    vice_pts = 0.0
-    if now['vice'] is not None:
-        vice_pts = mult * (1.0 - pool['papp'][(now['captain'], current_gw)]) * xp_dict[(now['vice'], current_gw)]
-    bench_pts, beta_now = 0.0, None
-    if use_bench and not bb:
-        gk_start = next(i for i in now['xi'] if pos_dict[i] == 1)
-        bench_gk = [i for i in now['bench'] if pos_dict[i] == 1]
-        bench_pts += sum((1.0 - pool['papp'][(gk_start, current_gw)]) * xp_dict[(i, current_gw)] for i in bench_gk)
-        outs = [i for i in now['bench'] if pos_dict[i] != 1]
-        beta_now = res['beta'][current_gw]
-        bench_pts += sum(beta_now[k] * xp_dict[(i, current_gw)] for k, i in enumerate(outs))
-    hit_pts = HIT_COST * now['hits']
-    expected = ExpectedPoints(xi=xi_pts, captain=cap_pts, vice=vice_pts, autosubs=bench_pts, hits=hit_pts,
-                              total=xi_pts + cap_pts + vice_pts + bench_pts - hit_pts,
-                              bench_weights=list(beta_now) if beta_now is not None else None)
+        # G4/M5/M6: current-GW expected points, split into their parts (chip effects included)
+        bb = now['chip'] == 'BB'                      # C3: chip of the current GW in the plan
+        mult = 2.0 if now['chip'] == 'TC' else 1.0
+        xi_pts = sum(xp_dict[(i, current_gw)] for i in (now['squad'] if bb else now['xi']))
+        cap_pts = mult * xp_dict[(now['captain'], current_gw)]
+        vice_pts = 0.0
+        if now['vice'] is not None:
+            vice_pts = mult * (1.0 - pool['papp'][(now['captain'], current_gw)]) * xp_dict[(now['vice'], current_gw)]
+        bench_pts, beta_now = 0.0, None
+        if use_bench and not bb:
+            gk_start = next(i for i in now['xi'] if pos_dict[i] == 1)
+            bench_gk = [i for i in now['bench'] if pos_dict[i] == 1]
+            bench_pts += sum((1.0 - pool['papp'][(gk_start, current_gw)]) * xp_dict[(i, current_gw)] for i in bench_gk)
+            outs = [i for i in now['bench'] if pos_dict[i] != 1]
+            beta_now = res['beta'][current_gw]
+            bench_pts += sum(beta_now[k] * xp_dict[(i, current_gw)] for k, i in enumerate(outs))
+        hit_pts = HIT_COST * now['hits']
+        expected = ExpectedPoints(xi=xi_pts, captain=cap_pts, vice=vice_pts, autosubs=bench_pts, hits=hit_pts,
+                                  total=xi_pts + cap_pts + vice_pts + bench_pts - hit_pts,
+                                  bench_weights=list(beta_now) if beta_now is not None else None)
+        return squad_rows, plan_rows, sales_now, expected
+
+    squad_rows, plan_rows, sales_now, expected = outputs(res)
     n_fb = sum(1 for p in players if p['source'] != 'model')
     if n_fb:
         log.info(f"[*] {n_fb} player(s) with no GW at their current club yet use FPL's ep_next (marked '(FPL ep)').")  # X5
@@ -632,6 +655,27 @@ def _optimize(client, opts, warnings):
         log.info(f"[*] Chip analysis: {chips.seconds:.1f} s")
     chips_s = time.time() - t_chips
 
+    # C13: the plan with the suggested chip, so that the user does not have to run again with --chip X.
+    # Same solve as the main plan of such a run (plan_squad with the chip fixed now, same options), in the
+    # time left of the same limit; only a complete solve is shown (C12).
+    chip_plan = None
+    pick = (chips.advice or {}).get('pick')
+    if opts.chip_plan and pick is not None and chip_used == 'NONE':
+        chip_plan = ChipPlan(chip=pick, status='not_computed')
+        left = (time_limit or SOLVER_TIME_LIMIT) - spent - decision_s - chips_s
+        if left >= MIN_PASS_SECONDS:
+            t_cp = time.time()
+            cres = plan_squad(pool, horizon, gw_weight, start_squad, total_budget, ft0, pick,
+                              max_hits, use_vice, use_bench, left, solver)
+            chip_plan.seconds = time.time() - t_cp
+            if 'plan' in cres and cres['complete']:
+                chip_plan.status = 'computed'
+                chip_plan.squad, chip_plan.plan, chip_plan.sales_now, chip_plan.expected_now = outputs(cres)
+                chip_plan.solver = SolverInfo(name=cres['solver'], seconds=cres['seconds'], passes=cres['passes'],
+                                              proven=cres['proven'], gap=cres['gap'], objective=cres['objective'],
+                                              beta_change=cres.get('beta_change', 0.0))
+        log.info(f"[*] Plan with {pick}: {chip_plan.status.replace('_', ' ')} ({chip_plan.seconds:.1f} s)")
+
     log_written = None
     if opts.write_log:
         log_predictions(current_gw, players, {r.id: r.role for r in squad_rows}, opts.log_path)  # V1: whole pool
@@ -649,13 +693,16 @@ def _optimize(client, opts, warnings):
         chips=chips, fallback_players=n_fb, explain=explained, explain_not_found=explain_not_found,
         log_written=log_written, warnings=warnings,
         timings={'data_s': t_solve - t_start, 'solve_s': res['seconds'], 'no_transfer_s': no_transfer_s,
-                 'formations_s': formations_s, 'chips_s': chips_s, 'total_s': time.time() - t_start},
+                 'formations_s': formations_s, 'chips_s': chips_s,
+                 'chip_plan_s': chip_plan.seconds if chip_plan is not None else 0.0,
+                 'total_s': time.time() - t_start},
         api_stats=dict(getattr(client, 'stats', {})),
         state=EngineState(pool=pool, plan_result=res, horizon=horizon, weights=gw_weight, start_squad=start_squad,
                           budget=total_budget, ft0=ft0, players=players, chip_plans=chip_plans),
         decision=decision,
         deadline=next((e.get('deadline_time') for e in bootstrap['events'] if e['id'] == current_gw), None),
-        squad_value_high=squad_value_high, no_transfer=no_transfer, formations=formations)
+        squad_value_high=squad_value_high, no_transfer=no_transfer, formations=formations,
+        chip_plan=chip_plan)
 
 
 def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,

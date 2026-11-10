@@ -50,26 +50,10 @@ def optimize_to_dict(r):
             'name': s.name, 'seconds': s.seconds, 'passes': s.passes, 'proven': s.proven,
             'gap': s.gap, 'objective': s.objective, 'bench_weights_change': s.beta_change,
         },
-        'squad': [{
-            'id': x.id, 'name': x.name, 'team': x.team, 'position': x.position, 'cost': x.cost,
-            'xp_now': x.xp_now, 'papp_now': x.papp_now, 'xp_horizon': x.xp_horizon,
-            'n_matches_now': x.n_matches_now, 'role': x.role,
-            'bench_order': x.bench_slot if x.bench_slot >= 0 else None,
-            'action': x.action, 'available': x.available, 'source': x.source,
-        } for x in r.squad],
-        'plan': [{
-            'gw': pg.gw, 'chip': pg.chip, 'ft': pg.ft, 'ft_unlimited': pg.ft_unlimited, 'hits': pg.hits,
-            'transfers': [{'out_id': t.out_id, 'out_name': t.out_name, 'in_id': t.in_id, 'in_name': t.in_name}
-                          for t in pg.transfers],
-            'captain': {'id': pg.captain_id, 'name': pg.captain_name},
-            'vice': {'id': pg.vice_id, 'name': pg.vice_name} if pg.vice_id is not None else None,
-            'squad': list(pg.squad), 'xi': list(pg.xi), 'bench': list(pg.bench),
-        } for pg in r.plan],
-        'sales_now': [{'id': i, 'name': n, 'price': p, 'available': a} for i, n, p, a in r.sales_now],
-        'expected_points_now': {
-            'xi': ep.xi, 'captain': ep.captain, 'vice': ep.vice, 'autosubs': ep.autosubs,
-            'hits': ep.hits, 'total': ep.total, 'bench_weights': ep.bench_weights,
-        },
+        'squad': _squad(r.squad),
+        'plan': _plan(r.plan),
+        'sales_now': _sales(r.sales_now),
+        'expected_points_now': _expected(ep),
         'chips': {
             'source': c.source,
             'sets': [{'chip': cp, 'start': st, 'stop': sp, 'state': state} for cp, st, sp, state in c.sets],
@@ -91,6 +75,7 @@ def optimize_to_dict(r):
         },
         'decision_check': _decision(r.decision),
         'formations': [dict(f) for f in r.formations],  # 15c: every formation of the current GW's squad
+        'chip_plan': _chip_plan(r.chip_plan),            # C13: plan with the suggested chip; null = none
         # 15c: plain-English summary. Its text gives the deadline in the time zone of the machine that runs
         # the engine (the user's own with the C frontend); a server reads 'deadline_utc' instead.
         'summary': build_summary(r),
@@ -108,6 +93,53 @@ def optimize_to_dict(r):
         'api': dict(r.api_stats),
     })
     return doc
+
+
+def _squad(squad):
+    return [{
+        'id': x.id, 'name': x.name, 'team': x.team, 'position': x.position, 'cost': x.cost,
+        'xp_now': x.xp_now, 'papp_now': x.papp_now, 'xp_horizon': x.xp_horizon,
+        'n_matches_now': x.n_matches_now, 'role': x.role,
+        'bench_order': x.bench_slot if x.bench_slot >= 0 else None,
+        'action': x.action, 'available': x.available, 'source': x.source,
+    } for x in squad]
+
+
+def _plan(plan):
+    return [{
+        'gw': pg.gw, 'chip': pg.chip, 'ft': pg.ft, 'ft_unlimited': pg.ft_unlimited, 'hits': pg.hits,
+        'transfers': [{'out_id': t.out_id, 'out_name': t.out_name, 'in_id': t.in_id, 'in_name': t.in_name}
+                      for t in pg.transfers],
+        'captain': {'id': pg.captain_id, 'name': pg.captain_name},
+        'vice': {'id': pg.vice_id, 'name': pg.vice_name} if pg.vice_id is not None else None,
+        'squad': list(pg.squad), 'xi': list(pg.xi), 'bench': list(pg.bench),
+    } for pg in plan]
+
+
+def _sales(sales_now):
+    return [{'id': i, 'name': n, 'price': p, 'available': a} for i, n, p, a in sales_now]
+
+
+def _expected(ep):
+    return {
+        'xi': ep.xi, 'captain': ep.captain, 'vice': ep.vice, 'autosubs': ep.autosubs,
+        'hits': ep.hits, 'total': ep.total, 'bench_weights': ep.bench_weights,
+    }
+
+
+def _chip_plan(cp):
+    """C13: engine.ChipPlan -> dict (same fields as the main plan); None without a suggested chip."""
+    if cp is None:
+        return None
+    done = cp.status == 'computed'
+    return {
+        'chip': cp.chip, 'status': cp.status, 'seconds': cp.seconds,
+        'solver': ({'name': cp.solver.name, 'seconds': cp.solver.seconds, 'passes': cp.solver.passes,
+                    'proven': cp.solver.proven, 'gap': cp.solver.gap, 'objective': cp.solver.objective,
+                    'bench_weights_change': cp.solver.beta_change} if done else None),
+        'squad': _squad(cp.squad), 'plan': _plan(cp.plan), 'sales_now': _sales(cp.sales_now),
+        'expected_points_now': _expected(cp.expected_now) if done else None,
+    }
 
 
 def _decision(d):

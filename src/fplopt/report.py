@@ -50,8 +50,29 @@ def print_optimize(r, out=None):
     p("\n" + "=" * 84)
     p(f" SQUAD PLAN | GW{g0} (horizon: GW{r.horizon[0]}-GW{r.horizon[-1]})")
     p("=" * 84)
+    _print_squad(p, r.squad, g0)
+    if g0 > 1:
+        p("   Cost = selling price for players you keep, current price for players you buy.")  # S3
+
+    p("-" * 84)
+    _print_plan(p, r.plan)
+
+    if g0 > 1:
+        _print_sales(p, r.sales_now)
+    _print_expected(p, r.expected_now, g0)
+    print_formations(r, out)                              # 15c: the formations of the same squad
+    p(f"Objective (weighted over horizon, hits included): {r.solver.objective:.2f}")
+
+    if r.decision is not None:                            # --check only: the text without it is unchanged
+        print_decision(r, out)
+    print_chips(r, out)
+    print_chip_plan(r, out)
+
+
+def _print_squad(p, squad, g0):
+    """The squad table of the current GW (main plan, or the plan with the suggested chip)."""
     p(f"   {'Player':<18} | Pos | Cost  | xP GW{g0:<3}| P(app) | xP horizon | Role")
-    for s in r.squad:
+    for s in squad:
         indicator = ">>" if s.action == 'BUY' else "  "
         flag = "" if s.available else "  (unavailable)"                                    # A
         gw_tag = "  (blank)" if s.n_matches_now == 0 else ("  (DGW)" if s.n_matches_now >= 2 else "")   # G4
@@ -61,13 +82,13 @@ def print_optimize(r, out=None):
             role = 'Bench GK' if s.pos_id == 1 else f"Bench {s.bench_slot}"                # M5: bench order
         p(f"{indicator} {s.name:<18} | {s.position:<3} | £{s.cost:<4.1f} | {s.xp_now:<8.2f} | "
           f"{s.papp_now:<6.2f} | {s.xp_horizon:<10.2f} | {role}{flag}{gw_tag}{src_tag}")
-    if g0 > 1:
-        p("   Cost = selling price for players you keep, current price for players you buy.")  # S3
 
-    p("-" * 84)
+
+def _print_plan(p, plan):
+    """The transfer plan over the horizon."""
     p(" Transfer plan (FT = free transfers available before that GW's transfers):")
-    gws = {pg.gw for pg in r.plan}
-    for pg in r.plan:
+    gws = {pg.gw for pg in plan}
+    for pg in plan:
         moves = ", ".join(f"{t.out_name} -> {t.in_name}" for t in pg.transfers) or "none"
         chip_tag = f" [{pg.chip}]" if pg.chip else ""
         ft_txt = "unlimited" if pg.ft_unlimited else pg.ft
@@ -76,25 +97,21 @@ def print_optimize(r, out=None):
         if pg.chip == 'FH' and pg.gw + 1 in gws:
             p(f"   Free Hit: GW{pg.gw + 1} starts again from the squad before GW{pg.gw}.")    # M3/C4
 
-    if g0 > 1:
-        sold = [f"{name} £{price:.1f}m" + ("" if avail else " (unavailable)") for _, name, price, avail in r.sales_now]
-        if sold:
-            p(f"Sales now (SELL): {', '.join(sold)}")
-        else:
-            p("Action now: roll the transfer (no change this GW).")
 
-    ep = r.expected_now
+def _print_sales(p, sales_now):
+    sold = [f"{name} £{price:.1f}m" + ("" if avail else " (unavailable)") for _, name, price, avail in sales_now]
+    if sold:
+        p(f"Sales now (SELL): {', '.join(sold)}")
+    else:
+        p("Action now: roll the transfer (no change this GW).")
+
+
+def _print_expected(p, ep, g0):
     if ep.bench_weights is not None:
         p(f"   Bench weights GW{g0} (P(slot used)): " + ", ".join(f"{b:.2f}" for b in ep.bench_weights)
           + "  [approximation]")
     p(f"Expected points GW{g0}: XI {ep.xi:.2f} + captain {ep.captain:.2f} + vice {ep.vice:.2f} "
       f"+ autosubs {ep.autosubs:.2f} - hits {ep.hits} = {ep.total:.2f}")
-    print_formations(r, out)                              # 15c: the formations of the same squad
-    p(f"Objective (weighted over horizon, hits included): {r.solver.objective:.2f}")
-
-    if r.decision is not None:                            # --check only: the text without it is unchanged
-        print_decision(r, out)
-    print_chips(r, out)
 
 
 def print_formations(r, out):
@@ -286,8 +303,10 @@ def print_chips(r, out):
           f"(window ends GW{c.window['WC']}).")
     pick = adv['pick']
     if pick is not None:
-        p(f">> Suggestion: play {pick} in GW{g0} (exact Delta {c.exact[pick]:+.2f}). "
-          f"Re-run with --chip {pick} for the plan that uses it.")
+        # C13: the plan that uses it follows (PLAN WITH ...), unless it was switched off
+        then = ("Its plan follows." if r.chip_plan is not None
+                else f"Re-run with --chip {pick} for the plan that uses it.")
+        p(f">> Suggestion: play {pick} in GW{g0} (exact Delta {c.exact[pick]:+.2f}). {then}")
         if adv['also']:
             p(f"   Also best now: {', '.join(adv['also'])} (one chip per GW).")
         if adv['wc_note'] is not None:
@@ -297,6 +316,33 @@ def print_chips(r, out):
               f"Compare with --chip WC.")
     else:
         p(">> Suggestion: no chip this GW.")
+
+
+def print_chip_plan(r, out):
+    """C13: the plan with the suggested chip (the same as a run with --chip X)."""
+    cp = r.chip_plan
+    if cp is None:
+        return
+
+    def p(line=""):
+        print(line, file=out)
+
+    g0 = r.current_gw
+    p("\n" + "=" * 84)
+    p(f" PLAN WITH {cp.chip} | GW{g0} (the same plan as --chip {cp.chip})")
+    p("=" * 84)
+    if cp.status != 'computed':
+        p(f"   Not computed in the time limit: run again with --chip {cp.chip} (or a longer --time-limit).")
+        return
+    _print_squad(p, cp.squad, g0)
+    p("-" * 84)
+    _print_plan(p, cp.plan)
+    if g0 > 1:
+        _print_sales(p, cp.sales_now)
+    _print_expected(p, cp.expected_now, g0)
+    gap = f"{cp.solver.gap:.2f}" if cp.solver.gap is not None else "unknown"
+    p(f"Solved in {cp.seconds:.1f} s, within {gap} weighted points of the best plan with {cp.chip}; "
+      f"objective {cp.solver.objective:.2f} (main plan {r.solver.objective:.2f}).")
 
 
 def print_evaluate(r, out=None):
