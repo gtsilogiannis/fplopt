@@ -72,3 +72,42 @@ def test_chip_plan_in_details_and_json(season, monkeypatch):
     assert cp['expected_points_now']['total'] == pytest.approx(r.chip_plan.expected_now.total)
     assert json.loads(jsonout.dumps(jsonout.optimize_to_dict(run(season, chip_plan=False))))['chip_plan'] is None
 
+
+# --------------------------------------------------------------------------- summary (C13)
+def test_summary_shows_the_chip_plan(season, monkeypatch):
+    from fplopt.summary import build_summary
+    suggest(monkeypatch, 'TC')
+    r = run(season)
+    s = build_summary(r)
+    text = "\n".join(s['text'])
+    assert "Suggested: Triple Captain this gameweek. Its plan is below." in text
+    assert "run again with --chip TC" not in text
+    i = s['text'].index("== WITH TRIPLE CAPTAIN ==")
+    block = s['text'][i:s['text'].index("== EXPECTED POINTS ==")]
+    cp, main = r.chip_plan, r.plan[0]
+    same_moves = [(m.out_id, m.in_id) for m in cp.plan[0].transfers] == [(m.out_id, m.in_id) for m in main.transfers]
+    assert any(l.startswith("Transfers:") and "Same as above" in l for l in block) == same_moves
+    assert any(l.startswith("Captain:") and "as Triple Captain" in l for l in block)
+    assert any(l.startswith("Expected:") and "without the chip" in l for l in block)
+    d = s['chip_plan']
+    assert (d['chip'], d['status'], d['same_transfers']) == ('TC', 'computed', same_moves)
+    assert d['expected_points'] == pytest.approx(cp.expected_now.total)
+    assert d['expected_points_without'] == pytest.approx(r.expected_now.total)
+    assert d['captain']['id'] == cp.plan[0].captain_id
+    assert d['transfers']['vs_no_transfer'] is None
+
+
+def test_summary_chip_plan_not_computed(season, monkeypatch):
+    from fplopt.summary import build_summary
+    suggest(monkeypatch, 'BB')
+    monkeypatch.setattr(engine, 'MIN_PASS_SECONDS', 10 ** 9)
+    s = build_summary(run(season))
+    i = s['text'].index("== WITH BENCH BOOST ==")
+    assert s['text'][i + 1].startswith("Not computed in the time limit: run again with --chip BB")
+    assert s['chip_plan'] == {'chip': 'BB', 'status': 'not_computed'}
+
+
+def test_summary_without_suggestion_is_unchanged(season):
+    from fplopt.summary import build_summary
+    s = build_summary(run(season))
+    assert s['chip_plan'] is None and not any(l.startswith("== WITH ") for l in s['text'])

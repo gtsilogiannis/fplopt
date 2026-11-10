@@ -75,10 +75,14 @@ def pays_for(bank, deltas):
     return [d > 0 and total - d < 0 <= total for d in deltas]
 
 
-def _transfers(r, pg):
-    """Moves of the current GW with their money; None for the bank fields at GW1 (no squad yet)."""
-    sell = {i: price for i, _, price, _ in r.sales_now}            # selling price of each sale
-    cost = {s.id: s.cost for s in r.squad}                          # current price of each buy
+def _transfers(r, pg, squad=None, sales_now=None, vs_no_transfer=True):
+    """Moves of the current GW with their money; None for the bank fields at GW1 (no squad yet).
+    squad, sales_now: those of another plan of the same GW (C13: the plan with the suggested chip);
+    None = the main plan's. vs_no_transfer=False: no gain over 'no transfer' (only the main plan has it)."""
+    squad = r.squad if squad is None else squad
+    sales_now = r.sales_now if sales_now is None else sales_now
+    sell = {i: price for i, _, price, _ in sales_now}               # selling price of each sale
+    cost = {s.id: s.cost for s in squad}                            # current price of each buy
     bank = None if r.squad_value is None else tenths(r.budget) - tenths(r.squad_value)
     deltas = [tenths(sell[t.out_id]) - tenths(cost[t.in_id]) if t.out_id in sell else None
               for t in pg.transfers]
@@ -93,7 +97,7 @@ def _transfers(r, pg):
         'bank_before': bank / 10 if bank is not None else None,
         'bank_after': (bank + sum(deltas)) / 10 if known else None,
         # unweighted gain over making no transfer (engine, decision.transfer_gain); None = not computed
-        'vs_no_transfer': r.no_transfer,
+        'vs_no_transfer': r.no_transfer if vs_no_transfer else None,
     }
 
 
@@ -227,8 +231,11 @@ def _chip_rows(r, ch):
         pass                                                   # the plan already uses it: nothing to suggest
     elif ch['play'] is not None:
         cp = ch['play']['chip']
-        rows.append((None, f"Suggested: {CHIP_NAME[cp]}. The plan above does not use it: run again with "
-                           f"--chip {cp} to see the {CHIP_NAME[cp]} squad."))
+        if r.chip_plan is not None and r.chip_plan.chip == cp:
+            rows.append((None, f"Suggested: {CHIP_NAME[cp]} this gameweek. Its plan is below."))   # C13
+        else:
+            rows.append((None, f"Suggested: {CHIP_NAME[cp]}. The plan above does not use it: run again with "
+                               f"--chip {cp} to see the {CHIP_NAME[cp]} squad."))
     elif ch['status'] == 'no_chip_now':
         rows.append((None, "Suggested: No chip can be played this gameweek."))
     else:
@@ -238,6 +245,82 @@ def _chip_rows(r, ch):
     while rows and rows[-1] == ('', ''):
         rows.pop()
     return rows
+
+
+# --------------------------------------------------------------------------- lineup
+def _tag(row):
+    """Plain words for a player's flags in the lineup."""
+    t = []
+    if not row.available:
+        t.append("injured or doubtful")
+    if row.n_matches_now == 0:
+        t.append("no match this gameweek")
+    elif row.n_matches_now >= 2:
+        t.append("plays twice this gameweek")
+    return f"{row.name} ({', '.join(t)})" if t else row.name
+
+
+def _xi_rows(squad, chip):
+    """(title, rows) of a STARTING XI section from the squad rows of a plan (XI by position, then the bench)."""
+    xi = [s for s in squad if s.role != 'Bench']
+    bench = [s for s in squad if s.role == 'Bench']          # already in bench order (GK first)
+    n = {p: sum(1 for x in xi if x.position == p) for p in ('DEF', 'MID', 'FWD')}
+    rows = [(p, ", ".join(_tag(x) for x in xi if x.position == p)) for p in ('GK', 'DEF', 'MID', 'FWD')]
+    # bench in its order: the GK first (his own slot), then outfield slots 1-3
+    names = [_tag(b) + " (GK)" if b.pos_id == 1 else f"{b.bench_slot}. {_tag(b)}" for b in bench]
+    rows.append(('Bench', ", ".join(names)))
+    if chip == 'BB':
+        rows.append((None, "Bench Boost: the bench players score too."))
+    return f"STARTING XI ({n['DEF']}-{n['MID']}-{n['FWD']})", rows
+
+
+def _captain_text(row, chip):
+    """The captain's own points and what they count for with the armband (x2, or x3 with Triple Captain)."""
+    as_cap = f"about {half_up(3 * row.xp_now)} as Triple Captain" if chip == 'TC' else \
+        f"about {half_up(2 * row.xp_now)} as captain"
+    return f"{row.name} ({about(row.xp_now)} expected points, {as_cap})"
+
+
+# --------------------------------------------------------------------------- C13: plan with the suggested chip
+def _chip_plan(r):
+    """(dict for the JSON, title, rows) of the plan with the suggested chip; (None, None, []) without one.
+    No new number: everything comes from engine.ChipPlan (the same plan as a run with --chip X)."""
+    cp = r.chip_plan
+    if cp is None:
+        return None, None, []
+    title = f"WITH {CHIP_NAME[cp.chip].upper()}"
+    if cp.status != 'computed':
+        return ({'chip': cp.chip, 'status': cp.status}, title,
+                [(None, f"Not computed in the time limit: run again with --chip {cp.chip} "
+                        f"(or a longer --time-limit).")])
+    pg, main = cp.plan[0], r.plan[0]
+    t = _transfers(r, pg, cp.squad, cp.sales_now, vs_no_transfer=False)
+    same_moves = [(m.out_id, m.in_id) for m in pg.transfers] == [(m.out_id, m.in_id) for m in main.transfers]
+    same_xi = [(s.id, s.role, s.bench_slot) for s in cp.squad] == [(s.id, s.role, s.bench_slot) for s in r.squad]
+    rows_by = {s.id: s for s in cp.squad}
+    cap = rows_by[pg.captain_id]
+    total, without = float(cp.expected_now.total), float(r.expected_now.total)
+    rows = []
+    if same_moves:
+        rows.append(('Transfers', "same as above"))
+    else:
+        rows += _transfer_rows(r, t, pg.chip)
+    xi_title, xi_rows = _xi_rows(cp.squad, pg.chip)
+    if same_xi:
+        rows.append(('Starting XI', "same as above"))
+    else:
+        rows.append(('Starting XI', xi_title.split('(')[1].rstrip(')')))     # the formation, e.g. 3-4-3
+        rows += [(f"  {lb}" if lb else lb, v) for lb, v in xi_rows]
+    rows.append(('Captain', _captain_text(cap, pg.chip)))
+    if pg.vice_id is not None and pg.vice_id != main.vice_id:
+        rows.append(('Vice-captain', pg.vice_name))
+    rows.append(('Expected', f"about {half_up(total)} this gameweek (about {half_up(without)} without the chip)"))
+    d = {'chip': cp.chip, 'status': cp.status, 'same_transfers': same_moves, 'same_lineup': same_xi,
+         'transfers': t,
+         'captain': {'id': int(cap.id), 'name': cap.name, 'expected_points': float(cap.xp_now)},
+         'vice': {'id': int(pg.vice_id), 'name': pg.vice_name} if pg.vice_id is not None else None,
+         'expected_points': total, 'expected_points_without': without}
+    return d, title, rows
 
 
 # --------------------------------------------------------------------------- decision check
@@ -430,6 +513,7 @@ def build_summary(r, tz=None):
         'expected_range': [max(0.0, total + RANGE_LOW), total + RANGE_HIGH],
         'alerts': _alerts(r),
         'decision': None,                                    # --check: filled below
+        'chip_plan': None,                                   # C13: filled below
     }
     decision, decision_rows = _decision(r)
     if decision is not None:
@@ -437,41 +521,24 @@ def build_summary(r, tz=None):
 
     s['chip'] = _with_states(r, _chips(r))
 
-    def tag(row):
-        """Plain words for a player's flags in the lineup."""
-        t = []
-        if not row.available:
-            t.append("injured or doubtful")
-        if row.n_matches_now == 0:
-            t.append("no match this gameweek")
-        elif row.n_matches_now >= 2:
-            t.append("plays twice this gameweek")
-        return f"{row.name} ({', '.join(t)})" if t else row.name
-
     lines = [f"Fantasy Premier League plan for GW{g0}"]
     if deadline:
         lines.append(f"Deadline: {format_deadline(deadline, tz)} (your time)")
     if decision_rows:                                        # what the user asked for comes first
         lines += [""] + _layout("YOUR DECISION", decision_rows)
     lines += [""] + _layout("TRANSFERS", _transfer_rows(r, s['transfers'], chip), align=False)
-    n = {p: len(lineup[p]) for p in ('DEF', 'MID', 'FWD')}
-    xi_rows = [(p, ", ".join(tag(x) for x in xi if x.position == p)) for p in ('GK', 'DEF', 'MID', 'FWD')]
-    # bench in its order: the GK first (his own slot), then outfield slots 1-3
-    names = [tag(b) + " (GK)" if b.pos_id == 1 else f"{b.bench_slot}. {tag(b)}" for b in bench]
-    xi_rows.append(('Bench', ", ".join(names)))
-    if chip == 'BB':
-        xi_rows.append((None, "Bench Boost: the bench players score too."))
-    lines += [""] + _layout(f"STARTING XI ({n['DEF']}-{n['MID']}-{n['FWD']})", xi_rows)
-    # the captain's own points and what they count for with the armband (x2, or x3 with Triple Captain)
-    as_cap = f"about {half_up(3 * cap.xp_now)} as Triple Captain" if chip == 'TC' else \
-        f"about {half_up(2 * cap.xp_now)} as captain"
-    caps = [('C', f"{cap.name} ({about(cap.xp_now)} expected points, {as_cap})")]
+    xi_title, xi_rows = _xi_rows(r.squad, chip)
+    lines += [""] + _layout(xi_title, xi_rows)
+    caps = [('C', _captain_text(cap, chip))]
     if s['vice'] is not None:
         caps.append(('VC', s['vice']['name']))
     lines += [""] + _layout("CAPTAINS", caps)
     chip_rows = _chip_rows(r, s['chip'])
     if chip_rows:
         lines += [""] + _layout("CHIPS", chip_rows)
+    s['chip_plan'], cp_title, cp_rows = _chip_plan(r)             # C13
+    if cp_rows:
+        lines += [""] + _layout(cp_title, cp_rows)
     lo, hi = s['expected_range']
     lines += [""] + _layout("EXPECTED POINTS", [(None, f"About {half_up(total)} this gameweek"),
                                                 ('In 8 of 10 gameweeks', f"between {half_up(lo)} and {half_up(hi)}")])

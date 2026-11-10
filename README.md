@@ -116,11 +116,17 @@ the chip section that the time limit would cut short is not shown (`not computed
 without all its numbers gets no suggestion: the numbers that are shown are the same on a slower
 machine, which only shows fewer of them.
 
-If the chip section suggests a chip, run again with that chip to get the plan that uses it:
+When the chip section suggests a chip (Triple Captain, Bench Boost or Free Hit), the plan that uses it
+is solved too, in the time left of the same limit, and shown after the chips ("WITH TRIPLE CAPTAIN" in
+the summary, "PLAN WITH TC" with `--details`). It is the plan of a run with that chip; if the time limit
+does not leave enough time for it, the output says so, and you can run with the chip yourself:
 
 ```sh
-python -m fplopt --team <TEAM_ID> --chip WC --no-log
+python -m fplopt --team <TEAM_ID> --chip TC --no-log
 ```
+
+The suggestion rule never suggests a Wildcard (it cannot estimate a Wildcard after the current
+gameweek); to see a Wildcard plan, run with `--chip WC`.
 
 A Wildcard is the slowest plan to solve. On 8 squads of past seasons (`bench_chip_solve.py` below)
 the 5-gameweek Wildcard plan took 24–460 s (median 112 s) to reach the gap target on a recent laptop
@@ -582,7 +588,7 @@ letter gives the area:
 | `S1`–`S5`, `R1`, `R2` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit; **R2** a team created during the season starts like a GW1 team |
 | `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
 | `A1` | hits are weighted like the points of their gameweek |
-| `C2`–`C12` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit) |
+| `C2`–`C13` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit); **C13** the plan with the suggested chip, solved with the rest of the output (the same plan as `--chip X`) |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
 | `D1`–`D3`, `O1` | decision check: **D1** a captain held fixed in the MILP (`force_captain`); **D2** points of the decision's gameweek, unweighted; **D3** a squad held fixed (`force_squad`: your transfers, or none); **O1** a captain who is not owned is bought |
 | `W1`–`W4` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`) |
