@@ -71,6 +71,7 @@ Top-level fields after the header:
 | `chips` | object | [chips](#chips) |
 | `decision_check` | object or null | [decision_check](#decision_check); `null` without `--check` |
 | `formations` | array | [formations](#formations); empty with Bench Boost |
+| `chip_plan` | object or null | [chip_plan](#chip_plan); `null` when no chip is suggested |
 | `summary` | object | [summary](#summary): the plain-English summary, as data and as text |
 | `explain` | array | [explain](#explain) |
 | `explain_not_found` | array of string | names given to `--explain` that matched no player (lower case) |
@@ -257,6 +258,21 @@ The best expected points of the current gameweek's squad with each formation the
 | `def`, `mid`, `fwd` | int | the same as numbers |
 | `points` | number or null | unweighted expected points of the gameweek, before hits; `null` = not computed in the time limit, or the squad cannot field it |
 
+### chip_plan
+
+The plan with the chip that the chip analysis suggests for the current gameweek (Triple Captain, Bench
+Boost or Free Hit; the rule never suggests a Wildcard). It is the plan a run with `--chip X` gives (same
+solve, same options), solved in the time left of the same `--time-limit`; `null` without a suggestion.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `chip` | string | `"TC"`, `"BB"` or `"FH"` |
+| `status` | string | `computed`, or `not_computed` (not finished in the time limit: nothing of it is given, run again with `--chip X`) |
+| `seconds` | number | time of the solve |
+| `solver` | object or null | as [solver](#solver) for this plan; `null` when not computed |
+| `squad`, `plan`, `sales_now` | arrays | as [squad](#squad), [plan](#plan), [sales_now](#sales_now), for this plan (empty when not computed) |
+| `expected_points_now` | object or null | as [expected_points_now](#expected_points_now); `null` when not computed |
+
 ### summary
 
 The plain-English summary that the command line prints by default. Numbers are not rounded here;
@@ -275,6 +291,7 @@ The plain-English summary that the command line prints by default. Numbers are n
 | `expected_range` | `[low, high]` | the range that holds in 8 of 10 gameweeks: `expected_points` −25.4 / +24.0, measured in the backtest (README, Output); `low` is at least 0 |
 | `alerts` | array of `{code, message}` | only what changes what to do: `previous_gw_not_final`, `time_limit`, `chips_not_computed`, `player_unavailable`, `selling_value_range` |
 | `decision` | object or null | with `--check`: `chip`, `gw`, `status`, `verdict` (as `decision_check.verdict`), `gain_this_gw` (unweighted, the decision's gameweek), `gain_horizon` (= `decision_check.g`), `better_captain` (`{id, name, more}` or null), `better_gw` (`{gw, estimate, at_gw}` or null), `model_transfers` (`{out, in, more}` or null), `violations` (codes) |
+| `chip_plan` | object or null | the plan with the suggested chip ([chip_plan](#chip_plan)): `chip`, `status`; when computed also `same_transfers`, `same_lineup` (bool: as the main plan), `transfers` (as `transfers` above, `vs_no_transfer` = null), `captain` (`{id, name, expected_points}`), `vice` (`{id, name}` or null), `expected_points`, `expected_points_without` (the main plan's) |
 | `text` | array of string | the printed lines |
 
 ### explain
@@ -303,6 +320,7 @@ One object per player named in `--explain` (empty without it).
 | `timings.no_transfer_s` | number | the 'no transfer' solve of the summary |
 | `timings.formations_s` | number | the solves of `formations` |
 | `timings.chips_s` | number | chip analysis |
+| `timings.chip_plan_s` | number | the plan with the suggested chip (0 without one) |
 | `timings.total_s` | number | whole run |
 | `api.requests` | int | HTTP requests sent (retries included) |
 | `api.retries` | int | requests repeated after a temporary failure |

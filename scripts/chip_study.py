@@ -63,7 +63,8 @@ def collect(season, lookahead, out_path, first_gw=2, last_gw=38):
         for t in range(first_gw, last_gw + 1):
             t0 = time.time()
             r = optimize(B.Client(B.VaastavApi(data, m, t)),
-                         Options(team_id=1, lookahead=lookahead, write_log=False, time_limit=B.NO_LIMIT))
+                         Options(team_id=1, lookahead=lookahead, write_log=False, time_limit=B.NO_LIMIT,
+                                 chip_plan=False))   # C13: not part of the study (one more solve per GW)
             plans = r.state.chip_plans
             base = real_points(data, t, as_gw(plans['NONE'])) if 'NONE' in plans else None
             rec = {'season': season, 'gw': t, 'window_end': r.chips.window,
