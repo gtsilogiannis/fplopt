@@ -31,6 +31,8 @@ def table(season, recency=None, lag=0, age_from_last=False):
     lag = 1 hides GW t-1 from the model (the live situation when the last GW is not final yet)."""
     d, hist, pos_of = season_data(season)
     start_all = hist.attrs['start_gw_of']
+    hist = hist.copy(deep=False)        # N2: without attrs, pandas does not deep-copy start_gw_of into
+    hist.attrs = {}                     # every frame derived from hist (same values, see calibrate_xp.predict)
     has_ep = hist.groupby('gw')['fpl_ep'].transform('mean') > 0.5
     ok = hist[has_ep & (hist['fpl_ep'] > 0)]
     parts = []
