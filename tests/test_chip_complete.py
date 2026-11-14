@@ -109,3 +109,30 @@ def test_chip_report_reuses_a_complete_main_plan(monkeypatch):
     chips_solved.clear()
     chip_report(*args, main_result=dict(main, complete=False))  # incomplete main plan: solved again
     assert (tuple(H3), 'NONE') in chips_solved
+
+
+def test_chip_report_gives_the_no_chip_solve_the_time_of_the_exact_solves(monkeypatch):
+    """N5: every Delta needs the 'no chip' value, so that solve gets all the time of the exact solves (75% of
+    the time left; the rest stays for the estimates). Simulated: the NONE
+    solve is complete only with more than its old share of the time (0.75 * 4/8 = 37.5% here); with N5 it
+    finishes and both chips are computed, with the same numbers as without any limit."""
+    pool, sq = toy()
+    w = weights(H3)
+    plan = plan_squad(pool, H3, w, sq, 75.0, 1)['plan']
+    windows = {'TC': [(2, 10)], 'BB': [(2, 10)]}
+    time_left = 1000.0
+    full = chip_report(pool, H3, w, plan, sq, 75.0, 1, windows, None, True, True, 10 ** 6)
+    original, limits = chips.plan_squad, {}
+
+    def needs_time(*a, **k):
+        res = original(*a, **k)
+        if len(a[1]) == len(H3):                                # the exact solves (the estimates are 1 GW)
+            limits.setdefault(a[6], k['time_limit'])            # time limit given to each chip's solve
+        if a[6] == 'NONE' and len(a[1]) == len(H3) and k['time_limit'] < 0.6 * time_left:
+            res['complete'] = False                             # would be cut with the old share
+        return res
+    monkeypatch.setattr(chips, 'plan_squad', needs_time)
+    rep = chip_report(pool, H3, w, plan, sq, 75.0, 1, windows, None, True, True, time_left)
+    assert limits['NONE'] == pytest.approx(0.75 * time_left, abs=5.0)   # 750 s, not ~375 s
+    assert set(rep['exact']) == {'TC', 'BB'} and not rep['skipped']
+    assert rep['exact'] == pytest.approx(full['exact'], abs=1e-9)
