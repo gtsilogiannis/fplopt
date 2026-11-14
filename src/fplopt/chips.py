@@ -119,6 +119,13 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
         # this solve's share of the remaining time, in proportion to the measured solve times
         # (WC ~2x the others, measured), and at least MIN_PASS_SECONDS
         tl = max(MIN_PASS_SECONDS, left * share / sum(s for _, s in runs[k:]) * 0.75)
+        if cp == 'NONE':
+            # N5: every Delta needs the 'no chip' value, so a cut NONE solve leaves all chips 'not computed'.
+            # It gets all the time of the exact solves (the other 25% stays for the estimates): a solve
+            # stops once it reaches the gap target, and a complete result does not depend on the time
+            # limit (milp.plan_squad), so when it finished within its old share nothing changes; when it
+            # was cut, it can now finish and the chips use what remains.
+            tl = max(MIN_PASS_SECONDS, left * 0.75)
         if left < MIN_PASS_SECONDS or (cp != 'NONE' and base is None):
             out['skipped'].append(f"exact {cp}")
             continue
