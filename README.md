@@ -13,7 +13,7 @@ must pass a fixed acceptance criterion on both (see [Validation](#validation)).
 > Not affiliated with the Premier League or Fantasy Premier League. The program reads the public,
 > undocumented FPL API, which can change without notice.
 
-**Status:** version 0.12.0 (before 1.0 the command-line options and the JSON output may still
+**Status:** version 0.13.0 (before 1.0 the command-line options and the JSON output may still
 change). The test suite runs on Linux and Windows with Python 3.12, 3.13 and 3.14 (GitHub
 Actions); weekly runs on real data are made on Linux.
 
@@ -296,8 +296,8 @@ the decision check (with `--check` only) and the chip suggestions. Progress line
 **JSON (`--json`).** Exactly one JSON document on stdout per run, also when the run fails:
 
 ```json
-{"schema_version": "1.0", "engine_version": "0.12.0", "ok": true, "mode": "optimize", ...}
-{"schema_version": "1.0", "engine_version": "0.12.0", "ok": false, "mode": "optimize",
+{"schema_version": "1.0", "engine_version": "0.13.0", "ok": true, "mode": "optimize", ...}
+{"schema_version": "1.0", "engine_version": "0.13.0", "ok": false, "mode": "optimize",
  "error": {"exit_code": 4, "type": "not_found", "message": "..."}, "warnings": []}
 ```
 
@@ -389,7 +389,10 @@ Main constraints:
   more. Products of binary variables are written as continuous variables bounded by both.
 
 HiGHS solves the model until the plan is proven within 0.05% of the best plan of this model, or
-until the time limit; the remaining gap is always reported.
+until the time limit; the remaining gap is always reported. A smaller gap target was measured
+(`bench_gap.py`, 8 squads of past seasons): 0.02% and 0.01% gave the same plans, captains, transfers
+and chip suggestions on all 8, and only a tighter proof, but cut more chip numbers within the
+default 180 s, so the target stays 0.05%.
 
 ### 3. Chip suggestions (`src/fplopt/chips.py`)
 
@@ -479,11 +482,11 @@ club rotates.
 
 ### Tests
 
-`pytest` runs 245 fast tests (30–75 s) on a synthetic season, with no network: the MILP on
+`pytest` runs 263 fast tests (1–2.5 minutes) on a synthetic season, with no network: the MILP on
 small pools checked by hand (free transfers, hits, chips, budget, vice-captain, formations), selling prices,
 the chip rules, the decision check, the summary (every field against its source, no technical
 words, the deadline in local time), the JSON output and exit codes, retries against a local HTTP server, the cache.
-`pytest -m slow` runs 14 full optimizer runs (about 5–15 minutes) and compares the output (full
+`pytest -m slow` runs 14 full optimizer runs (about 5–10 minutes) and compares the output (full
 and summary) with a stored reference run.
 
 ## Limitations and assumptions
@@ -569,7 +572,8 @@ python scripts/chip_study.py evaluate chips_2425.jsonl chips_2526.jsonl
 Other scripts: `check_minutes.py` (calibration of the minutes model), `check_papp.py`
 (appearance probability only), `bench_solver.py` (solver timing on a 700-player synthetic
 season), `bench_chip_solve.py` (time of Wildcard and Free Hit plans on squads saved by
-`backtest_season.py --save-gws`), `check_congestion.py` (fixture congestion against the minutes
+`backtest_season.py --save-gws`), `bench_gap.py` (cost and effect of the solver's gap target on
+the default run, same squads), `check_congestion.py` (fixture congestion against the minutes
 model; needs clones of `openfootball/england` and `openfootball/champions-league`).
 
 ### Tags in the comments
@@ -591,8 +595,8 @@ letter gives the area:
 | `C2`–`C13` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit); **C13** the plan with the suggested chip, solved with the rest of the output (the same plan as `--chip X`) |
 | `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
 | `D1`–`D3`, `O1` | decision check: **D1** a captain held fixed in the MILP (`force_captain`); **D2** points of the decision's gameweek, unweighted; **D3** a squad held fixed (`force_squad`: your transfers, or none); **O1** a captain who is not owned is bought |
-| `W1`–`W4` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`) |
-| `N1`–`N5` | speed, with the same results: **N1** the chip analysis reuses a complete main plan when the horizon has at most 3 gameweeks (same model); **N2** `calibrate_xp.py` and `check_minutes.py` no longer copy `DataFrame.attrs` (same output; about 6x faster `--tune`, about 5x faster `check_minutes.py fit` and `recency`); **N3** default time limit of 900 s with `--chip WC`; **N4** the transfer check reuses the 'no transfer' solve of the summary as Z0; **N5** in the chip analysis the 'no chip' solve, which every chip gain needs, gets all the time of the exact solves (it was given a share and, when cut, left every chip `not computed`) |
+| `W1`–`W6` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`); **W5** extra HiGHS options for those measurements (`--highs`); **W6** the default run at several gap targets (`scripts/bench_gap.py`) |
+| `N1`–`N5` | speed, with the same results: **N1** the chip analysis reuses a complete main plan when the horizon has at most 3 gameweeks (same model); **N2** `calibrate_xp.py` and `check_minutes.py` no longer copy `DataFrame.attrs` (same output; about 6x faster `--tune`, 2.5–5x faster `check_minutes.py fit` and `recency`, measured on two machines); **N3** default time limit of 900 s with `--chip WC`; **N4** the transfer check reuses the 'no transfer' solve of the summary as Z0; **N5** in the chip analysis the 'no chip' solve, which every chip gain needs, gets all the time of the exact solves (it was given a share and, when cut, left every chip `not computed`) |
 
 `C` alone (solver status) and `C2`–`C11` (chips) are different changes, and so are `D` alone (reading
 binary variables) and `D1`–`D3` (decision check).

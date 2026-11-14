@@ -21,7 +21,7 @@ Modules:
 """
 import logging
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 # A library logs, the application decides where the messages go (cli.py sends them to stderr).
 logging.getLogger(__name__).addHandler(logging.NullHandler())
