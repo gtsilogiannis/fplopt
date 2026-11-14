@@ -4,7 +4,7 @@
 lines (`[*] ...`, `[WARNING] ...`) still go to stderr. The text is UTF-8; names are written as
 they are (`Ødegaard`, not `Ødegaard`).
 
-This document describes `schema_version` **1.0**, produced by `engine_version` 0.12.0. The code
+This document describes `schema_version` **1.0**, produced by `engine_version` 0.13.0. The code
 that writes it is `src/fplopt/jsonout.py`.
 
 ## Contents
@@ -51,7 +51,7 @@ Every document starts with these fields:
 | Field | Type | Meaning |
 |---|---|---|
 | `schema_version` | string | `"1.0"` |
-| `engine_version` | string | version of the `fplopt` package, e.g. `"0.12.0"` |
+| `engine_version` | string | version of the `fplopt` package, e.g. `"0.13.0"` |
 | `ok` | bool | `true` on success, `false` on error |
 | `mode` | string | `"optimize"` or `"evaluate"` |
 
@@ -346,7 +346,7 @@ On any error the document is:
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.12.0",
+  "engine_version": "0.13.0",
   "ok": false,
   "mode": "optimize",
   "error": {"exit_code": 4, "type": "not_found", "message": "..."},
@@ -404,7 +404,7 @@ lookahead 3; arrays shortened):
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.12.0",
+  "engine_version": "0.13.0",
   "ok": true,
   "mode": "optimize",
   "input": {"team_id": 1, "ft": null, "chip": "NONE", "min_chance": 75, "lookahead": 3,

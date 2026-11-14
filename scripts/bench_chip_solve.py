@@ -13,7 +13,7 @@ gap of every bench-weight pass, the final change of the bench weights, and
           (the fixed point the passes aim for). Two runs with different bench weights have
           objectives that cannot be compared; their 'value' can.
 Times depend on the machine and on its load; run nothing else meanwhile.
---highs adds HiGHS options to every solve, for measurements only (the program itself does not use them), e.g.
+W5: --highs adds HiGHS options to every solve, for measurements only (the program itself does not use them), e.g.
     --highs parallel=on threads=4 mip_heuristic_effort=0.3
 """
 import argparse
