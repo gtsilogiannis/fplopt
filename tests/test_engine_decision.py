@@ -183,8 +183,8 @@ def _no_chips(season):
 
 
 def test_wildcard_check_with_the_models_squad(season):
-    """K2/K4': the squad of the main plan of --chip WC checked as the user's Wildcard: R = 0 within the gaps,
-    the notes of O1 (measured over 1 GW) and O3 (no timing), and the default time of a Wildcard (O4)."""
+    """15b K2/K4': the squad of the main plan of --chip WC checked as the user's Wildcard: R = 0 within the
+    gaps, the notes of 15b O1 (measured over 1 GW) and O3 (no timing), and the default time of a Wildcard (O4)."""
     m, kw = _no_chips(season)
     best = [s.id for s in run(season, m, chip='WC', **kw).squad]
     r = run(season, m, check='WC', check_squad=best, **kw)
@@ -218,7 +218,7 @@ def test_free_hit_check_with_the_current_squad(season):
 
 
 def test_squad_chip_with_two_unavailable_goalkeepers(season):
-    """K8: the current squad with both goalkeepers replaced by the two cheapest ones not owned, both with
+    """15b K8: the current squad with both goalkeepers replaced by the two cheapest ones not owned, both with
     chance 0 (dropped from the pool without a check): they stay in the pool, the plan exists (a GK with xP 0
     starts), and the note lists them."""
     season = Season()
@@ -237,7 +237,7 @@ def test_squad_chip_with_two_unavailable_goalkeepers(season):
 
 
 def test_squad_chip_rules(season):
-    """K7: each broken rule gives its code and no solve; the main plan is still given."""
+    """15b K7: each broken rule gives its code and no solve; the main plan is still given."""
     m, kw = _no_chips(season)
     owned, el = list(m['truth'][0]), _elem(season)
     pos = {i: el[i]['element_type'] for i in el}
@@ -292,7 +292,7 @@ def test_free_hit_after_a_free_hit_is_invalid():
 
 
 def test_squad_budget_at_the_limit():
-    """K7: the budget in whole tenths: a squad that costs exactly the budget is valid, GBP 0.1m less is
+    """15b K7: the budget in whole tenths: a squad that costs exactly the budget is valid, GBP 0.1m less is
     'over_budget' by 0.1. Toy: the 15 owned at 5.0 (sell) and one bought at 5.3 instead of an owned 5.0."""
     pool = toy_pool(); fill(pool, [8]); sq = base_squad(pool)
     new = next(i for i in pool['ids'] if pool['pos'][i] == 3 and i not in sq)

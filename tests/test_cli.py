@@ -312,8 +312,8 @@ def _no_chips_client(monkeypatch, season):
 
 
 def test_check_wildcard_text_and_json(monkeypatch, season, capsys):
-    """--check WC with the current squad: the summary (notes of O1 and O3, better squad), --details (players
-    that differ) and the JSON (squad, squad_diff, gws_measured; time limit 900 by default)."""
+    """--check WC with the current squad: the summary (notes of 15b O1 and O3, better squad), --details
+    (players that differ) and the JSON (squad, squad_diff, gws_measured; time limit 900 by default)."""
     m = _no_chips_client(monkeypatch, season)
     sq = ",".join(map(str, m['truth'][0]))
     argv = CHECK + ['--ft', '3', '--check', 'WC', '--squad', sq]

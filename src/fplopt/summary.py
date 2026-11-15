@@ -372,12 +372,12 @@ def _decision(r):
                          .replace("change(s)", "changes") + "."))
         elif n['code'] == 'budget_today':
             rows.append(('Note', f"The budget uses today's prices; they can change by GW{gw}."))
-        elif n['code'] == 'wc_horizon':                                # O1
+        elif n['code'] == 'wc_horizon':                                # 15b O1
             k = x.get('gws_measured')
             rows.append(('Note', f"The Wildcard is measured over {k} gameweek{'s' if k != 1 else ''} "
                                  f"(GW{gw}-GW{h[-1]}), not the rest of the season. Raise --lookahead to "
                                  f"measure it over more."))
-        elif n['code'] == 'wc_no_timing':                              # O3
+        elif n['code'] == 'wc_no_timing':                              # 15b O3
             rows.append(('Note', "The gameweek of a Wildcard is not checked: the model has no one-gameweek "
                                  "estimate for it."))
         elif n['code'] == 'hits':

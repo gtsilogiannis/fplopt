@@ -12,7 +12,7 @@ Modules:
   squad        current squad, selling prices, free transfers, available chips
   milp         the MILP and the solver interface
   chips        chip opportunity costs ("Chip suggestions")
-  decision     decision check: the user's own chip decision against the plan
+  decision     decision check: the user's own decision (transfers, chip) against the plan
   engine       one optimizer run -> OptimizeResult (data only, no printing)
   predictions  prediction log and its evaluation against actual points
   summary      plain-English summary of a run (the default text and the JSON 'summary')
@@ -21,7 +21,7 @@ Modules:
 """
 import logging
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 # A library logs, the application decides where the messages go (cli.py sends them to stderr).
 logging.getLogger(__name__).addHandler(logging.NullHandler())

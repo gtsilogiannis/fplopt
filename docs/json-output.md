@@ -4,7 +4,7 @@
 lines (`[*] ...`, `[WARNING] ...`) still go to stderr. The text is UTF-8; names are written as
 they are (`Ødegaard`, not `Ødegaard`).
 
-This document describes `schema_version` **1.0**, produced by `engine_version` 0.13.0. The code
+This document describes `schema_version` **1.0**, produced by `engine_version` 0.14.0. The code
 that writes it is `src/fplopt/jsonout.py`.
 
 ## Contents
@@ -51,7 +51,7 @@ Every document starts with these fields:
 | Field | Type | Meaning |
 |---|---|---|
 | `schema_version` | string | `"1.0"` |
-| `engine_version` | string | version of the `fplopt` package, e.g. `"0.13.0"` |
+| `engine_version` | string | version of the `fplopt` package, e.g. `"0.14.0"` |
 | `ok` | bool | `true` on success, `false` on error |
 | `mode` | string | `"optimize"` or `"evaluate"` |
 
@@ -94,14 +94,15 @@ The options of the run, as given (defaults filled in by the command line).
 | `lookahead` | int | `--lookahead` |
 | `override_budget` | number or null | `--override-budget`; `null` = not given |
 | `max_hits` | int or null | `--max-hits`; `null` = no cap |
-| `time_limit` | int | `--time-limit` (seconds); when not given, the default that was used (180, or 900 with `--chip WC`) |
+| `time_limit` | int | `--time-limit` (seconds); when not given, the default that was used (180, or 900 with `--chip WC` or `--check WC`) |
 | `solver` | string or null | `--solver`; `null` = default (HiGHS) |
 | `chip_report` | bool | `false` with `--no-chip-report` |
 | `write_log` | bool | `false` with `--no-log` |
-| `check` | string or null | `--check`: `"TC"` or `"BB"`; `null` = no decision check |
+| `check` | string or null | `--check`: `"TC"`, `"BB"`, `"WC"`, `"FH"` or `"TRANSFERS"`; `null` = no decision check |
 | `check_gw` | int or null | `--check-gw`; `null` = not given (the current gameweek) |
 | `captain` | int or null | `--captain` (player id, with `--check TC`) |
 | `out`, `in` | array of int, or null | `--out`, `--in` (player ids, with `--check TRANSFERS`) |
+| `squad` | array of int, or null | `--squad` (the 15 player ids, with `--check WC` or `--check FH`) |
 
 ### context
 
@@ -219,18 +220,20 @@ The user's own decision (`--check`), compared with the plan without the action (
 with the model's best version of the same action (`best`); the transfers after the decision's
 gameweek are free in all three. For a chip, `no_chip` is the main plan and `best` the best plan
 with the chip; for transfers, `no_chip` is the plan with no transfer in the current gameweek and
-`best` is the main plan (the model's own transfers). Values are weighted points over the horizon
+`best` is the main plan (the model's own transfers). For a Wildcard or Free Hit the decision is the
+user's 15-man squad of that gameweek (`squad`); the XI, captain and bench stay the model's. A
+Wildcard is measured only up to the end of the horizon (`gws_measured`) and has no `timing`. Values are weighted points over the horizon
 unless the field says otherwise. `null` without `--check`.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `status` | string | `"computed"`; `"not_computed"` (the time limit cut a solve, see `not_computed`); `"invalid"` (a rule of the game, see `violations`; nothing was solved and the numbers are `null`) |
-| `chip` | string | `"TC"`, `"BB"` or `"TRANSFERS"` |
+| `chip` | string | `"TC"`, `"BB"`, `"WC"`, `"FH"` or `"TRANSFERS"` |
 | `gw` | int | gameweek of the decision |
-| `captain` | `{id, name}` or null | the user's captain (`TC`); `null` for `BB` |
-| `violations` | array of `{code, message}` | why the decision is not allowed: `chip_unavailable` (played already, or no unplayed set of the chip covers this gameweek); transfers: `not_owned` (sold but not in the squad), `already_owned` (bought but already in it), `positions` (the new squad is not 2/5/5/3), `club_limit` (more than 3 from a club), `over_budget` (in whole £0.1m), `max_hits` (above the user's `--max-hits`) |
-| `notes` | array of `{code, message}` | `captain_unavailable` (below `--min-chance`: xP 0), `captain_bought` (not owned: the decision's plan buys him), `player_unavailable` (a player bought is below `--min-chance`), `hits` (transfers beyond the free ones, −4 each, counted in G) |
-| `verdict` | array of string | `worse_than_none` (G below 0 beyond the gaps; no other code then), `no_clear_gain` (G within the gaps around 0), `better_gw` (another gameweek of the window has a higher estimate), `better_version` (R above 0 beyond the gaps: another captain), `agrees` (none of these). Empty = no verdict, because a number it needs is `null` |
+| `captain` | `{id, name}` or null | the user's captain (`TC`); `null` otherwise |
+| `violations` | array of `{code, message}` | why the decision is not allowed: `chip_unavailable` (played already, or no unplayed set of the chip covers this gameweek; for `WC`/`FH` also before the team's first deadline); `fh_consecutive` (`FH` in the current gameweek after a Free Hit in the previous one); transfers: `not_owned` (sold but not in the squad), `already_owned` (bought but already in it), `max_hits` (above the user's `--max-hits`); transfers, `WC` and `FH`: `positions` (the new squad is not 2/5/5/3), `club_limit` (more than 3 from a club), `over_budget` (in whole £0.1m: kept players at their selling price, the others at their current price) |
+| `notes` | array of `{code, message}` | `captain_unavailable` (below `--min-chance`: xP 0), `captain_bought` (not owned: the decision's plan buys him), `player_unavailable` (a player bought is below `--min-chance`), `hits` (transfers beyond the free ones, −4 each, counted in G); `WC`/`FH`: `changes` (players of `squad` not in the current squad, current gameweek), `budget_today` (a later gameweek: the budget is checked at today's prices), `player_unavailable` (players of `squad` below `--min-chance`), and for `WC` `wc_horizon` (measured over `gws_measured` gameweeks only) and `wc_no_timing` (its gameweek is not checked) |
+| `verdict` | array of string | `worse_than_none` (G below 0 beyond the gaps; no other code then), `no_clear_gain` (G within the gaps around 0), `better_gw` (another gameweek of the window has a higher estimate), `better_version` (R above 0 beyond the gaps: another captain, squad or set of transfers), `agrees` (none of these). Empty = no verdict, because a number it needs is `null` |
 | `g` | number or null | G = `objective.decision` − `objective.no_chip`: gain of the decision over not playing the chip; may be negative |
 | `g_low`, `g_high` | number or null | bounds on G from the two solver gaps |
 | `r` | number or null | R = `objective.best` − `objective.decision` ≥ 0 up to the gaps: what the user's choice leaves; `0` for `BB` |
@@ -242,7 +245,10 @@ unless the field says otherwise. `null` without `--check`.
 | `best`, `decision` | object or null | the plan of the decision's gameweek: `chip`, `captain` `{id, name}`, `vice` `{id, name}` or null, `hits`, `transfers_in`, `transfers_out` (arrays of `{id, name}`), `squad`, `xi` (player ids) |
 | `captain_bought` | int or null | gameweek in which the decision's plan buys the user's captain; `null` if he is owned |
 | `transfers` | `{out, in}` or null | `TRANSFERS`: the user's sales and purchases, arrays of `{id, name}`; `null` for a chip |
-| `timing` | object or null | chips only (`null` for `TRANSFERS`): `window_end` (last gameweek of the chip's window), `estimates` (array of `{gw, delta}`: the chip's one-gameweek estimate from now to `window_end`, unweighted, as in `chips.estimates`), `at_gw` (estimate in the decision's gameweek), `best_gw`, `best`, `is_best` (bool: the decision's gameweek has the highest estimate; a tie counts). `best_gw`, `best` and `is_best` are `null` if any gameweek was not estimated |
+| `squad` | array of `{id, name}`, or null | `WC`/`FH`: the user's 15 players |
+| `squad_diff` | object or null | `WC`/`FH`, when `best` was solved: `measure` (`"xp_gw"`: xP of the decision's gameweek, `FH`; `"weighted_xp"`: weighted xP from that gameweek to the end of the horizon, `WC`), `only_decision` (players of `squad` not in the best squad) and `only_best` (the reverse), arrays of `{id, name, pos, xp}` by position, highest xP first. A reading aid for R, not a term of it: after a Wildcard the transfers stay free |
+| `gws_measured` | int or null | `WC`: gameweeks the Wildcard is measured over (its gameweek to the end of the horizon); `null` otherwise |
+| `timing` | object or null | `TC`, `BB`, `FH` (`null` for `WC` and `TRANSFERS`): `window_end` (last gameweek of the chip's window), `estimates` (array of `{gw, delta}`: the chip's one-gameweek estimate from now to `window_end`, unweighted, as in `chips.estimates`), `at_gw` (estimate in the decision's gameweek), `best_gw`, `best`, `is_best` (bool: the decision's gameweek has the highest estimate; a tie counts). `best_gw`, `best` and `is_best` are `null` if any gameweek was not estimated |
 | `not_computed` | array of string | solves or estimates the time limit left out, e.g. `"z_best"`, `"estimate TC GW14"` |
 | `seconds` | number or null | time of the check |
 
@@ -290,7 +296,7 @@ The plain-English summary that the command line prints by default. Numbers are n
 | `expected_points` | number | as `expected_points_now.total` |
 | `expected_range` | `[low, high]` | the range that holds in 8 of 10 gameweeks: `expected_points` −25.4 / +24.0, measured in the backtest (README, Output); `low` is at least 0 |
 | `alerts` | array of `{code, message}` | only what changes what to do: `previous_gw_not_final`, `time_limit`, `chips_not_computed`, `player_unavailable`, `selling_value_range` |
-| `decision` | object or null | with `--check`: `chip`, `gw`, `status`, `verdict` (as `decision_check.verdict`), `gain_this_gw` (unweighted, the decision's gameweek), `gain_horizon` (= `decision_check.g`), `better_captain` (`{id, name, more}` or null), `better_gw` (`{gw, estimate, at_gw}` or null), `model_transfers` (`{out, in, more}` or null), `violations` (codes) |
+| `decision` | object or null | with `--check`: `chip`, `gw`, `status`, `verdict` (as `decision_check.verdict`), `gain_this_gw` (unweighted, the decision's gameweek), `gain_horizon` (= `decision_check.g`), `better_captain` (`{id, name, more}` or null), `better_gw` (`{gw, estimate, at_gw}` or null), `model_transfers` (`{out, in, more}` or null), `better_squad` (`WC`/`FH`: `{out, in, more}`, player ids of `decision_check.squad_diff` and R, when R is above 0 beyond the gaps; else null), `violations` (codes) |
 | `chip_plan` | object or null | the plan with the suggested chip ([chip_plan](#chip_plan)): `chip`, `status`; when computed also `same_transfers`, `same_lineup` (bool: as the main plan), `transfers` (as `transfers` above, `vs_no_transfer` = null), `captain` (`{id, name, expected_points}`), `vice` (`{id, name}` or null), `expected_points`, `expected_points_without` (the main plan's) |
 | `text` | array of string | the printed lines |
 
@@ -346,7 +352,7 @@ On any error the document is:
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.13.0",
+  "engine_version": "0.14.0",
   "ok": false,
   "mode": "optimize",
   "error": {"exit_code": 4, "type": "not_found", "message": "..."},
@@ -404,7 +410,7 @@ lookahead 3; arrays shortened):
 ```json
 {
   "schema_version": "1.0",
-  "engine_version": "0.13.0",
+  "engine_version": "0.14.0",
   "ok": true,
   "mode": "optimize",
   "input": {"team_id": 1, "ft": null, "chip": "NONE", "min_chance": 75, "lookahead": 3,

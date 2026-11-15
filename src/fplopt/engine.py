@@ -256,7 +256,7 @@ def optimize(client, opts):
     if opts.time_limit is None and (opts.chip == 'WC' or opts.check == 'WC'):
         # N3: a Wildcard solve often needs more than the general default (see milp.WILDCARD_TIME_LIMIT);
         # only the default changes, an explicit --time-limit is kept.
-        # O4 (15b): --check WC too: main plan + Z+ + Z(D) took at most 552 s on the 8 measured squads (LOQ,
+        # 15b O4: --check WC too: main plan + Z+ + Z(D) took at most 552 s on the 8 measured squads (LOQ,
         # notes_15b 2.1), within 900 / 1.2. --check FH (at most 120 s) keeps the general default.
         opts = replace(opts, time_limit=WILDCARD_TIME_LIMIT)
     with collect() as warnings:
@@ -864,13 +864,13 @@ def _squad_chip_section(sec, opts, window_end, chip_rows, pool, horizon, gw_weig
         n = horizon[-1] - gw + 1
         sec.notes.append({'code': 'wc_horizon', 'message': f"the Wildcard is measured over {n} GW(s) "
                           f"(GW{gw}-GW{horizon[-1]}), not the rest of the season: raise --lookahead to measure "
-                          f"it over more"})                                                     # O1
+                          f"it over more"})                                                     # 15b O1
         sec.notes.append({'code': 'wc_no_timing', 'message': "the GW of a Wildcard is not checked: there is "
-                          "no one-GW estimate for it"})                                         # O3
+                          "no one-GW estimate for it"})                                         # 15b O3
     time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, chip, gw, None,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
-                                window_end=window_end if chip == 'FH' else None, squad=squad)   # O3: FH only
+                                window_end=window_end if chip == 'FH' else None, squad=squad)   # 15b O3: FH only
     _finish_section(sec, name_of)
     return sec
 

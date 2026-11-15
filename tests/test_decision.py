@@ -329,7 +329,7 @@ def _swap(pool, squad, out_id):
 
 @pytest.mark.parametrize("chip, z_best", [('FH', 181.82), ('WC', 185.22)])
 def test_squad_chip_by_hand(chip, z_best):
-    """K5. Decision c (the chip with the current squad): the same Z(D) for both chips, 60 in GW8 and
+    """15b K5. Decision c (the chip with the current squad): the same Z(D) for both chips, 60 in GW8 and
     then 101 with the FT, 102 with a hit (as Z0, one GW later) = 60 + 57.8 + 52.02 = 169.82 -> G = -11.40.
     Decision S+ with the starting 101 (8 xP) -> a 2-xP MID, d = 6:
       FH: R = w8 x d = 6 (GW8 only, the old squad returns);
@@ -373,7 +373,7 @@ def _wc_decision_buys(pool, sq, squad, g):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_on_the_models_squad(chip):
-    """K2: S = S+ (the squad of Z+ in the chip's GW) -> R = 0 within the gaps, all terms on."""
+    """15b K2: S = S+ (the squad of Z+ in the chip's GW) -> R = 0 within the gaps, all terms on."""
     pool, sq = varied_pool()
     kw = dict(use_vice=True, use_bench=True)
     base = main_plan(pool, sq, **kw)
@@ -385,8 +385,8 @@ def test_squad_chip_on_the_models_squad(chip):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_never_beats_the_best_version(chip):
-    """K3: R >= -gap of Z(D) for the current squad and for S+ with each outfield player swapped
-    (14 valid squads; no autosubs, so the bench weights do not enter: Ρ1)."""
+    """15b K3: R >= -gap of Z(D) for the current squad and for S+ with each outfield player swapped
+    (14 valid squads; no autosubs, so the bench weights of the solves do not enter)."""
     pool, sq = varied_pool()
     kw = dict(use_vice=True, use_bench=False)
     base = main_plan(pool, sq, **kw)
@@ -401,7 +401,7 @@ def test_squad_chip_never_beats_the_best_version(chip):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_now_is_the_chip_plan(chip):
-    """K4': in the current GW, Z+ is the same model as the main plan with --chip (the chip passed as
+    """15b K4': in the current GW, Z+ is the same model as the main plan with --chip (the chip passed as
     'chip' instead of chip_fix): the same plan in every GW and the same J. With every weight 1 and
     L <= 3, the gain of the action equals the exact Delta of the chip analysis within the gaps."""
     pool, sq = varied_pool()
@@ -421,7 +421,7 @@ def test_squad_chip_now_is_the_chip_plan(chip):
 
 def test_free_hit_timing_uses_the_chip_estimates():
     """FH timing: the Free Hit estimates of the chip analysis (chips.estimate_gw) on the main plan's
-    squads, for every GW of the window. WC: no timing (O3)."""
+    squads, for every GW of the window. WC: no timing (15b O3)."""
     pool, sq = _two_targets()
     base = main_plan(pool, sq)
     dc = check(pool, sq, base, 'FH', 8, squad=sq, window_end=10)
@@ -434,7 +434,7 @@ def test_free_hit_timing_uses_the_chip_estimates():
 
 @pytest.mark.parametrize("chip, first_forced", [('WC', True), ('FH', False)])
 def test_squad_chip_solve_order(monkeypatch, chip, first_forced):
-    """O5: WC solves Z(D) first (half of the time limit) and Z+ with all that is left (here almost all
+    """15b O5: WC solves Z(D) first (half of the time limit) and Z+ with all that is left (here almost all
     of it: the toy Z(D) takes milliseconds); FH keeps the order of TC (Z+ first)."""
     pool, sq = _two_targets()
     base = main_plan(pool, sq)
@@ -464,8 +464,8 @@ def test_squad_diff_by_hand():
 @pytest.mark.parametrize("chip, kw", [
     ('WC', {}),                                  # no squad
     ('FH', {'squad': 'short'}),                  # 14 players
-    ('WC', {'squad': 'ok', 'window_end': 10}),   # O3: no timing for WC
-    ('FH', {'squad': 'ok', 'captain': 15}),      # O2: no captain with WC/FH
+    ('WC', {'squad': 'ok', 'window_end': 10}),   # 15b O3: no timing for WC
+    ('FH', {'squad': 'ok', 'captain': 15}),      # 15b O2: no captain with WC/FH
     ('BB', {'squad': 'ok'}),                     # a squad only with TRANSFERS, WC, FH
 ])
 def test_invalid_squad_chip_requests(chip, kw):
