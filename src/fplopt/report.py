@@ -3,6 +3,7 @@ are not printed here: the engine logs them while it runs and the command line se
 stderr. The text below is the same as the output of the original fpl_v2.py."""
 import sys
 
+from .engine import POSITION_NAME
 from .summary import build_summary
 
 
@@ -155,7 +156,8 @@ def print_decision(r, out):
         p(f" DECISION CHECK | transfers in GW{d.gw}: {moves}")
     else:
         who = f" on {d.captain_name}" if d.captain_id is not None else ""
-        p(f" DECISION CHECK | {d.chip}{who} in GW{d.gw}")
+        squad = " with your squad" if d.squad else ""                  # 15b WC/FH
+        p(f" DECISION CHECK | {d.chip}{who} in GW{d.gw}{squad}")
     p("=" * 84)
     if d.status == 'invalid':
         for v in d.violations:
@@ -182,16 +184,34 @@ def print_decision(r, out):
     best = x['plan_best']
     if d.chip == 'TC' and best is not None and best['captain'] != d.captain_id:
         p(f"   Best {d.chip} in GW{d.gw}: captain {d.names.get(best['captain'], best['captain'])}.")
+    if x.get('squad_diff') is not None:
+        _print_squad_diff(r, d, x['squad_diff'], p)
     t = x['timing']
     if t is not None:
         est = t['estimates']
         top = max(est.values()) if est else None
         cells = [f"GW{g} {v:+.1f}{'*' if v == top else ''}" for g, v in sorted(est.items())]
-        how = "squad of the plan, best captain" if d.chip == 'TC' else "squad of the plan"
+        how = {'TC': "squad of the plan, best captain",
+               'FH': "best Free Hit squad vs the squad of the plan"}.get(d.chip, "squad of the plan")
         p(f"   {d.chip} estimates by GW ({how}; * = highest to GW{t['window_end']}):")
         for k in range(0, len(cells), 8):                 # 8 GWs per line, as in the chip section
             p("      " + "  ".join(cells[k:k + 8]))
     _print_tail(d, x, p)
+
+
+def _print_squad_diff(r, d, sd, p):
+    """15b: the players that differ between the user's squad and the best squad of the chip, with the
+    xP the chip is played for (FH: the GW; WC: weighted to the end of the horizon)."""
+    if not sd['only_decision'] and not sd['only_best']:
+        p(f"   Your squad is the squad of the best {d.chip} in GW{d.gw}.")
+        return
+    unit = f"xP GW{d.gw}" if sd['measure'] == 'xp_gw' else f"weighted xP GW{d.gw}-GW{r.horizon[-1]}"
+    cells = lambda rows: ", ".join(f"{d.names.get(e['id'], e['id'])} ({POSITION_NAME[e['pos']]} {e['xp']:.2f})"
+                                   for e in rows) or "-"
+    later = f"; the transfers after GW{d.gw} can still change it" if d.chip == 'WC' else ""   # FH: one GW only
+    p(f"   Players that differ ({unit}{later}):")
+    p(f"      Yours, not in the best {d.chip}: {cells(sd['only_decision'])}")
+    p(f"      Best {d.chip}, not in yours: {cells(sd['only_best'])}")
 
 
 def _print_tail(d, x, p):
@@ -251,8 +271,13 @@ def _verdict_text(code, d, x):
         return (f"{d.chip} is estimated higher in GW{t['best_gw']} ({t['best']:+.1f}) than in GW{d.gw} "
                 f"({t['at_gw']:+.1f}).")
     if code == 'better_version':
+        if d.squad:                                                    # 15b WC/FH
+            return f"the best {d.chip} squad gains {x['r']:+.2f} more than yours (players above)."
         cap = d.names.get(x['plan_best']['captain'], x['plan_best']['captain'])
         return f"captain {cap} gains {x['r']:+.2f} more with {d.chip} than your choice."
+    if t is None:                                                      # 15b O3: WC has no timing
+        return (f"play it: it gains {x['g']:+.2f} and no better squad exists; GW{d.gw} itself was not checked "
+                f"(no one-GW estimate for a Wildcard).")
     return f"play it: it gains {x['g']:+.2f}, GW{d.gw} is the best GW of the window and no better version exists."
 
 

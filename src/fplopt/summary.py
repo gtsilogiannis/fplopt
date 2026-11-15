@@ -342,10 +342,11 @@ def _decision(r):
         moves = [('', f"    {name(o):<{w}} -> {name(i)}") for o, i in zip(d.transfers_out, d.transfers_in)]
     else:
         on = f" on {d.captain_name}" if d.captain_id is not None else ""
-        what, none_ = f"{CHIP_NAME[d.chip]}{on} in GW{gw}", "not playing it"
+        squad = " with your squad" if d.squad else ""                  # 15b WC/FH
+        what, none_ = f"{CHIP_NAME[d.chip]}{on} in GW{gw}{squad}", "not playing it"
     out = {'chip': d.chip, 'gw': gw, 'status': d.status, 'verdict': list(d.verdict), 'gain_this_gw': None,
            'gain_horizon': x.get('g'), 'better_captain': None, 'better_gw': None, 'model_transfers': None,
-           'violations': [v['code'] for v in d.violations]}
+           'better_squad': None, 'violations': [v['code'] for v in d.violations]}
     rows = [('Decision', what)] + moves
     if d.status == 'invalid':
         for v in d.violations:
@@ -360,9 +361,25 @@ def _decision(r):
         elif n['code'] == 'captain_bought':
             rows.append(('Note', f"{d.captain_name} is not in your squad: the decision includes buying him in "
                                  f"GW{x.get('captain_bought')}."))
+        elif n['code'] == 'player_unavailable' and d.squad:          # 15b: 'below ...: A, B'
+            rows.append(('Note', n['message'].split(': ', 1)[1] + ": injured or doubtful, expected to score 0."))
         elif n['code'] == 'player_unavailable':
             rows.append(('Note', n['message'].split(' is below')[0] + " is injured or doubtful: he is expected "
                                                                     "to score 0."))
+        elif n['code'] == 'changes':
+            rows.append(('Note', n['message'].replace(f"the {d.chip}", f"the {CHIP_NAME[d.chip]}")
+                         .replace("0 change(s)", "No change").replace("1 change(s)", "1 change")
+                         .replace("change(s)", "changes") + "."))
+        elif n['code'] == 'budget_today':
+            rows.append(('Note', f"The budget uses today's prices; they can change by GW{gw}."))
+        elif n['code'] == 'wc_horizon':                                # O1
+            k = x.get('gws_measured')
+            rows.append(('Note', f"The Wildcard is measured over {k} gameweek{'s' if k != 1 else ''} "
+                                 f"(GW{gw}-GW{h[-1]}), not the rest of the season. Raise --lookahead to "
+                                 f"measure it over more."))
+        elif n['code'] == 'wc_no_timing':                              # O3
+            rows.append(('Note', "The gameweek of a Wildcard is not checked: the model has no one-gameweek "
+                                 "estimate for it."))
         elif n['code'] == 'hits':
             k = len(d.transfers_in) - (r.ft or 0)
             rows.append(('Note', f"{k} extra transfer{'s' if k != 1 else ''}: -{HIT_COST * k} points, counted "
@@ -394,6 +411,18 @@ def _decision(r):
                                                f"GW{h[0]}-GW{h[-1]}, later gameweeks count less)"))
         else:
             rows.append(('Model\'s transfers', "the same, or no better set"))
+    sd = x.get('squad_diff')
+    if d.squad and sd is not None and x.get('r') is not None:      # 15b WC/FH
+        # r_low, not the verdict code: 'worse_than_none' is the only code when G < 0, and R can still be > 0
+        if x.get('r_low') is not None and x['r_low'] > 0:
+            out['better_squad'] = {'out': [int(e['id']) for e in sd['only_decision']],
+                                   'in': [int(e['id']) for e in sd['only_best']], 'more': float(x['r'])}
+            rows.append(('Better squad', f"yours without {', '.join(name(e['id']) for e in sd['only_decision'])}; "
+                                         f"with {', '.join(name(e['id']) for e in sd['only_best'])} "
+                                         f"({signed(x['r'])} more over GW{h[0]}-GW{h[-1]}, later gameweeks "
+                                         f"count less)"))
+        else:
+            rows.append(('Better squad', "none: no squad in the model gains more"))
     t = x.get('timing')
     if t is not None and t.get('best_gw') is not None:
         if t['is_best']:
@@ -417,6 +446,9 @@ def _verdict_words(d, x, out):
         if code == 'agrees':
             words.append("make them: no better set of transfers was found." if tr else
                          "play it: no better captain or gameweek in the model." if d.chip == 'TC' else
+                         "play it: no better squad in the model (the gameweek itself was not checked)."
+                         if d.chip == 'WC' else
+                         "play it: no better squad or gameweek in the model." if d.chip == 'FH' else
                          "play it: no better gameweek in the model.")
         elif code == 'worse_than_none':
             words.append("don't: it is worse than making no transfer." if tr else
@@ -429,6 +461,8 @@ def _verdict_words(d, x, out):
         elif code == 'better_version':
             if tr:
                 words.append("the model's transfers gain more (see above).")
+            elif d.squad:                                              # 15b WC/FH
+                words.append("the model's squad gains more (see above).")
             elif out['better_captain']:
                 words.append(f"captain {out['better_captain']['name']} gains more with the chip.")
     return " ".join(w[0].upper() + w[1:] for w in words)

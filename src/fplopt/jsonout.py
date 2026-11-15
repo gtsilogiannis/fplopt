@@ -34,7 +34,7 @@ def optimize_to_dict(r):
             'time_limit': o.time_limit, 'solver': o.solver, 'chip_report': o.chip_report,
             'write_log': o.write_log,
             'check': o.check, 'check_gw': o.check_gw, 'captain': o.check_captain,   # decision check
-            'out': o.check_out, 'in': o.check_in,
+            'out': o.check_out, 'in': o.check_in, 'squad': o.check_squad,
         },
         'context': {
             'current_gw': r.current_gw,
@@ -175,12 +175,24 @@ def _decision(d):
         'captain_bought': x.get('captain_bought'),
         'transfers': ({'out': [who(i) for i in d.transfers_out], 'in': [who(i) for i in d.transfers_in]}
                       if d.chip == 'TRANSFERS' else None),
+        'squad': [who(i) for i in d.squad] if d.squad else None,        # 15b WC/FH: the user's 15
+        'squad_diff': _squad_diff(x.get('squad_diff'), who),
+        'gws_measured': x.get('gws_measured'),                          # 15b O1: WC only
         'timing': None if t is None else {
             'window_end': t['window_end'], 'at_gw': t['at_gw'], 'best_gw': t['best_gw'], 'best': t['best'],
             'is_best': t['is_best'], 'estimates': [{'gw': g, 'delta': v} for g, v in sorted(t['estimates'].items())]},
         'not_computed': list(x.get('not_computed', [])),
         'seconds': x.get('seconds'),
     }
+
+
+def _squad_diff(sd, who):
+    """15b: decision.squad_diff with names; None for TC/BB/TRANSFERS or when Z+ was not solved."""
+    if sd is None:
+        return None
+    row = lambda e: dict(who(e['id']), pos=e['pos'], xp=e['xp'])
+    return {'measure': sd['measure'], 'only_decision': [row(e) for e in sd['only_decision']],
+            'only_best': [row(e) for e in sd['only_best']]}
 
 
 def evaluate_to_dict(r, warnings=()):

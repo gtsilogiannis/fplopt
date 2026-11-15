@@ -32,7 +32,11 @@ def run_cli(argv, capsys):
     (['--team', '1', '--check-gw', '9'], "--check-gw and --captain are used only with --check."),
     (['--team', '1', '--captain', '5'], "--check-gw and --captain are used only with --check."),
     (['--team', '1', '--check', 'TC', '--captain', '5', '--check-gw', '40'], "--check-gw must be between 1 and 38."),
-    (['--team', '1', '--check', 'WC'], "invalid choice: 'WC'"),
+    (['--team', '1', '--check', 'XX'], "invalid choice: 'XX'"),
+    (['--team', '1', '--check', 'WC'], "--check WC needs --squad"),
+    (['--team', '1', '--squad', '1,2'], "--squad is used only with --check WC or --check FH."),
+    (['--team', '1', '--check', 'TC', '--captain', '5', '--squad', '1,2'], "--squad is used only with --check WC"),
+    (['--team', '1', '--check', 'FH', '--squad', '1,x'], "--squad needs player ids separated by commas"),
     (['--team', '1', '--out', '5', '--in', '6'], "--out and --in are used only with --check TRANSFERS."),
     (['--team', '1', '--check', 'TRANSFERS', '--out', 'a', '--in', '6'], "--out needs player ids separated by commas"),
     (['--mode', 'evaluate'], "Evaluation mode requires target Gameweek"),
@@ -295,3 +299,61 @@ def test_engine_wildcard_default(monkeypatch):
     engine.optimize(None, engine.Options(team_id=1, chip='WC', time_limit=120))
     engine.optimize(None, engine.Options(team_id=1, chip='BB'))
     assert seen == [900, 120, None]
+
+
+# --------------------------------------------------------------------------- 15b: --check WC / FH
+def _no_chips_client(monkeypatch, season):
+    """The synthetic manager without its WC (GW5) and FH (GW7), so that both are available in GW8 (--ft 3:
+    the free-transfer rebuild would count the GW5 Wildcard transfers)."""
+    m = build_manager(season, fh_last=False)
+    m['chips'] = []
+    monkeypatch.setattr(cli, 'FplClient', lambda base_url, **kw: FakeClient(FakeApi(season, m)))
+    return m
+
+
+def test_check_wildcard_text_and_json(monkeypatch, season, capsys):
+    """--check WC with the current squad: the summary (notes of O1 and O3, better squad), --details (players
+    that differ) and the JSON (squad, squad_diff, gws_measured; time limit 900 by default)."""
+    m = _no_chips_client(monkeypatch, season)
+    sq = ",".join(map(str, m['truth'][0]))
+    argv = CHECK + ['--ft', '3', '--check', 'WC', '--squad', sq]
+    status, out, _ = run_cli(argv, capsys)
+    assert status == 0
+    assert "Decision:     Wildcard in GW8 with your squad" in out
+    assert "The Wildcard is measured over 1 gameweek (GW8-GW8)" in out
+    assert "The gameweek of a Wildcard is not checked" in out
+    assert "Better squad:" in out
+    status, out, _ = run_cli(argv + ['--details'], capsys)
+    assert " DECISION CHECK | WC in GW8 with your squad" in out
+    assert "R = best WC - your decision:" in out
+    assert "Yours, not in the best WC:" in out and "Best WC, not in yours:" in out
+    status, out, _ = run_cli(argv + ['--json'], capsys)
+    doc = json.loads(out)
+    d = doc['decision_check']
+    assert doc['input']['squad'] == list(m['truth'][0]) and doc['input']['time_limit'] == 900
+    assert [p['id'] for p in d['squad']] == list(m['truth'][0])
+    assert d['gws_measured'] == 1 and d['timing'] is None
+    assert d['squad_diff']['measure'] == 'weighted_xp'
+    assert {p['id'] for p in d['squad_diff']['only_decision']} <= set(m['truth'][0])
+    assert d['g'] + d['r'] == pytest.approx(d['gain_action'], abs=1e-9)
+    s = doc['summary']['decision']
+    assert s['chip'] == 'WC'
+    assert (s['better_squad'] is not None) == (d['r_low'] > 0)
+    if s['better_squad'] is not None:
+        assert s['better_squad']['in'] == [p['id'] for p in d['squad_diff']['only_best']]
+
+
+def test_check_free_hit_json(monkeypatch, season, capsys):
+    """--check FH: timing over the first window, squad_diff in xP of the GW, the general default time."""
+    m = _no_chips_client(monkeypatch, season)
+    argv = CHECK + ['--ft', '3', '--check', 'FH', '--squad', ",".join(map(str, m['truth'][0])), '--json']
+    status, out, _ = run_cli(argv, capsys)
+    assert status == 0
+    doc = json.loads(out)
+    d = doc['decision_check']
+    assert doc['input']['time_limit'] == 180
+    assert d['status'] == 'computed' and d['gws_measured'] is None
+    assert d['squad_diff']['measure'] == 'xp_gw'
+    assert [e['gw'] for e in d['timing']['estimates']] == list(range(8, 20))
+    # 'better squad' follows r_low, not the verdict: with G < 0 the only code is 'worse_than_none'
+    assert (doc['summary']['decision']['better_squad'] is not None) == (d['r_low'] > 0)

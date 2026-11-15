@@ -52,8 +52,9 @@ def build_parser():
                         help="Chip played in the current GW (Default: NONE; see the Chip suggestions section)")
     # Decision check: the user's own chip decision, compared with the plan without it and with the
     # best version of the same chip (decision.py)
-    parser.add_argument("--check", type=str, choices=['TC', 'BB', 'TRANSFERS'], default=None,
-                        help="Check your own decision: TC (with --captain), BB, or TRANSFERS (with --out, --in)")
+    parser.add_argument("--check", type=str, choices=['TC', 'BB', 'WC', 'FH', 'TRANSFERS'], default=None,
+                        help="Check your own decision: TC (with --captain), BB, WC or FH (with --squad), "
+                             "or TRANSFERS (with --out, --in)")
     parser.add_argument("--check-gw", type=int, default=None,
                         help="Gameweek of the checked decision, inside the horizon (Default: the current GW)")
     parser.add_argument("--captain", type=int, default=None,
@@ -62,6 +63,8 @@ def build_parser():
                         help="--check TRANSFERS: ids of the players you sell now, comma-separated (e.g. 12,40)")
     parser.add_argument("--in", type=str, default=None, dest="in_ids",
                         help="--check TRANSFERS: ids of the players you buy now, comma-separated, as many")
+    parser.add_argument("--squad", type=str, default=None, dest="squad_ids",     # 15b
+                        help="--check WC or FH: ids of your 15 players in the chip's GW, comma-separated")
     parser.add_argument("--no-chip-report", action="store_true",
                         help="Skip the Chip suggestions section (saves its solve time)")   # C10
     parser.add_argument("--min-chance", type=int, default=75,
@@ -83,7 +86,8 @@ def build_parser():
                         help="Comma-separated web names; print their xP components (e.g. Gabriel,Greaves)")  # X7
     parser.add_argument("--time-limit", type=int, default=None,   # N3: None = the engine's default
                         help=f"Seconds for the whole solve; the optimality gap is always printed "
-                             f"(Default: {SOLVER_TIME_LIMIT}; {WILDCARD_TIME_LIMIT} with --chip WC)")  # M7/M10
+                             f"(Default: {SOLVER_TIME_LIMIT}; {WILDCARD_TIME_LIMIT} with --chip WC or "
+                             f"--check WC)")  # M7/M10, 15b O4
     parser.add_argument("--solver", type=str, choices=['highs'], default=None,
                         help="MIP solver (Default and only choice: highs)")  # M10; CBC was removed after measurement
     # The log keeps one run per GW (the last one), so comparison runs
@@ -101,11 +105,11 @@ def build_parser():
 
 
 def _time_limit(args):
-    """N3: --time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC, SOLVER_TIME_LIMIT otherwise
-    (resolved here so that the JSON 'options' shows the limit that was used)."""
+    """N3: --time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC or (15b O4) --check WC,
+    SOLVER_TIME_LIMIT otherwise (resolved here so that the JSON 'options' shows the limit that was used)."""
     if args.time_limit is not None:
         return args.time_limit
-    return WILDCARD_TIME_LIMIT if args.chip == 'WC' else SOLVER_TIME_LIMIT
+    return WILDCARD_TIME_LIMIT if 'WC' in (args.chip, args.check) else SOLVER_TIME_LIMIT
 
 
 def check_args(args):
@@ -136,13 +140,17 @@ def check_args(args):
         raise InputError("--check-gw and --captain are used only with --check.")
     if args.check != 'TRANSFERS' and (args.out_ids is not None or args.in_ids is not None):
         raise InputError("--out and --in are used only with --check TRANSFERS.")
-    for name in ('out_ids', 'in_ids'):                  # "12,40" -> [12, 40]
+    if args.check not in ('WC', 'FH') and args.squad_ids is not None:
+        raise InputError("--squad is used only with --check WC or --check FH.")       # 15b
+    for name in ('out_ids', 'in_ids', 'squad_ids'):     # "12,40" -> [12, 40]
         text = getattr(args, name)
         if text is not None:
             try:
                 setattr(args, name, [int(t) for t in text.split(',') if t.strip()])
             except ValueError:
                 raise InputError(f"--{name[:-4]} needs player ids separated by commas, e.g. 12,40 (got '{text}').")
+    if args.check in ('WC', 'FH') and args.squad_ids is None:
+        raise InputError(f"--check {args.check} needs --squad: the ids of your 15 players in the chip's GW.")
     if args.check_gw is not None and not 1 <= args.check_gw <= 38:
         raise InputError("--check-gw must be between 1 and 38.")
     if args.solver == 'highs' and highspy is None:  # M10
@@ -201,7 +209,8 @@ def main(argv=None):
                                max_hits=args.max_hits, explain=args.explain, time_limit=_time_limit(args),
                                solver=args.solver, chip_report=not args.no_chip_report,
                                write_log=not args.no_log, check=args.check, check_gw=args.check_gw,
-                               check_captain=args.captain, check_out=args.out_ids, check_in=args.in_ids)
+                               check_captain=args.captain, check_out=args.out_ids, check_in=args.in_ids,
+                               check_squad=args.squad_ids)
                 result = optimize(client, opts)
                 if want_json:
                     print(jsonout.dumps(jsonout.optimize_to_dict(result)))
