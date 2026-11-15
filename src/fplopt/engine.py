@@ -14,7 +14,7 @@ import pandas as pd
 from . import xp_model as xpm
 from .chips import advise, chip_report, formation_values
 from .data import build_fixture_map, fetch_history, get_current_gw
-from .decision import CHECK_KINDS, check_decision, transfer_gain, verdict
+from .decision import check_decision, transfer_gain, verdict
 from .errors import InputError, SolverError, UserActionError
 from .messages import collect
 from .milp import (BENCH_BETA_TOL, MIN_PASS_SECONDS, MIP_REL_GAP, SOLVER_TIME_LIMIT, WILDCARD_TIME_LIMIT,
@@ -810,6 +810,10 @@ def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget,
     return sec
 
 
+# 15b: decision.CHECK_KINDS has WC and FH too; the engine runs them once their rule checks are in (step 3)
+ENGINE_CHECKS = ('TC', 'BB', 'TRANSFERS')
+
+
 def _check_decision_inputs(opts, horizon, bootstrap):
     """Decision check: argument errors (InputError, exit 2), found right after bootstrap-static,
     before the other downloads and any solve. Returns the GW of the decision, or None without a
@@ -817,8 +821,8 @@ def _check_decision_inputs(opts, horizon, bootstrap):
     checked later and make the check 'invalid'."""
     if opts.check is None:
         return None
-    if opts.check not in CHECK_KINDS:
-        raise InputError(f"--check {opts.check}: only {', '.join(CHECK_KINDS)} can be checked so far.")
+    if opts.check not in ENGINE_CHECKS:
+        raise InputError(f"--check {opts.check}: only {', '.join(ENGINE_CHECKS)} can be checked so far.")
     if opts.chip != 'NONE':
         raise InputError("--check cannot be combined with --chip: the check compares the chip with the plan "
                          "without it.")
