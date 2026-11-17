@@ -198,3 +198,12 @@ def available_chips(bootstrap, history, current_gw):
             windows.setdefault(cp, []).append((max(s, current_gw), e))
         rows.append((cp, s, e, state))
     return windows, rows, warnings, source
+
+
+def chips_active_now(history, current_gw):
+    """15d E1: codes of the chips already active for the current GW (played before its deadline).
+    available_chips counts their set as played, so it is not among the available windows, but
+    --chip with that chip is still valid: the optimizer cannot see the transfers made with it."""
+    code_of = {v: k for k, v in CHIP_API_NAME.items()}          # 'wildcard' -> 'WC', ...
+    return {code_of[ch['name']] for ch in (history or {}).get('chips', [])
+            if ch.get('name') in code_of and ch.get('event') == current_gw}

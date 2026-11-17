@@ -21,7 +21,7 @@ from .milp import (BENCH_BETA_TOL, MIN_PASS_SECONDS, MIP_REL_GAP, SOLVER_TIME_LI
                    plan_squad, require_pulp_4)
 from .predictions import PREDICTIONS_FILE, log_predictions
 from .rules import HIT_COST
-from .squad import available_chips, free_transfers_from_history, load_current_squad
+from .squad import available_chips, chips_active_now, free_transfers_from_history, load_current_squad
 
 log = logging.getLogger(__name__)
 
@@ -377,6 +377,9 @@ def _optimize(client, opts, warnings):
         # nothing and a Free Hit squad would revert to no squad at all (its gain came out as -56
         # points in a backtest). Their gains are not computed; BB and TC are.
         chip_windows = {cp: w for cp, w in chip_windows.items() if cp not in ('WC', 'FH')}
+    # 15d E1: --chip is checked against the sets still available (before any solve)
+    _check_chip_available(chip_used, current_gw, chip_windows, chip_rows, chips_active_now(history, current_gw),
+                          new_team)
 
     explain_names = {n.strip().lower() for n in explain.split(',')} if explain else set()
     explained = []
@@ -710,6 +713,24 @@ def _optimize(client, opts, warnings):
         chip_plan=chip_plan)
 
 
+def _chip_unavailable_message(chip, gw, chip_rows):
+    """Why `chip` cannot be played in GW`gw`: the state of each of its sets (shared by --chip and --check)."""
+    states = [f"GW{s}-{e} {st}" for cp, s, e, st in chip_rows if cp == chip]
+    return f"{chip} cannot be played in GW{gw}: " + (", ".join(states) or "no set")
+
+
+def _check_chip_available(chip, gw, chip_windows, chip_rows, active_now, new_team):
+    """15d E1: --chip must be playable in GW`gw`: a set of the chip that is open and not played, or the chip
+    already active for this GW (before its deadline). Otherwise the plan could not be played."""
+    if chip == 'NONE' or chip in active_now:
+        return
+    if new_team and chip in ('WC', 'FH'):
+        raise InputError(f"{chip} cannot be played before the team's first deadline: transfers are unlimited, "
+                         f"so it changes nothing")
+    if not any(s <= gw <= e for s, e in chip_windows.get(chip, [])):
+        raise InputError(_chip_unavailable_message(chip, gw, chip_rows))
+
+
 def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,
                       name_of, avail_dict, spent, no_transfer_result=None):
     """Decision check: rules of the game that need the team's data, then decision.check_decision."""
@@ -727,9 +748,7 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
     window_end = next((e for s, e in chip_windows.get(chip, []) if s <= gw <= e), None)
     if window_end is None:
         # played already, or its window ended, or (GW1-19 / GW20-38) no unplayed set covers this GW
-        states = [f"GW{s}-{e} {st}" for cp, s, e, st in chip_rows if cp == chip]
-        sec.violations.append({'code': 'chip_unavailable',
-                               'message': f"{chip} cannot be played in GW{gw}: " + (", ".join(states) or "no set")})
+        sec.violations.append({'code': 'chip_unavailable', 'message': _chip_unavailable_message(chip, gw, chip_rows)})
         log.warning(f"[WARNING] Decision check: {sec.violations[0]['message']}", extra={'code': 'decision_invalid'})
         return sec
     if chip in SQUAD_CHIPS:

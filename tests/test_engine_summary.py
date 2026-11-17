@@ -106,7 +106,12 @@ def test_summary_text_has_the_gain(plain):
 ])
 def test_summary_with_a_chip_played(season, chip, expected):
     """--chip: the summary says the plan uses it; WC/FH list sales and buys, no 'no transfer' solve."""
-    r = run(season, chip=chip, chip_report=True)
+    kw = {}
+    if chip in ('WC', 'FH'):                  # 15d E1: the default manager played both in set 1
+        m = build_manager(season, fh_last=False)
+        m['chips'] = []
+        kw = dict(manager=m, ft=3)            # --ft 3: the history still has the GW5 transfers
+    r = run(season, chip=chip, chip_report=True, **kw)
     x = " ".join("\n".join(build_summary(r)['text']).split())
     for e in expected:
         assert e in x
