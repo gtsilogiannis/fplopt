@@ -736,6 +736,11 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
     """Decision check: rules of the game that need the team's data, then decision.check_decision."""
     chip, cap = opts.check, opts.check_captain
     sec = DecisionSection(chip=chip, gw=gw, captain_id=cap, captain_name=name_of.get(cap), status='invalid')
+    if chip in SQUAD_CHIPS:
+        # 15d E2: the user's squad is part of the decision, so it is shown even when a rule stops the check below
+        sec.squad = list(opts.check_squad)
+        for i in sec.squad:
+            sec.names[i] = name_of[i]             # every id is in the pool (kept by the filter above)
     if chip == 'TRANSFERS':
         return _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of,
                                   avail_dict, spent, no_transfer_result)
@@ -855,10 +860,7 @@ def _squad_chip_section(sec, opts, window_end, chip_rows, pool, horizon, gw_weig
                         name_of, avail_dict, spent):
     """15b: a Wildcard or Free Hit with the user's squad S in GW sec.gw (the chip's window was checked by the
     caller). Rules of the game first; a broken rule makes the check 'invalid' with no solve (notes_15b 0.4)."""
-    chip, gw, squad = sec.chip, sec.gw, list(opts.check_squad)
-    sec.squad = squad
-    for i in squad:
-        sec.names[i] = name_of[i]                 # every id is in the pool (kept by the filter above)
+    chip, gw, squad = sec.chip, sec.gw, sec.squad   # 15d E2: set (with the names) by the caller
     sec.violations += _squad_violations(squad, start_squad, pool, name_of, budget)
     fh_before = any(cp == 'FH' and st == f"played GW{gw - 1}" for cp, _, _, st in chip_rows)
     if chip == 'FH' and gw == horizon[0] and fh_before:

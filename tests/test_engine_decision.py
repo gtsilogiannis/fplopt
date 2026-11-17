@@ -266,8 +266,35 @@ def test_squad_chip_rules(season):
 def test_squad_chip_already_played_is_invalid(season, chip):
     """The synthetic manager played WC in GW5 and FH in GW7 (first sets): a check in GW8 -> chip_unavailable."""
     sq = list(build_manager(season)['truth'][0])
-    d = run(season, check=chip, check_squad=sq).decision
+    r = run(season, check=chip, check_squad=sq)
+    d = r.decision
     assert d.status == 'invalid' and d.violations[0]['code'] == 'chip_unavailable'
+    _shows_the_squad(r, sq)
+
+
+def _shows_the_squad(r, sq):
+    """15d E2: an invalid WC/FH check still carries the user's squad: the section, the JSON and the summary."""
+    import json
+    from fplopt import jsonout
+    from fplopt.summary import build_summary
+    d = r.decision
+    assert d.squad == sq and all(d.names.get(i) for i in sq)
+    doc = json.loads(jsonout.dumps(jsonout.optimize_to_dict(r)))
+    assert [p['id'] for p in doc['decision_check']['squad']] == sq
+    assert all(p['name'] for p in doc['decision_check']['squad'])
+    x = " ".join("\n".join(build_summary(r)['text']).split())
+    assert f"in GW{d.gw} with your squad" in x
+
+
+def test_new_team_squad_chip_check_shows_the_squad(season):
+    """15d E2, R2: a team before its first deadline cannot check WC/FH; the squad is shown all the same."""
+    m = build_manager(season)
+    m.update(current=[], chips=[], picks={}, banks={}, transfers=[])
+    sq = list(build_manager(season)['truth'][0])
+    r = run(season, m, check='WC', check_squad=sq)
+    assert r.decision.status == 'invalid' and r.decision.violations[0]['code'] == 'chip_unavailable'
+    assert "before the team's first deadline" in r.decision.violations[0]['message']
+    _shows_the_squad(r, sq)
 
 
 def _toy_section(chip, gw, horizon, budget=75.0):
@@ -276,6 +303,8 @@ def _toy_section(chip, gw, horizon, budget=75.0):
     sec = DecisionSection(chip=chip, gw=gw, captain_id=None, captain_name=None, status='invalid')
     opts = Options(team_id=1, check=chip, check_squad=list(sq), lookahead=len(horizon), max_hits=None)
     names = {i: str(i) for i in pool['ids']}
+    sec.squad = list(sq)                              # 15d E2: set by the caller (_decision_section)
+    sec.names = {i: names[i] for i in sq}
     return sec, opts, pool, sq, names
 
 
