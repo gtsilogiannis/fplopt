@@ -51,7 +51,7 @@ def tenths(x):
 
 
 def squad_cost(pool, squad, start_squad):
-    """Static budget check of the spec (notes_15b 0.4): owned players at their selling price, the others at
+    """Static budget check of the Wildcard / Free Hit check: owned players at their selling price, the others at
     now_cost, in integer tenths. With constant prices this is exactly the cheapest cost of the squad in the MILP."""
     owned = set(start_squad)
     return sum(tenths(pool['sell'][i]) if i in owned else tenths(pool['price'][i]) for i in squad)
@@ -94,7 +94,8 @@ def one_change(pool, best, start_squad, budget, chip, g, horizon, weights):
 
 def self_consistent_value(res, pool, horizon, weights):
     """J of a plan with the bench weights implied by its OWN XI in every GW (the fixed point the passes aim for),
-    so that two plans solved with different bench weights can be compared (risk P1 of notes_15b 0.3)."""
+    so that two plans solved with different bench weights can be compared. The proof of R >= 0 needs the same
+    objective, and the bench weights of the last pass depend on each plan's XI: this value measures that risk."""
     total = 0.0
     for g in horizon:
         pg = res['plan'][g]

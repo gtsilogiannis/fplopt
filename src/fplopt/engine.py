@@ -256,8 +256,8 @@ def optimize(client, opts):
     if opts.time_limit is None and (opts.chip == 'WC' or opts.check == 'WC'):
         # N3: a Wildcard solve often needs more than the general default (see milp.WILDCARD_TIME_LIMIT);
         # only the default changes, an explicit --time-limit is kept.
-        # 15b O4: --check WC too: main plan + Z+ + Z(D) took at most 552 s on the 8 measured squads (LOQ,
-        # notes_15b 2.1), within 900 / 1.2. --check FH (at most 120 s) keeps the general default.
+        # 15b O4: --check WC too: main plan + Z+ + Z(D) took at most 552 s on the 8 squads of past seasons
+        # (bench_decision.py, i5-12450HX), within 900 / 1.2. --check FH (at most 120 s) keeps the general default.
         opts = replace(opts, time_limit=WILDCARD_TIME_LIMIT)
     with collect() as warnings:
         return _optimize(client, opts, warnings)
@@ -848,7 +848,8 @@ def _squad_violations(squad, start_squad, pool, name_of, budget, hint=""):
                     + ", ".join(", ".join(name_of[i] for i in squad if team[i] == t) for t in over)})
     # budget in whole tenths of GBPm, as the game counts it (no float rounding at the limit):
     # a kept player costs his selling price, a bought one his current price (S2). 15b: with constant
-    # prices this is the cheapest the squad can cost in any plan, so the check is exact (notes_15b 0.4)
+    # prices this is the cheapest the squad can cost in any plan, so the check is exact: the squad fits the
+    # budget in some plan if and only if it passes
     cost = sum(round(10 * pool['sell'][i]) if i in owned else round(10 * pool['price'][i]) for i in squad)
     if cost > round(10 * budget):
         out.append({'code': 'over_budget', 'message': f"the new squad costs £{cost / 10:.1f}m, "
@@ -859,7 +860,8 @@ def _squad_violations(squad, start_squad, pool, name_of, budget, hint=""):
 def _squad_chip_section(sec, opts, window_end, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,
                         name_of, avail_dict, spent):
     """15b: a Wildcard or Free Hit with the user's squad S in GW sec.gw (the chip's window was checked by the
-    caller). Rules of the game first; a broken rule makes the check 'invalid' with no solve (notes_15b 0.4)."""
+    caller). Rules of the game first (positions, clubs, budget, a Free Hit in two GWs in a row); a broken rule
+    makes the check 'invalid' with no solve."""
     chip, gw, squad = sec.chip, sec.gw, sec.squad   # 15d E2: set (with the names) by the caller
     sec.violations += _squad_violations(squad, start_squad, pool, name_of, budget)
     fh_before = any(cp == 'FH' and st == f"played GW{gw - 1}" for cp, _, _, st in chip_rows)

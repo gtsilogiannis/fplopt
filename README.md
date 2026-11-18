@@ -13,7 +13,7 @@ must pass a fixed acceptance criterion on both (see [Validation](#validation)).
 > Not affiliated with the Premier League or Fantasy Premier League. The program reads the public,
 > undocumented FPL API, which can change without notice.
 
-**Status:** version 0.14.0 (before 1.0 the command-line options and the JSON output may still
+**Status:** version 0.14.1 (before 1.0 the command-line options and the JSON output may still
 change). The test suite runs on Linux and Windows with Python 3.12, 3.13 and 3.14 (GitHub
 Actions); weekly runs on real data are made on Linux.
 
@@ -127,7 +127,11 @@ python -m fplopt --team <TEAM_ID> --chip TC --no-log
 ```
 
 The suggestion rule never suggests a Wildcard (it cannot estimate a Wildcard after the current
-gameweek); to see a Wildcard plan, run with `--chip WC`.
+gameweek); to see a Wildcard plan, run with `--chip WC`. A chip given with `--chip` must be playable in
+the current gameweek: an unplayed set of it is open now, or you have already activated it for this
+gameweek (the run then warns that it is active and asks for `--chip`). Otherwise the run stops before
+any solve with exit code 2 and says why, e.g. `WC cannot be played in GW11: GW2-19 played GW8, GW20-38
+available`.
 
 A Wildcard is the slowest plan to solve. On 8 squads of past seasons (`bench_chip_solve.py` below)
 the 5-gameweek Wildcard plan took 24–460 s (median 112 s) to reach the gap target on a recent laptop
@@ -196,7 +200,7 @@ the reason; the plan is still printed. The check shares `--time-limit` with the 
 | `--gw N` | gameweek to evaluate (required for `evaluate`) | — |
 | `--lookahead N` | gameweeks planned, current one included | 5 |
 | `--ft N` | free transfers now, 1–5 | rebuilt from your history |
-| `--chip WC\|FH\|BB\|TC\|NONE` | chip played in the current gameweek | `NONE` |
+| `--chip WC\|FH\|BB\|TC\|NONE` | chip played in the current gameweek; it must be playable now (else exit 2) | `NONE` |
 | `--no-chip-report` | skip the chip suggestions (saves their solve time) | off |
 | `--check TC\|BB\|WC\|FH\|TRANSFERS` | check your own decision (see above); not with `--chip` | — |
 | `--out ID,ID` / `--in ID,ID` | `--check TRANSFERS`: players you sell / buy now (same number) | — |
@@ -310,8 +314,8 @@ the decision check (with `--check` only) and the chip suggestions. Progress line
 **JSON (`--json`).** Exactly one JSON document on stdout per run, also when the run fails:
 
 ```json
-{"schema_version": "1.0", "engine_version": "0.14.0", "ok": true, "mode": "optimize", ...}
-{"schema_version": "1.0", "engine_version": "0.14.0", "ok": false, "mode": "optimize",
+{"schema_version": "1.0", "engine_version": "0.14.1", "ok": true, "mode": "optimize", ...}
+{"schema_version": "1.0", "engine_version": "0.14.1", "ok": false, "mode": "optimize",
  "error": {"exit_code": 4, "type": "not_found", "message": "..."}, "warnings": []}
 ```
 
@@ -326,7 +330,7 @@ and as the printed lines, so a frontend can show it without rebuilding it. The f
 |---|---|---|
 | 0 | — | success (also when the time limit stopped the solver; the gap says how far from proven) |
 | 1 | `internal` | unexpected error (a bug) |
-| 2 | `input` | invalid argument |
+| 2 | `input` | invalid argument (also `--chip` with a chip that cannot be played this gameweek) |
 | 3 | `network` | FPL API unreachable, timeout, server error after retries, or a reply that is not JSON |
 | 4 | `not_found` | HTTP 404: unknown team ID or gameweek |
 | 5 | `solver` | no plan satisfies the constraints |
@@ -634,6 +638,7 @@ the current value, then the value at stage 6b. The stages, in the order they wer
 | 15 | decision check (`D1`–`D3`, `O1`) |
 | 15c | plain-English summary as the default output, `--details`, formations (comments marked `15c`) |
 | 15b | decision check of a Wildcard or Free Hit squad (comments marked `15b`) |
+| 15d | fixes found when the 15b check ran on a real team: `--chip` must be playable now (`E1`); the user's squad is shown when a Wildcard or Free Hit check is not allowed (`E2`); the summary shows the model's transfers whenever they gain more, as for the squad (comments marked `15d`) |
 
 After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
 change any result.
