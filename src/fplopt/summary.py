@@ -406,7 +406,9 @@ def _decision(r):
         buy = ", ".join(name(i) for i in best['in']) or "nobody"
         out['model_transfers'] = {'out': [int(i) for i in best['out']], 'in': [int(i) for i in best['in']],
                                   'more': float(x['r'])}
-        if 'better_version' in d.verdict:
+        # 15d: r_low, not the verdict code, as in 'Better squad': 'worse_than_none' is the
+        # only code when G < 0, and the model's transfers can still gain more (R > 0)
+        if x.get('r_low') is not None and x['r_low'] > 0:
             rows.append(('Model\'s transfers', f"sell {sell}; buy {buy} ({signed(x['r'])} more over "
                                                f"GW{h[0]}-GW{h[-1]}, later gameweeks count less)"))
         else:

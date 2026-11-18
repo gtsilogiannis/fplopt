@@ -171,6 +171,10 @@ def test_check_transfers_text_and_json(cli_client, capsys, season):
     assert (d['status'], d['chip'], d['timing'], d['captain']) == ('computed', 'TRANSFERS', None, None)
     assert d['transfers'] == {'out': [{'id': out, 'name': f"P{out}"}], 'in': [{'id': inn, 'name': f"P{inn}"}]}
     assert d['g'] + d['r'] == pytest.approx(d['gain_action'], abs=1e-9)
+    # 15d: the row 'Model's transfers' follows r_low, not the verdict code (as 'Better squad' in 15b)
+    assert doc['summary']['decision']['model_transfers']['more'] == pytest.approx(d['r'])
+    shown = "Model's transfers: Sell" in " ".join("\n".join(doc['summary']['text']).split())
+    assert shown == (d['r_low'] > 0)
 
 
 class NotFoundClient(FakeClient):

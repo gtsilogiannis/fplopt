@@ -10,7 +10,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from fplopt.engine import ChipSection, Options, optimize
+from fplopt.decision import verdict
+from fplopt.engine import ChipSection, DecisionSection, Options, optimize
 from fplopt.rules import MAX_FT
 from fplopt.summary import (RANGE_HIGH, RANGE_LOW, build_summary, format_deadline, half_up, pays_for,
                             signed)
@@ -218,3 +219,36 @@ def test_header_with_deadline(plain):
     r.deadline = "2026-10-31T11:00:00Z"        # the engine sets it from step 2 of 15c
     assert build_summary(r, tz=ZoneInfo("Europe/Athens"))['text'][:2] == \
         ["Fantasy Premier League plan for GW8", "Deadline: Sat 31 Oct, 13:00 (your time)"]
+
+
+# --------------------------------------------------------------------------- 15d: Model's transfers
+def _transfers_check(r, g, r_):
+    """A hand-made TRANSFERS check: sell 1 for 2; the model's plan sells 3 for 4. g and r_ are (value, low,
+    high); the verdict comes from decision.verdict, as in the engine."""
+    x = {'g': g[0], 'g_low': g[1], 'g_high': g[2], 'r': r_[0], 'r_low': r_[1], 'r_high': r_[2],
+         'gain_action': g[0] + r_[0], 'points_gw': {'z0': 50.0, 'z_decision': 50.0 + g[0], 'z_best': 50.0 + g[0] + r_[0]},
+         'plan_best': {'out': [3], 'in': [4], 'captain': 3, 'vice': 4}, 'timing': None}
+    d = DecisionSection(chip='TRANSFERS', gw=r.current_gw, captain_id=None, captain_name=None, status='computed',
+                        result=x, names={1: 'Sold', 2: 'Bought', 3: 'ModelSold', 4: 'ModelBought'},
+                        verdict=verdict(x), transfers_out=[1], transfers_in=[2])
+    return replace(r, decision=d)
+
+
+@pytest.mark.parametrize("g, r_, shown", [
+    ((-3.0, -3.1, -2.9), (2.5, 2.4, 2.6), True),    # G < 0 beyond the gaps, R > 0: verdict worse_than_none only
+    ((1.0, 0.9, 1.1), (2.5, 2.4, 2.6), True),       # G > 0, R > 0: better_version (unchanged)
+    ((-3.0, -3.1, -2.9), (0.05, -0.05, 0.15), False),  # R within the gaps: no better set
+    ((1.0, 0.9, 1.1), (0.0, -0.1, 0.1), False),     # agrees (unchanged)
+])
+def test_model_transfers_follow_r_low(plain, g, r_, shown):
+    """15d: the row 'Model's transfers' shows the model's set exactly when r_low > 0, whatever the
+    verdict. Before 15d it followed the code 'better_version', which verdict() never gives when g_high < 0."""
+    r = _transfers_check(plain, g, r_)
+    s = build_summary(r)
+    x = flat(s)
+    assert ("Model's transfers: Sell ModelSold; buy ModelBought (+2.5 more" in x) == shown
+    assert ("Model's transfers: The same, or no better set" in x) == (not shown)
+    assert s['decision']['model_transfers']['more'] == pytest.approx(r_[0])     # JSON: always filled
+    if g[2] < 0:
+        assert r.decision.verdict == ['worse_than_none']
+        assert "Don't: it is worse than making no transfer." in x
