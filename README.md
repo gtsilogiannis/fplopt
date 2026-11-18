@@ -5,7 +5,7 @@
 A Fantasy Premier League (FPL) squad optimizer. It estimates the expected points (xP) of every
 player in every remaining gameweek, then solves a multi-period mixed-integer linear program
 (MILP) that plans transfers, starting XI, captain, vice-captain and bench order over the next
-gameweeks, with free transfers, −4 hits, the budget and chips modelled explicitly.
+gameweeks, with free transfers, −4 hits, the budget and chips modeled explicitly.
 
 The xP model is checked with a walk-forward backtest on two past seasons, and every change to it
 must pass a fixed acceptance criterion on both (see [Validation](#validation)).
@@ -134,8 +134,8 @@ any solve with exit code 2 and says why, e.g. `WC cannot be played in GW11: GW2-
 available`.
 
 A Wildcard is the slowest plan to solve. On 8 squads of past seasons (`bench_chip_solve.py` below)
-the 5-gameweek Wildcard plan took 24–460 s (median 112 s) to reach the gap target on a recent laptop
-(i5-12450HX), against 14–34 s for a Free Hit. With `--chip WC` the default time limit is therefore
+the 5-gameweek Wildcard plan took 24–460 s (median 112 s) to reach the gap target on a recent laptop,
+against 14–34 s for a Free Hit. With `--chip WC` the default time limit is therefore
 900 s instead of 180 s; a solve that finishes earlier stops earlier, and `--time-limit` still
 overrides it. At the time limit the plan is printed with its gap.
 
@@ -353,12 +353,12 @@ The xP of player *i* in a match is a sum of components, each one
 
 - **Minutes model.** For each player, recency-weighted counts (weight 0.6 per gameweek of age)
   of appearances, 60-minute appearances and minutes in his team's matches, only at his current
-  club. The raw frequencies are shrunk towards a prior that counts like a small pseudo-sample,
+  club. The raw frequencies are shrunk toward a prior that counts like a small pseudo-sample,
   e.g. $P_{\text{app}} = (S_{\text{app}} + a m)/(W + a)$. This keeps a player with one good
   week from being treated as a certain starter, and guarantees $P_{60} \le P_{\text{app}}$.
 - **Rates per 90 minutes** (xG, xA, xGC, defensive contributions, saves, bonus, cards) are shrunk
-  towards the mean of the player's position with 600 pseudo-minutes. For xG, xA and bonus the
-  target also depends on price (∝ price², normalised so the position mean does not change).
+  toward the mean of the player's position with 600 pseudo-minutes. For xG, xA and bonus the
+  target also depends on price (∝ price², normalized so the position mean does not change).
 - **Team strength.** xG for and against per match relative to the league average, with 10
   pseudo-matches of an average team; a home factor of 1.08.
 - **Scoring rules** of the 2026/27 season. Non-linear rules use their exact expectation under the
@@ -369,7 +369,7 @@ The xP of player *i* in a match is a sum of components, each one
   `chance_of_playing` scales the current gameweek. Players with no data at their current club yet
   (e.g. new signings) use FPL's `ep_next` instead of the model.
 
-Every constant in the file is labelled `[measured]`, `[fitted]`, `[tuned]` or `[assumption]`,
+Every constant in the file is labeled `[measured]`, `[fitted]`, `[tuned]` or `[assumption]`,
 with the data it came from.
 
 ### 2. The plan (`src/fplopt/milp.py`)
@@ -397,7 +397,7 @@ Main constraints:
 - **Budget** in every gameweek: an owned player counts at his selling price, a bought one at his
   current price (prices are taken as constant over the horizon).
 - **Vice-captain**: $(1 - P_C)\cdot\mathrm{xP}_{VC}$, the points he adds when the captain does
-  not play (independence assumed), linearised without big-M constants.
+  not play (independence assumed), linearized without big-M constants.
 - **Bench**: the bench GK is valued like the vice-captain; bench slot *k* gets weight
   $\beta_k = P(\text{at least } k \text{ outfield starters do not play})$, computed exactly from
   the starters' appearance probabilities. $\beta$ depends on the chosen XI, so the MILP is
@@ -502,7 +502,7 @@ club rotates.
 
 ### Tests
 
-`pytest` runs 263 fast tests (1–2.5 minutes) on a synthetic season, with no network: the MILP on
+`pytest` runs 323 fast tests (1–2.5 minutes) on a synthetic season, with no network: the MILP on
 small pools checked by hand (free transfers, hits, chips, budget, vice-captain, formations), selling prices,
 the chip rules, the decision check, the summary (every field against its source, no technical
 words, the deadline in local time), the JSON output and exit codes, retries against a local HTTP server, the cache.
@@ -514,7 +514,7 @@ and summary) with a stored reference run.
 - **xP calibration.** The highest predictions are too high: players predicted above 6 points
   scored 0.6–0.9 less on average, and players over £10m are over-predicted by 0.7–1.1 points per
   gameweek from GW9 on. This affects the captain choice.
-- **Not modelled:** own goals, penalty saves and misses; minutes in other competitions; price
+- **Not modeled:** own goals, penalty saves and misses; minutes in other competitions; price
   changes within the horizon (prices are constant). Fixture congestion was measured and left out
   (see [Fixture congestion](#fixture-congestion)).
 - **Assumptions:** the weight 0.85 per gameweek ahead; the matches of a double gameweek and the
@@ -528,7 +528,7 @@ and summary) with a stored reference run.
   the horizon is real in the model but smaller than the error of the xP itself (RMSE about 2.5
   per player-gameweek). A Wildcard's value counts only inside the horizon, and its gameweek is
   not checked; the budget of a squad in a later gameweek is checked at today's prices.
-- **Summary**: its words are a reading of the model's numbers, not a separate judgement. The range
+- **Summary**: its words are a reading of the model's numbers, not a separate judgment. The range
   of the expected points is measured on the 11 highest predictions of each gameweek with no budget
   or formation, which is close to, but not the same as, the plan's XI.
 - **Optimality** is relative to this model: a proven plan is the best plan *for these xP values*,
@@ -596,64 +596,15 @@ season), `bench_chip_solve.py` (time of Wildcard and Free Hit plans on squads sa
 the default run, same squads), `check_congestion.py` (fixture congestion against the minutes
 model; needs clones of `openfootball/england` and `openfootball/champions-league`).
 
-### Tags in the comments
-
-Comments in the code carry short tags such as `M5:` or `X8:`. Each tag names one change, so
-that every line belonging to it can be found with a search (e.g. `git grep -n "M5"`). The
-letter gives the area:
-
-| Tags | Area |
-|---|---|
-| `A`, `B`, `C`, `D`, `E` | first fixes of the original version: **A** an unavailable player you own stays in the pool (his price counts in the budget and he can be sold); **B** the −4 cost of each hit; **C** the solver status is checked; **D** binary variables are read safely from floats (`> 0.5`, not `== 1`); **E** a bonus based on transfer trends was removed from the xP |
-| `G1`–`G4` | xP per gameweek: horizon as a list of gameweeks, double and blank gameweeks, output |
-| `H` | the optional cap on hits (`--max-hits`) |
-| `X1`–`X11` | xP model: scoring rules, constants, history data, per-match model, `ep_next` fallback, `--explain`, price-dependent prior, club join dates, RMSE as the tuning score; **X11** fixture congestion study (`scripts/check_congestion.py`, no effect found, not in the model) |
-| `V1`, `V2` | prediction log and `--mode evaluate` |
-| `S1`–`S5`, `R1`, `R2` | selling prices (50% rule, purchase prices rebuilt from the transfer history), budget, sales output; **R1** the squad after a Free Hit; **R2** a team created during the season starts like a GW1 team |
-| `M1`–`M10` | multi-period MILP: squad per gameweek, free transfers and hits, Free Hit, budget, bench, vice-captain, time limit, free transfers from history, appearance probability of bench and vice-captain, HiGHS |
-| `A1` | hits are weighted like the points of their gameweek |
-| `C2`–`C13` | chips: Wildcard / Free Hit transfer rules, chip variables, Free Hit squad, Triple Captain / Bench Boost terms, available chips, xP up to GW38, chip gains and the suggestion rule; **C12** a chip number is shown only if computed in full (not cut by the time limit); **C13** the plan with the suggested chip, solved with the rest of the output (the same plan as `--chip X`) |
-| `K1`–`K3` | chip constraints: one chip per gameweek, each set at most once, no Free Hit in two consecutive gameweeks |
-| `D1`–`D3`, `O1` | decision check: **D1** a captain held fixed in the MILP (`force_captain`); **D2** points of the decision's gameweek, unweighted; **D3** a squad held fixed (`force_squad`: your transfers, or none); **O1** a captain who is not owned is bought |
-| `15b O1`–`O5`, `15b K2`–`K8` | Wildcard and Free Hit check (prefixed `15b`, not the `O1` and `K` above): **O1** a Wildcard is measured over the horizon only; **O2** the decision is the 15-man squad (no `--captain`); **O3** no timing for a Wildcard; **O4** default time 900 s with `--check WC`; **O5** the Wildcard check solves your squad first and gives the model's best squad the rest of the time (measured: the slow one); **K2**–**K8** its acceptance tests |
-| `W1`–`W6` | rolling-horizon backtest of the decisions (`scripts/backtest_season.py`); **W2** value of the free transfers left after the horizon; **W3** counterfactual test of the chip rule (`scripts/chip_study.py`); **W4** solve times of Wildcard and Free Hit plans on saved backtest squads (`scripts/bench_chip_solve.py`); **W5** extra HiGHS options for those measurements (`--highs`); **W6** the default run at several gap targets (`scripts/bench_gap.py`) |
-| `N1`–`N5` | speed, with the same results: **N1** the chip analysis reuses a complete main plan when the horizon has at most 3 gameweeks (same model); **N2** `calibrate_xp.py` and `check_minutes.py` no longer copy `DataFrame.attrs` (same output; about 6x faster `--tune`, 2.5–5x faster `check_minutes.py fit` and `recency`, measured on two machines); **N3** default time limit of 900 s with `--chip WC`; **N4** the transfer check reuses the 'no transfer' solve of the summary as Z0; **N5** in the chip analysis the 'no chip' solve, which every chip gain needs, gets all the time of the exact solves (it was given a share and, when cut, left every chip `not computed`) |
-
-`C` alone (solver status) and `C2`–`C11` (chips) are different changes, and so are `D` alone (reading
-binary variables) and `D1`–`D3` (decision check).
-
-Comments also compare numbers between **development stages**, e.g. `RMSE 2.4996 (6b 2.5064)`:
-the current value, then the value at stage 6b. The stages, in the order they were made:
-
-| Stage | Change |
-|---|---|
-| 5 | first fixes (`A`–`E`) |
-| 6 | xP per gameweek (`G`, `H`) |
-| 8a | new xP model (`X`, `V`) |
-| 8b | data: selling prices and squad history (`S`, `R`) |
-| 6b | multi-period MILP (`M`, `A1`) |
-| 8c | shrinkage of the minutes model |
-| 7 | chips (`C2`–`C11`, `K`) |
-| 9b | rolling-horizon backtest (`W`), teams created during the season (`R2`), chip numbers computed in full (`C12`) |
-| 15 | decision check (`D1`–`D3`, `O1`) |
-| 15c | plain-English summary as the default output, `--details`, formations (comments marked `15c`) |
-| 15b | decision check of a Wildcard or Free Hit squad (comments marked `15b`) |
-| 15d | fixes found when the 15b check ran on a real team: `--chip` must be playable now (`E1`); the user's squad is shown when a Wildcard or Free Hit check is not allowed (`E2`); the summary shows the model's transfers whenever they gain more, as for the squad (comments marked `15d`) |
-
-After stage 7 came the split into a package with tests, and the move to PuLP 4; those did not
-change any result.
-
 ## AI assistance
 
-I built this project around my own interests: football, FPL and programming. I decided what the
-optimizer should do and how it is judged: the features (multi-period planning, chip suggestions,
-model evaluation, the JSON interface for a future frontend), the rule that a change to the xP
-model is kept only if it beats the previous version in the backtest of both seasons, and the
-trade-offs at each step, such as removing the CBC solver after measuring it. I ran every version
-on my own FPL team with real data and checked its output before accepting it.
+The Python engine was developed with an AI assistant (Claude, by Anthropic), which wrote most of
+the code and the test suite. I defined the requirements, approved each modeling and design
+decision, reviewed and ran every change against the tests before merging it, and ran the optimizer
+on live data each gameweek.
 
-The code was written with substantial help from an AI assistant (Claude, by Anthropic), which
-wrote most of it under my direction.
+The C console frontend, under development, is my own code. There, the assistant's role is limited
+to explanations and code review.
 
 ## License
 
