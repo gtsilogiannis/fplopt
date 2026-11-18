@@ -17,10 +17,10 @@ def get_current_gw(events):
 
 
 def build_fixture_map(current_gw, max_gw_lookahead, all_fixtures):
-    """{team id: [{'opp', 'is_home', 'gw'}, ...]} for the unfinished fixtures of GWs
-    current_gw .. current_gw + max_gw_lookahead - 1 (capped at GW38)."""
-    # X3: uses the full fixture list (one request to /fixtures/) instead of one
-    # request per gameweek; the same list also gives past match counts.
+    """{team id: [{'opp', 'is_home', 'gw'}, ...]} for the unfinished fixtures of the horizon.
+
+    The horizon is GW current_gw to current_gw + max_gw_lookahead - 1, capped at GW38. The full
+    fixture list is one request to /fixtures/, and the same list gives the past match counts."""
     team_fixtures = {i: [] for i in range(1, 21)}
     horizon_gws = set(range(current_gw, min(current_gw + max_gw_lookahead, 39)))
     for f in all_fixtures:
@@ -33,9 +33,10 @@ def build_fixture_map(current_gw, max_gw_lookahead, all_fixtures):
 
 
 def fetch_history(client, bootstrap, all_fixtures, current_gw):
-    """X3: per-(player, GW) stats of every FINISHED gameweek before current_gw,
-    from /event/{gw}/live/ (one request per gameweek).
-    Returns (DataFrame with HIST_COLS, list of the finished GWs)."""
+    """Per-(player, GW) stats of every finished gameweek before current_gw.
+
+    One request to /event/{gw}/live/ per gameweek. Returns (DataFrame with HIST_COLS, list of the
+    finished GWs)."""
     team_of = {p['id']: p['team'] for p in bootstrap['elements']}
     event_of = {e['id']: e for e in bootstrap['events']}
     gws = [e['id'] for e in bootstrap['events'] if e['finished'] and e['id'] < current_gw]
@@ -55,8 +56,8 @@ def fetch_history(client, bootstrap, all_fixtures, current_gw):
             if pid not in team_of:
                 continue
             s = el['stats']
-            # Limitation: a player who moved between PL clubs this season is assigned
-            # to his CURRENT club for all past GWs (the live endpoint has no team field).
+            # A player who moved between PL clubs this season is assigned to his current club for
+            # all past GWs: the live endpoint has no team field.
             row = {'element': pid, 'gw': gw, 'team': team_of[pid],
                    'n_matches': n_matches.get((team_of[pid], gw), 0),
                    'minutes': int(s.get('minutes') or 0)}

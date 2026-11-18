@@ -61,7 +61,9 @@ class FplClient:
     """
 
     def __init__(self, base_url=FPL_API, session=None, sleep=time.sleep, cache_dir=None, refresh_cache=False):
-        """cache_dir: folder for the live data of final gameweeks (None = no cache).
+        """Create a client.
+
+        cache_dir: folder for the live data of final gameweeks (None = no cache).
         refresh_cache: download again and overwrite the cached files of this run."""
         self.base_url = base_url.rstrip('/')
         self.session = session or requests.Session()   # one connection reused for all requests
@@ -72,8 +74,10 @@ class FplClient:
         self.stats = {'requests': 0, 'retries': 0, 'cache_hits': 0, 'cache_writes': 0}
 
     def get(self, path):
-        """JSON of one endpoint. Raises NotFoundError for 404 and ApiError for any other failure
-        (after MAX_ATTEMPTS attempts for the transient ones)."""
+        """JSON of one endpoint.
+
+        Raises NotFoundError for 404 and ApiError for any other failure (after MAX_ATTEMPTS
+        attempts for the transient ones)."""
         url = self.base_url + path
         for attempt in range(1, MAX_ATTEMPTS + 1):
             retry_after = None
@@ -109,7 +113,7 @@ class FplClient:
             self.stats['retries'] += 1
             self.sleep(wait)
 
-    # --- endpoints -------------------------------------------------------------------------
+    # Endpoints
     def bootstrap(self):
         return self.get("/bootstrap-static/")
 
@@ -117,8 +121,10 @@ class FplClient:
         return self.get("/fixtures/")
 
     def event_live(self, gw, event=None):
-        """Live stats of gameweek gw. event = its entry of bootstrap-static; when it says the
-        gameweek is final (is_final), the reply is cached and later runs read it from disk."""
+        """Live stats of gameweek gw.
+
+        event is its entry of bootstrap-static; when it says the gameweek is final (is_final),
+        the reply is cached and later runs read it from disk."""
         path = self._cache_path(gw, event)
         if path is not None and not self.refresh_cache:
             data = self._read_cache(path, gw)
@@ -130,10 +136,11 @@ class FplClient:
             self._write_cache(path, gw, event, data)
         return data
 
-    # --- cache of the live data of final gameweeks -------------------------------------------
+    # Cache of the live data of final gameweeks
     def _cache_path(self, gw, event):
-        """data_cache/fpl_live/event_<gw>_<deadline date>.json, or None if not cacheable. The
-        deadline date is part of the name, so GW8 of another season is another file."""
+        """data_cache/fpl_live/event_<gw>_<deadline date>.json, or None if not cacheable.
+
+        The deadline date is part of the name, so GW8 of another season is another file."""
         if self.cache_dir is None or not is_final(event):
             return None
         return self.cache_dir / f"event_{gw:02d}_{event['deadline_time'][:10]}.json"
@@ -154,9 +161,11 @@ class FplClient:
         return None
 
     def _write_cache(self, path, gw, event, data):
-        """Writes atomically: to a temporary file in the same folder, then os.replace() (atomic on
-        Linux and Windows), so an interrupted run never leaves a half-written file. A cache that
-        cannot be written only costs time, so failures are warnings."""
+        """Write a cache file atomically.
+
+        The data go to a temporary file in the same folder, then os.replace() (atomic on Linux and
+        Windows), so an interrupted run never leaves a half-written file. A cache that cannot be
+        written only costs time, so failures are warnings."""
         doc = {'cache_version': CACHE_VERSION, 'event_id': gw, 'deadline_time': event['deadline_time'],
                'fetched_at': datetime.now(timezone.utc).isoformat(timespec='seconds'), 'data': data}
         tmp = None
@@ -189,11 +198,13 @@ class FplClient:
 
 
 def is_final(event):
-    """True if bootstrap-static marks the gameweek as final: 'finished' (all its matches played)
-    AND 'data_checked' (FPL has checked the data; after that the points and stats are no longer
-    changed, premierleague.com "Why players' Fantasy points could change within a Gameweek").
-    A missing field counts as not final, so nothing is cached that could still change.
-    [assumption] the meaning of data_checked is taken from library type definitions and the
-    behaviour above; it was checked on real data (2026-10-21)."""
+    """True if bootstrap-static marks the gameweek as final.
+
+    Final means 'finished' (all its matches played) and 'data_checked' (FPL has checked the data;
+    after that the points and stats no longer change, premierleague.com "Why players' Fantasy
+    points could change within a Gameweek"). A missing field counts as not final, so nothing is
+    cached that could still change.
+    [assumption] The meaning of data_checked is taken from library type definitions and the
+    behavior above; it was checked on real data (2026-10-21)."""
     return (isinstance(event, dict) and event.get('finished') is True and event.get('data_checked') is True
             and bool(event.get('deadline_time')))

@@ -1,5 +1,6 @@
-"""FPL transfer and chip rules (2026/27). The scoring rules are in xp_model.py, the only
-module that uses them.
+"""FPL transfer and chip rules (2026/27).
+
+The scoring rules are in xp_model.py, the only module that uses them.
 
 Transfers, verified 2026-10-19:
   - 1 free transfer (FT) per GW, unused FTs roll over, at most 5 stored.
@@ -15,7 +16,7 @@ Transfers, verified 2026-10-19:
 Chips, verified 2026-10-20 (premierleague.com "What's happening with FPL chips in 2026/27";
 onefpl.com):
   - two sets of WC, FH, BB, TC; set 1 must be played by the GW19 deadline, set 2 GW20-38
-  - one chip per GW; WC and FH not in GW1; no FH in two consecutive GWs (GW19 -> GW20)
+  - one chip per GW; WC and FH not in GW1; no FH in two consecutive GWs (also GW19 and GW20)
   - WC/FH keep the banked free transfers (F[g+1] = F[g])
 The API (bootstrap-static 'chips') lists each chip with start_event / stop_event; the
 windows below are used only if that field is missing.
