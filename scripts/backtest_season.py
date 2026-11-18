@@ -420,7 +420,7 @@ def main():
                     help="none = never play a chip; advice = play the chip the optimizer suggests")
     ap.add_argument('--time-limit', type=int, default=NO_LIMIT)
     ap.add_argument('--ft-value', type=float, default=None,
-                    help="W2: value of each free transfer left after the horizon (default: the code's)")
+                    help="Value of each free transfer left after the horizon (default: the code's)")
     ap.add_argument('--out', help="CSV with one row per GW (rewritten after every GW)")
     ap.add_argument('--compare', nargs=2, metavar=('A.csv', 'B.csv'))
     ap.add_argument('--save-gws', default='', help="e.g. 8,15,24,33: save the team before these deadlines")
