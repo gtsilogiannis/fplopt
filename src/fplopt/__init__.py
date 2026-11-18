@@ -13,7 +13,7 @@ Modules:
   milp         the MILP and the solver interface
   chips        chip opportunity costs ("Chip suggestions")
   decision     decision check: the user's own decision (transfers, chip) against the plan
-  engine       one optimizer run -> OptimizeResult (data only, no printing)
+  engine       one optimizer run, returned as an OptimizeResult (data only, no printing)
   predictions  prediction log and its evaluation against actual points
   summary      plain-English summary of a run (the default text and the JSON 'summary')
   report       text output (summary, or everything with --details)

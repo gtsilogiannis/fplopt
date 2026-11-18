@@ -1,4 +1,4 @@
-"""Collecting the warnings of a run for the machine-readable output (--json).
+"""Collection of the warnings of a run for the machine-readable output (--json).
 
 Every module logs its messages to the 'fplopt' logger as they happen; the command line prints
 them on stderr. collect() additionally keeps the warnings (and every message logged with a
@@ -28,7 +28,7 @@ class MessageCollector(logging.Handler):
 
 @contextmanager
 def collect():
-    """with collect() as items: ...  -> items = the warnings logged inside the block."""
+    """Collect the warnings logged inside the block: with collect() as items: ..."""
     handler = MessageCollector()
     package_log = logging.getLogger('fplopt')
     package_log.addHandler(handler)

@@ -26,14 +26,15 @@ log = logging.getLogger('fplopt')
 # Base URL of the FPL API. Overridden only by the environment variable FPLOPT_API_URL, which the
 # tests use to point the program at a local fake server; normal runs never set it.
 API_URL_ENV = "FPLOPT_API_URL"
-# Folder for the downloaded data, relative to the working directory (shared with scripts/calibrate_xp.py,
-# which keeps the vaastav files there; the FPL live data go to its subfolder fpl_live/).
+# Folder for the downloaded data, relative to the working directory. Shared with
+# scripts/calibrate_xp.py, which keeps the vaastav files there; the FPL live data go to fpl_live/.
 CACHE_DIR = "data_cache"
 
 
 class _Parser(argparse.ArgumentParser):
-    """argparse prints its errors and exits with status 2 by itself; raising InputError instead
-    lets main() report them like every other error (status 2, and JSON with --json)."""
+    """Raise InputError on a parse error instead of letting argparse print it and exit.
+
+    main() then reports it like every other error (status 2, and JSON with --json)."""
 
     def error(self, message):
         raise InputError(message)
@@ -45,13 +46,12 @@ def build_parser():
                         help="Execution mode (Default: optimize)")
     parser.add_argument("--team", type=int, help="Official FPL Team ID (Required for optimize)")
     parser.add_argument("--ft", type=int, default=None,
-                        help="Free transfers available now (1-5). Default: rebuilt from your GW history")  # M8
-    # C6: the chip to play NOW (override). The suggestion comes from the "Chip suggestions" section;
-    # the model does not choose chips inside the main plan.
+                        help="Free transfers available now (1-5). Default: rebuilt from your GW history")
+    # The model does not choose chips inside the main plan; the suggestion comes from the chip section.
     parser.add_argument("--chip", type=str, choices=['WC', 'FH', 'BB', 'TC', 'NONE'], default='NONE',
                         help="Chip played in the current GW (Default: NONE; see the Chip suggestions section)")
-    # Decision check: the user's own chip decision, compared with the plan without it and with the
-    # best version of the same chip (decision.py)
+    # Decision check: the user's own decision, compared with the plan without it and with the best
+    # version of the same action (decision.py).
     parser.add_argument("--check", type=str, choices=['TC', 'BB', 'WC', 'FH', 'TRANSFERS'], default=None,
                         help="Check your own decision: TC (with --captain), BB, WC or FH (with --squad), "
                              "or TRANSFERS (with --out, --in)")
@@ -63,57 +63,57 @@ def build_parser():
                         help="--check TRANSFERS: ids of the players you sell now, comma-separated (e.g. 12,40)")
     parser.add_argument("--in", type=str, default=None, dest="in_ids",
                         help="--check TRANSFERS: ids of the players you buy now, comma-separated, as many")
-    parser.add_argument("--squad", type=str, default=None, dest="squad_ids",     # 15b
+    parser.add_argument("--squad", type=str, default=None, dest="squad_ids",
                         help="--check WC or FH: ids of your 15 players in the chip's GW, comma-separated")
     parser.add_argument("--no-chip-report", action="store_true",
-                        help="Skip the Chip suggestions section (saves its solve time)")   # C10
+                        help="Skip the Chip suggestions section (saves its solve time)")
     parser.add_argument("--min-chance", type=int, default=75,
                         help="Minimum availability probability percentage, 0-100 (Default: 75)")
-    # M7: default 5. Timing on the offline harness (700 players, 2 cores): lookahead 3 ->
-    # 10 s, 5 -> 88 s (proven optimal), 8 -> 244 s with a 0.45-point gap left.
+    # Solve times on the 700-player synthetic season (2 cores): lookahead 3: 10 s; 5: 88 s
+    # (proven optimal); 8: 244 s with a 0.45-point gap left.
     parser.add_argument("--lookahead", type=int, default=5,
                         help="Gameweeks planned, including the current one (Default: 5)")
     parser.add_argument("--override-budget", type=float, default=None,
                         help="Total budget in GBPm = selling value of your squad + bank, as shown in the app "
-                             "(e.g. 100.9). Default: computed from your transfers")  # S2
+                             "(e.g. 100.9). Default: computed from your transfers")
     parser.add_argument("--gw", type=int, default=None, help="Gameweek number to evaluate (Required for evaluate)")
-    # M7: the multi-period model values waiting for a free transfer itself, so the cap
-    # is no longer needed for correctness; it stays as an optional risk limit
-    # (a hit is a certain -4, its gain is an estimate).
+    # The multi-period model already values waiting for a free transfer, so the cap is only an
+    # optional risk limit: a hit is a certain -4, its gain an estimate.
     parser.add_argument("--max-hits", type=int, default=None,
                         help="Optional cap on paid transfers (-4 each) per GW (Default: no cap)")
     parser.add_argument("--explain", type=str, default=None,
-                        help="Comma-separated web names; print their xP components (e.g. Gabriel,Greaves)")  # X7
-    parser.add_argument("--time-limit", type=int, default=None,   # N3: None = the engine's default
+                        help="Comma-separated web names; print their xP components (e.g. Gabriel,Greaves)")
+    parser.add_argument("--time-limit", type=int, default=None,   # None: the engine's default
                         help=f"Seconds for the whole solve; the optimality gap is always printed "
                              f"(Default: {SOLVER_TIME_LIMIT}; {WILDCARD_TIME_LIMIT} with --chip WC or "
-                             f"--check WC)")  # M7/M10, 15b O4
+                             f"--check WC)")
     parser.add_argument("--solver", type=str, choices=['highs'], default=None,
-                        help="MIP solver (Default and only choice: highs)")  # M10; CBC was removed after measurement
-    # The log keeps one run per GW (the last one), so comparison runs
-    # made after the decision run would replace its predictions
+                        help="MIP solver (Default and only choice: highs)")
+    # The log keeps one run per GW (the last one), so comparison runs made after the decision run
+    # would replace its predictions.
     parser.add_argument("--no-log", action="store_true",
                         help="Do not write this run's predictions to predictions_log.csv (comparison runs)")
     parser.add_argument("--refresh-cache", action="store_true",
                         help=f"Download the cached live data of final GWs again ({CACHE_DIR}/fpl_live/)")
     parser.add_argument("--json", action="store_true",
                         help="Print the result as one JSON document (UTF-8) on stdout instead of text")
-    # 15c: the default text is a short plain-English summary; --details prints everything as before
+    # The default text is a short plain-English summary; --details prints everything.
     parser.add_argument("--details", action="store_true",
                         help="Print the full output (every number, progress lines) instead of the summary")
     return parser
 
 
 def _time_limit(args):
-    """N3: --time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC or (15b O4) --check WC,
-    SOLVER_TIME_LIMIT otherwise (resolved here so that the JSON 'options' shows the limit that was used)."""
+    """--time-limit, or the default: WILDCARD_TIME_LIMIT with --chip WC or --check WC, else SOLVER_TIME_LIMIT.
+
+    Resolved here so that the JSON 'options' shows the limit that was used."""
     if args.time_limit is not None:
         return args.time_limit
     return WILDCARD_TIME_LIMIT if 'WC' in (args.chip, args.check) else SOLVER_TIME_LIMIT
 
 
 def check_args(args):
-    """Checks that argparse cannot express (ranges, required-by-mode). Raises InputError."""
+    """Checks that argparse cannot express (ranges, required-by-mode); raises InputError."""
     if args.mode == 'evaluate':
         if not args.gw:
             raise InputError("Evaluation mode requires target Gameweek. Example: --mode evaluate --gw 5")
@@ -124,9 +124,9 @@ def check_args(args):
         raise InputError("Optimization mode requires --team ID: the number in the address of your team's Points page (fantasy.premierleague.com/entry/ID/event/GW).")
     if args.team < 1:
         raise InputError("--team must be a positive team ID.")
-    if args.max_hits is not None and args.max_hits < 0:  # H: negative cap -> infeasible
+    if args.max_hits is not None and args.max_hits < 0:  # a negative cap would be infeasible
         raise InputError("--max-hits must be 0 or greater.")
-    if args.ft is not None and not 1 <= args.ft <= MAX_FT:  # M8: FPL stores 1 to 5
+    if args.ft is not None and not 1 <= args.ft <= MAX_FT:
         raise InputError(f"--ft must be between 1 and {MAX_FT}.")
     if args.lookahead < 1:
         raise InputError("--lookahead must be 1 or greater.")
@@ -141,8 +141,8 @@ def check_args(args):
     if args.check != 'TRANSFERS' and (args.out_ids is not None or args.in_ids is not None):
         raise InputError("--out and --in are used only with --check TRANSFERS.")
     if args.check not in ('WC', 'FH') and args.squad_ids is not None:
-        raise InputError("--squad is used only with --check WC or --check FH.")       # 15b
-    for name in ('out_ids', 'in_ids', 'squad_ids'):     # "12,40" -> [12, 40]
+        raise InputError("--squad is used only with --check WC or --check FH.")
+    for name in ('out_ids', 'in_ids', 'squad_ids'):     # "12,40" to [12, 40]
         text = getattr(args, name)
         if text is not None:
             try:
@@ -153,14 +153,15 @@ def check_args(args):
         raise InputError(f"--check {args.check} needs --squad: the ids of your 15 players in the chip's GW.")
     if args.check_gw is not None and not 1 <= args.check_gw <= 38:
         raise InputError("--check-gw must be between 1 and 38.")
-    if args.solver == 'highs' and highspy is None:  # M10
+    if args.solver == 'highs' and highspy is None:
         raise UserActionError("--solver highs needs the highspy package: pip install highspy")
 
 
 def use_utf8_streams():
-    """Text and JSON are written as UTF-8 on every platform. Without this, on Windows the output
-    to a pipe (which is what a frontend reads) uses the ANSI code page (e.g. cp1252): '£' is
-    changed and a name such as 'Horníček' can stop the program with UnicodeEncodeError."""
+    """Write text and JSON as UTF-8 on every platform.
+
+    Otherwise, on Windows, output to a pipe (what a frontend reads) uses the ANSI code page (e.g.
+    cp1252): '£' is altered and a name such as 'Horníček' can raise UnicodeEncodeError."""
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding='utf-8')
@@ -169,9 +170,11 @@ def use_utf8_streams():
 
 
 def configure_logging(level=logging.INFO):
-    """Every message of the package goes to stderr, as it is (the text carries its own prefix).
-    level: the lowest level PRINTED (WARNING hides the '[*]' / '[INFO]' progress lines). The logger
-    itself stays at INFO, so the coded INFO messages still reach the JSON 'warnings' (messages.py)."""
+    """Send every message of the package to stderr as it is (the text carries its own prefix).
+
+    level: the lowest level printed (WARNING hides the '[*]' and '[INFO]' progress lines). The
+    logger itself stays at INFO, so the coded INFO messages still reach the JSON 'warnings'
+    (messages.py)."""
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(logging.Formatter("%(message)s"))
     handler.setLevel(level)
@@ -200,7 +203,7 @@ def main(argv=None):
                 else:
                     report.print_evaluate(result)
             else:
-                summary = not (want_json or args.details)          # 15c: the default output
+                summary = not (want_json or args.details)          # the default output
                 if summary:
                     configure_logging(logging.WARNING)             # no '[*]' lines; warnings and errors stay
                     print("Working... this can take a few minutes.", file=sys.stderr, flush=True)

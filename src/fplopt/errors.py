@@ -1,6 +1,8 @@
-"""Exceptions of the optimizer. The library raises them; only the command line (cli.py)
-turns them into messages and an exit status, so the engine can also be used from other
-Python code (tests, backtests, a web server) without the process ending.
+"""Exceptions of the optimizer.
+
+The library raises them; only the command line (cli.py) turns them into messages and an exit
+status, so the engine can also be used from other Python code (tests, backtests, a web server)
+without the process ending.
 
 Each class carries the exit status of the command line and a short machine-readable kind
 (the 'error.type' field of the JSON output):
