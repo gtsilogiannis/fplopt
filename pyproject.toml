@@ -11,11 +11,10 @@ authors = [{ name = "Giannis Tsilogiannis" }]
 # SPDX license expression and the file that holds its text (PEP 639; needs setuptools >= 77)
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
-# PuLP 4 publishes wheels and metadata for Python 3.12 and later only (PyPI, 2026-10-22)
+# PuLP 4 publishes wheels for Python 3.12 and later only
 requires-python = ">=3.12"
 # Ranges known to work; the exact versions of a tested install are pinned in requirements.txt.
-# PuLP 4.2: the PuLP 4 API used by milp.py. highspy: the only MIP solver (PuLP 4 ships
-# none, and CBC was removed after measurement).
+# PuLP 4.2: the PuLP 4 API used by milp.py. highspy: the MIP solver (PuLP 4 ships none).
 dependencies = [
     "requests>=2.31",
     "pandas>=2.2",
