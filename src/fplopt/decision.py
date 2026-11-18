@@ -1,5 +1,7 @@
-"""Decision check: a decision of the user held fixed in the multi-period MILP and compared with
-    Z0    the best plan without that action (the main plan of the engine),
+"""Decision check: a decision of the user held fixed in the multi-period MILP.
+
+The decision is compared with three plans:
+    Z0    the best plan without the action (the main plan of the engine),
     Z+    the best plan with the same action, everything else chosen by the model,
     Z(D)  the best plan with the action exactly as the user chose it,
     G = Z(D) - Z0   gain of the decision over not taking the action (may be negative),
@@ -9,53 +11,61 @@
 Every Z is the objective J of the plan: weighted expected points over the horizon, hits
 subtracted, tie-breaks left out (plan_value). The transfers after the decision stay free: the
 horizon measures the decision, it is not a plan the user has to follow.
-Supported so far: Triple Captain on a player of the user's choice, and Bench Boost, in any
-gameweek of the horizon. A captain who is not owned is bought by the decision plan (O1); the
-transfer and its cost are part of Z(D).
-Timing (step 3): is GW g the best GW of the chip's window? The one-GW estimates of the chip
-analysis (chips.estimate_gw) for every GW from now to the end of the window, on the squads of the
-main plan; GW g is best if its estimate is the maximum (the rule C10 of the chip suggestions).
-They measure the chip itself (best captain), not the user's captain: R does that.
-Transfers (step 7, D3): the user's transfers of the current GW, i.e. its squad held fixed. Here the
-'action' is transferring at all: Z0 = no transfer in that GW (the current squad held fixed),
-Z(D) = the user's squad, Z+ = the main plan (the model's own transfers, not solved again). Hits
-are paid as usual, so G includes them. No timing: the decision is about this GW only.
-Wildcard and Free Hit (15b): the decision is the 15-man squad S of the chip's GW g (chip_fix +
-force_squad); the XI, captain, vice-captain, bench of GW g and every other GW stay free (15b O2).
-Z0 = the main plan, Z+ = the chip in g, Z(D) = the chip in g with S. WC: its value counts only in
-GWs g..end of the horizon (15b O1: 'gws_measured'), and it has no timing (15b O3: no one-GW estimate
-exists). FH: timing as TC/BB (chips.estimate_gw, the Free Hit estimate of the chip analysis).
-'squad_diff' lists S minus S+ and S+ minus S with their xP (FH: xP of GW g; WC: weighted xP from
-g to the end of the horizon), the reason behind R."""
+
+Triple Captain and Bench Boost can be checked in any gameweek of the horizon. A Triple Captain
+on a player who is not owned buys him in the decision plan; the transfer and its cost are part
+of Z(D).
+
+Timing: is GW g the best GW of the chip's window? The one-GW estimates of the chip analysis
+(chips.estimate_gw) are computed for every GW from now to the end of the window, on the squads of
+the main plan, and GW g is best if its estimate is the maximum, as in the chip suggestions. They
+measure the chip itself (best captain), not the user's captain; R does that.
+
+Transfers: the user's transfers of the current GW, i.e. its squad held fixed. The action is
+transferring at all: Z0 = no transfer in that GW (the current squad held fixed), Z(D) = the
+user's squad, Z+ = the main plan (not solved again). Hits are paid as usual, so G includes them.
+There is no timing: the decision is about this GW only.
+
+Wildcard and Free Hit: the decision is the 15-man squad S of the chip's GW g; the XI, captain,
+vice-captain and bench of GW g and every other GW stay free. Z0 = the main plan, Z+ = the chip in
+g, Z(D) = the chip in g with S. A Wildcard's value counts only from GW g to the end of the horizon
+('gws_measured'), and it has no timing because no one-GW estimate of it exists. A Free Hit is timed
+like TC and BB. 'squad_diff' lists S minus S+ and S+ minus S with their xP (FH: xP of GW g; WC:
+weighted xP from g to the end of the horizon), the reason behind R.
+"""
 import time
 
 from .chips import estimate_gw, gw_points
 from .milp import MIN_PASS_SECONDS, SOLVER_TIME_LIMIT, plan_squad
 
 CHECK_KINDS = ('TC', 'BB', 'TRANSFERS', 'WC', 'FH')   # decisions this module can check
-SQUAD_CHIPS = ('WC', 'FH')                            # 15b: the decision is a 15-man squad
+SQUAD_CHIPS = ('WC', 'FH')                            # the decision is a 15-man squad
 
 
 def plan_value(res, pool, horizon, weight, use_bench=True):
-    """J of a solved plan: sum over the horizon of weight[g] x the expected points of GW g
-    (chips.gw_points: XI, captain, vice-captain, autosubs, minus hits), with the bench weights
-    the solve used. Equals the solver's objective plus the tie-breaks it subtracts."""
+    """J of a solved plan: sum over the horizon of weight[g] x the expected points of GW g.
+
+    The points are those of chips.gw_points (XI, captain, vice-captain, autosubs, minus hits),
+    with the bench weights the solve used. J equals the solver's objective plus the tie-breaks
+    it subtracts."""
     beta = res.get('beta') or {}
     return sum(weight[g] * gw_points(res['plan'][g], g, pool, beta.get(g), use_bench)['total'] for g in horizon)
 
 
 def diff_bounds(est, gap_first, gap_second):
-    """Interval of a difference A - B of two solved values. Each solve proves its value within its
-    gap (true value in [solved, solved + gap]), so A - B lies in [est - gap_B, est + gap_A].
-    None when a gap is unknown. [assumption] the tie-breaks (at most 0.001 per transfer or chip)
-    are left out of these bounds: the gaps are on the solver's objective, which includes them."""
+    """Interval of a difference A - B of two solved values.
+
+    Each solve proves its value within its gap (true value in [solved, solved + gap]), so A - B
+    lies in [est - gap_B, est + gap_A]. None when a gap is unknown.
+    [assumption] The tie-breaks (at most 0.001 per transfer or chip) are left out of these
+    bounds: the gaps are on the solver's objective, which includes them."""
     if gap_first is None or gap_second is None:
         return None, None
     return est - gap_second, est + gap_first
 
 
 def captain_bought(plan, horizon, captain, gw):
-    """O1: last GW up to gw in which the plan buys the user's captain; None if he was owned."""
+    """Last GW up to gw in which the plan buys the user's captain; None if he was owned."""
     bought = None
     for g in horizon:
         if g > gw:
@@ -67,11 +77,13 @@ def captain_bought(plan, horizon, captain, gw):
 
 def chip_timing(pool, plan, horizon, chip, gw, window_end, budget, max_hits, use_vice, use_bench, solver,
                 deadline):
-    """Step 3: estimates of the chip for every GW from now (horizon[0]) to window_end, on the squad
-    the main plan holds in that GW (after the horizon: its last squad, [assumption] as in
-    chips.chip_report). Returns (timing, missing): timing = {'window_end', 'estimates' {gw: Delta},
-    'at_gw' (estimate in the decision's GW), 'best_gw', 'best', 'is_best'}; C12: best_gw, best and
-    is_best are None unless every GW of the window was estimated (missing lists what was not)."""
+    """Estimates of the chip for every GW from now (horizon[0]) to window_end.
+
+    Each estimate uses the squad the main plan holds in that GW; after the horizon, its last
+    squad ([assumption], as in chips.chip_report). Returns (timing, missing): timing =
+    {'window_end', 'estimates' {gw: Delta}, 'at_gw' (estimate in the decision's GW), 'best_gw',
+    'best', 'is_best'}. best_gw, best and is_best are None unless every GW of the window was
+    estimated; missing lists what was not."""
     t0, last = horizon[0], horizon[-1]
     est, missing = {}, []
     for t in range(t0, window_end + 1):
@@ -89,16 +101,16 @@ def chip_timing(pool, plan, horizon, chip, gw, window_end, budget, max_hits, use
     if not missing:
         best_gw = max(est, key=est.get)                       # ties: the earliest GW
         timing['best_gw'], timing['best'] = best_gw, est[best_gw]
-        # the 1e-9 lets an estimate equal to the maximum count as the maximum (as in chips.advise)
-        # bool(): the engine's xP are numpy floats, and comparing them gives numpy.bool_, which is
-        # not a Python bool (isinstance(numpy.False_, bool) is False)
+        # The 1e-9 lets an estimate equal to the maximum count as the maximum, as in chips.advise.
+        # bool() because comparing numpy floats gives numpy.bool_, which is not a Python bool.
         timing['is_best'] = bool(est[gw] >= est[best_gw] - 1e-9)
     return timing, missing
 
 
 def squad_diff(pool, squad, best_squad, chip, gw, horizon, weight):
-    """15b diagnostic of R for WC/FH: the players of the user's squad S that the best squad S+ does
-    not have, and the reverse, each with the xP the chip is played for:
+    """Diagnostic of R for WC/FH: the players in only one of the user's squad S and the best S+.
+
+    Each player comes with the xP the chip is played for:
       FH: xP in GW gw (the squad lasts one GW, then the old one returns);
       WC: sum over t = gw..end of the horizon of weight[t] x xP in t (the squad is kept; transfers
           after gw can still change it, so this is a reading aid, not a term of R).
@@ -119,15 +131,16 @@ def squad_diff(pool, squad, best_squad, chip, gw, horizon, weight):
 
 def transfer_gain(pool, horizon, weight, start_squad, budget, ft0, base, chip='NONE', max_hits=None,
                   use_vice=True, use_bench=True, time_limit=None, solver=None, solves=None):
-    """15c (decision A): what the main plan's transfers of the current GW are worth, in UNWEIGHTED
-    expected points, against making no transfer now (the current squad fixed in that GW; the later
-    GWs are planned freely, so the 'no transfer' plan may make the same moves a GW later).
-    base: the main plan (milp.plan_squad, same pool and options); chip: the chip fixed in the current
-    GW of that plan (TC/BB keep it; the engine does not call this for WC/FH: their transfers are free).
-    Returns ({'this_gw', 'next_gws', 'n_gws'} or None, seconds). None (C12) when the main plan or the
-    'no transfer' solve did not reach the gap target, or there is no time left.
-    solves: N4: an optional dict; the 'no transfer' solve is stored in it as solves['no_transfer'] (for the
-    decision check of transfers, which needs the same solve, see check_decision z0_result)."""
+    """Unweighted value of the main plan's transfers of the current GW over making none.
+
+    The 'no transfer' plan holds the current squad fixed in that GW and plans the later GWs
+    freely, so it may make the same moves a GW later.
+    base: the main plan (same pool and options); chip: the chip fixed in the current GW of that
+    plan (TC/BB; the engine does not call this for WC/FH, whose transfers are free).
+    solves: optional dict that receives the 'no transfer' solve as solves['no_transfer'], for the
+    decision check of transfers (check_decision z0_result).
+    Returns ({'this_gw', 'next_gws', 'n_gws'} or None, seconds). None when the main plan or the
+    'no transfer' solve did not reach the gap target, or there is no time left."""
     t0 = time.time()
     g0 = horizon[0]
     if 'plan' not in base or not base.get('complete') or (time_limit or SOLVER_TIME_LIMIT) < MIN_PASS_SECONDS:
@@ -135,7 +148,7 @@ def transfer_gain(pool, horizon, weight, start_squad, budget, ft0, base, chip='N
     roll = plan_squad(pool, horizon, weight, start_squad, budget, ft0, chip, max_hits, use_vice, use_bench,
                       time_limit=time_limit, solver=solver, force_squad={g0: list(start_squad)})
     if solves is not None:
-        solves['no_transfer'] = roll                # N4: kept for the decision check of transfers
+        solves['no_transfer'] = roll
     if 'plan' not in roll or not roll.get('complete'):
         return None, time.time() - t0
 
@@ -151,24 +164,27 @@ def transfer_gain(pool, horizon, weight, start_squad, budget, ft0, base, chip='N
 def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, gw, captain=None,
                    max_hits=None, use_vice=True, use_bench=True, time_limit=None, solver=None,
                    window_end=None, squad=None, z0_result=None):
-    """Checks 'chip in GW gw' (with the user's captain for TC, the user's squad 'squad' for WC/FH),
-    or the user's transfers (the new squad 'squad' of the current GW), against the main plan 'base'.
-    base: result of milp.plan_squad with chip 'NONE' on the same pool, horizon, weights and options:
-          Z0 of a chip, Z+ of transfers (not solved again here).
-    Solves, chips: Z+ (chip fixed in gw) and, for TC, Z(D) (chip and captain fixed). For BB there is
-    no choice left to the user, so Z(D) = Z+ and R = 0. WC/FH: Z+ and Z(D) (chip and squad fixed);
-    15b O5 (measurement): for WC Z(D) is solved first and Z+ gets all the time left (Z+ is the
-    slow one: up to 482 s against 3-30 s); FH keeps the order of TC (Z+ first). Transfers: Z0
-    (current squad fixed in gw) and Z(D) (the user's squad fixed). The time limit is shared by these
-    solves: each gets an equal share of what is left.
-    window_end: last GW of the chip's window that contains gw; given -> timing (step 3) with the
-          time left after the solves. None -> no timing (always None for WC: 15b O3).
-    z0_result: N4 transfers only: a 'no transfer' solve already made with the same pool, horizon, weights,
-          budget, FTs and options and no chip (decision.transfer_gain, solves['no_transfer']). If it is
-          complete it is used as Z0 instead of solving the same model again (a complete solve does not
-          depend on the time limit, milp.plan_squad); otherwise Z0 is solved here as before.
-    C12: a number is given only if every solve behind it was complete; otherwise it is None and
-    the missing solve is listed in 'not_computed'."""
+    """Check a decision against the main plan 'base'.
+
+    The decision is 'chip in GW gw' (with the user's captain for TC, the user's squad 'squad' for
+    WC/FH), or the user's transfers (the new squad 'squad' of the current GW).
+    base: result of milp.plan_squad with chip 'NONE' on the same pool, horizon, weights and
+          options: Z0 of a chip, Z+ of transfers (not solved again here).
+
+    Solves for a chip: Z+ (chip fixed in gw) and, for TC, Z(D) (chip and captain fixed). BB leaves
+    the user no choice, so Z(D) = Z+ and R = 0. WC/FH: Z+ and Z(D) (chip and squad fixed). For WC,
+    Z(D) is solved first and Z+ gets all the time left, because Z+ is the slow one (measured up to
+    482 s against 3-30 s); FH solves Z+ first, like TC. Transfers: Z0 (current squad fixed in gw)
+    and Z(D) (the user's squad fixed). Each solve gets an equal share of the time that is left.
+
+    window_end: last GW of the chip's window that contains gw. Given: timing, with the time left
+          after the solves. None: no timing (always None for WC).
+    z0_result: transfers only, a 'no transfer' solve already made with the same pool, horizon,
+          weights, budget, FTs and options and no chip (transfer_gain). If it is complete it is
+          used as Z0 instead of solving the same model again; otherwise Z0 is solved here.
+
+    A number is given only if every solve behind it was complete; otherwise it is None and the
+    missing solve is listed in 'not_computed'."""
     if chip not in CHECK_KINDS:
         raise ValueError(f"decision check: {chip} is not supported yet ({', '.join(CHECK_KINDS)})")
     if chip == 'TRANSFERS' and (gw != horizon[0] or squad is None or window_end is not None):
@@ -194,7 +210,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
            'g': None, 'g_low': None, 'g_high': None, 'r': None, 'r_low': None, 'r_high': None,
            'gain_action': None, 'points_gw': {}, 'plan_best': None, 'plan_decision': None,
            'captain_bought': None, 'timing': None, 'squad_diff': None,
-           'gws_measured': horizon[-1] - gw + 1 if chip == 'WC' else None,   # 15b O1: GWs a WC is measured over
+           'gws_measured': horizon[-1] - gw + 1 if chip == 'WC' else None,   # GWs a WC is measured over
            'not_computed': [], 'seconds': None}
     solved = {}
     base_name = 'z_best' if chip == 'TRANSFERS' else 'z0'          # the main plan is one of the three
@@ -205,11 +221,11 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
         out['not_computed'].append('Z+ (main plan)' if chip == 'TRANSFERS' else 'Z0 (main plan)')
 
     # (name, chip_fix, force_captain, force_squad) of each solve. TC/BB/FH: Z+ first, then the user's
-    # version (TC, FH). WC: the user's version first (15b O5). Transfers: no transfer, then the user's squad.
+    # version (TC, FH). WC: the user's version first. Transfers: no transfer, then the user's squad.
     if chip == 'TRANSFERS':
         runs = [('z0', None, None, {gw: list(start_squad)}), ('z_decision', None, None, {gw: list(squad)})]
         if z0_result is not None and 'plan' in z0_result and z0_result.get('complete'):
-            solved['z0'] = z0_result                                 # N4: same model, already solved
+            solved['z0'] = z0_result                                 # same model, already solved
             runs = runs[1:]
     else:
         runs = [('z_best', {(chip, gw): 1}, None, None)]
@@ -218,7 +234,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
         elif chip in SQUAD_CHIPS:
             runs.append(('z_decision', {(chip, gw): 1}, None, {gw: list(squad)}))
             if chip == 'WC':
-                runs.reverse()          # 15b O5: Z(D) first, then Z+ with all the time that is left
+                runs.reverse()          # Z(D) first, then Z+ with all the time that is left
     for k, (name, cfix, fcap, fsq) in enumerate(runs):
         left = deadline - time.time()
         if left < MIN_PASS_SECONDS:
@@ -229,7 +245,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
                          solver=solver, chip_fix=cfix, force_captain=fcap, force_squad=fsq)
         if 'plan' not in res:
             out['not_computed'].append(f"{name} (no plan)")
-        elif not res['complete']:                                    # C12: cut by the time limit
+        elif not res['complete']:                                    # cut by the time limit
             out['not_computed'].append(name)
         else:
             solved[name] = res
@@ -240,7 +256,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
         out[name] = plan_value(res, pool, horizon, weight, use_bench)
         out['gaps'][name] = res.get('gap')
         out['points_gw'][name] = gw_points(res['plan'][gw], gw, pool, (res.get('beta') or {}).get(gw),
-                                           use_bench)['total']       # D2: unweighted, GW of the decision
+                                           use_bench)['total']       # unweighted, GW of the decision
     gaps = out['gaps']
     if 'z0' in solved and 'z_decision' in solved:
         out['g'] = out['z_decision'] - out['z0']
@@ -258,7 +274,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
             out['captain_bought'] = captain_bought(solved['z_decision']['plan'], horizon, captain, gw)
     if chip in SQUAD_CHIPS and 'z_best' in solved:
         out['squad_diff'] = squad_diff(pool, squad, solved['z_best']['plan'][gw]['squad'], chip, gw, horizon,
-                                       weight)                  # 15b: S minus S+ and S+ minus S, with xP
+                                       weight)
     if window_end is not None and 'plan' in base:
         out['timing'], missing = chip_timing(pool, base['plan'], horizon, chip, gw, window_end, budget, max_hits,
                                              use_vice, use_bench, solver, deadline)
@@ -269,7 +285,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
     return out
 
 
-VERDICTS = {   # code -> meaning (the text output and docs/json-output.md use the same wording)
+VERDICTS = {   # code: meaning (the text output and docs/json-output.md use the same wording)
     'worse_than_none': "worse than not playing the chip: G is below 0 by more than the solver gaps",
     'no_clear_gain': "no gain beyond the solver gaps: G is within them around 0",
     'better_gw': "a later or earlier GW of the window has a higher estimate for the chip",
@@ -281,9 +297,11 @@ VERDICTS = {   # code -> meaning (the text output and docs/json-output.md use th
 
 
 def verdict(res):
-    """Section 0.4 of the spec: the verdict follows from the numbers, with no new constant (only the
-    gap bounds and the timing rule C10). Returns a list of codes of VERDICTS, or [] when a number it
-    needs was not computed (C12: no verdict from part of the numbers)."""
+    """Verdict codes (keys of VERDICTS) that follow from the numbers of a check.
+
+    The verdict uses no constant of its own, only the gap bounds and the timing rule of the chip
+    suggestions. Returns [] when a number it needs was not computed: no verdict is given from part
+    of the numbers."""
     if res.get('g_low') is None or res.get('g_high') is None:
         return []
     if res['g_high'] < 0:
@@ -294,7 +312,7 @@ def verdict(res):
     timing = res.get('timing')
     if timing is not None:
         if timing['is_best'] is None:
-            return []                                  # timing incomplete -> no verdict
+            return []                                  # timing incomplete: no verdict
         if not timing['is_best']:
             out.append('better_gw')
     if res.get('r_low') is None:
