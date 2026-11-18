@@ -194,7 +194,7 @@ def check_decision(pool, horizon, weight, start_squad, budget, ft0, base, chip, 
     if chip in SQUAD_CHIPS and len(set(squad)) != 15:
         raise ValueError(f"decision check: {chip} needs a squad of 15 distinct players")
     if chip == 'WC' and window_end is not None:
-        raise ValueError("decision check: WC has no timing (15b O3), so no window is given")
+        raise ValueError("decision check: WC has no timing, so no window is given")
     if gw not in horizon:
         raise ValueError(f"decision check: GW{gw} is outside the horizon GW{horizon[0]}-GW{horizon[-1]}")
     if (chip == 'TC') != (captain is not None):
