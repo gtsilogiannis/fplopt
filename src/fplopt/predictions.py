@@ -1,4 +1,4 @@
-"""Prediction log (V1) and its evaluation against the actual points (V2).
+"""Prediction log and its evaluation against the actual points.
 
 Before each deadline the optimizer appends one row per player of the pool to
 predictions_log.csv; after the gameweek, `--mode evaluate --gw N` compares them with the
@@ -13,16 +13,15 @@ from .errors import DataError
 
 log = logging.getLogger(__name__)
 
-# V1: new log file (one row per player per GW, see log_predictions). The old
-# predictions_history.csv has a different schema and is no longer read.
 PREDICTIONS_FILE = "predictions_log.csv"
-XI_ROLES = ['Start', 'Captain', 'Vice']   # M6: logged roles of the starting XI
+XI_ROLES = ['Start', 'Captain', 'Vice']   # logged roles of the starting XI
 
 
 def log_predictions(gw, players, roles, path=PREDICTIONS_FILE):
-    """V1: one row per player in the pool for this GW (not only the XI), so the
-    evaluation is not limited to the players the optimizer already liked.
-    Re-running for the same GW replaces that GW's rows (no duplicates).
+    """Append one row per player in the pool for this GW.
+
+    Every player of the pool is logged, not only the XI, so the evaluation is not limited to the
+    players the optimizer already liked. Re-running for the same GW replaces that GW's rows.
     roles: {player id: 'Captain' / 'Vice' / 'Start' / 'Bench'} of the chosen squad."""
     new = pd.DataFrame([{
         'Gameweek': gw, 'Player_ID': p['id'], 'Name': p['name'], 'Position': p['position'],
@@ -59,9 +58,10 @@ class EvaluateResult:
 
 
 def evaluate(client, gw, path=PREDICTIONS_FILE):
-    """V2: compares logged predictions for one GW with the actual points.
-    Per-player errors use unmultiplied points (the captain is not doubled), and
-    FPL's own ep_next for the same players is the baseline."""
+    """Compare the logged predictions of one GW with the actual points.
+
+    Per-player errors use unmultiplied points (the captain is not doubled), and FPL's own ep_next
+    for the same players is the baseline."""
     if not os.path.isfile(path):
         raise DataError(f"{path} not found. Run an optimization before the GW deadline first.")
     result = EvaluateResult(gw=gw, log_path=path)
