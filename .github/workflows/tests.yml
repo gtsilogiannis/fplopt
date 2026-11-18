@@ -1,11 +1,16 @@
 # Fast test suite (pytest without the 'slow' marker) on every push to main and on every pull
-# request, on Linux and Windows with each supported Python version.
+# request, on Linux and Windows with each supported Python version. Pushes and pull requests that
+# change only files under frontend/ (the C console) do not start it.
 name: tests
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'frontend/**'       # the C frontend has its own build; a change only there skips these tests
   pull_request:
+    paths-ignore:
+      - 'frontend/**'       # skipped only when every changed file is under frontend/
 
 permissions:
   contents: read            # the job only reads the repository

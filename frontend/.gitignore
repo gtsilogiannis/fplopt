@@ -1,0 +1,13 @@
+# Build outputs of the C frontend. Every object file and executable is written under build/
+# (normal build in build/, sanitizer build in build/debug/), so deleting that folder is a clean.
+build/
+
+# Safety nets, in case a rule writes an output next to its source by mistake.
+*.o
+*.d
+*.exe
+
+# Core dumps left by a crashing program or by valgrind (vgcore.12345).
+core
+core.*
+vgcore.*
