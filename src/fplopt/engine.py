@@ -1,4 +1,4 @@
-"""One optimizer run: API data -> xP of every player -> multi-period MILP -> chip analysis.
+"""One optimizer run: API data, xP of every player, multi-period MILP, chip analysis.
 
 optimize() returns an OptimizeResult (plain data, no printing): report.py turns it into text,
 jsonout.py into JSON. Progress and warnings are sent to the 'fplopt' logger as they happen
@@ -25,28 +25,26 @@ from .squad import available_chips, chips_active_now, free_transfers_from_histor
 
 log = logging.getLogger(__name__)
 
-# Discount weight per gameweek AHEAD in the objective: w_g = 0.85^(g - current GW), applied to
-# the points AND the hits of GW g (decision A1). [assumption] a decision
-# parameter (projections further ahead are less reliable), not derived from data; its value
-# is to be studied with a rolling-horizon backtest.
+# Discount weight per gameweek ahead in the objective: w_g = 0.85^(g - current GW), applied to
+# both the points and the hits of GW g. [assumption] A decision parameter (projections further
+# ahead are less reliable), not derived from data.
 TIME_DECAY_RATE = 0.85
 POSITION_NAME = {1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD'}
 
 
-# --------------------------------------------------------------------------- input
 @dataclass
 class Options:
     """Everything a run depends on besides the API data (the command-line options)."""
     team_id: int
-    ft: Optional[int] = None             # free transfers now; None = rebuilt from the history (M8)
+    ft: Optional[int] = None             # free transfers now; None = rebuilt from the history
     chip: str = 'NONE'                   # chip played in the current GW: WC, FH, BB, TC or NONE
     min_chance: int = 75                 # below this chance_of_playing a player counts as out
     lookahead: int = 5                   # gameweeks planned, the current one included
     override_budget: Optional[float] = None
     max_hits: Optional[int] = None       # cap on paid transfers per GW; None = no cap
     explain: Optional[str] = None        # comma-separated web names for the xP breakdown
-    use_vice: bool = True                # vice-captain term in the objective (M6)
-    use_bench: bool = True               # autosub value of the bench (M5)
+    use_vice: bool = True                # vice-captain term in the objective
+    use_bench: bool = True               # autosub value of the bench
     time_limit: Optional[int] = None     # seconds for the whole run; None = SOLVER_TIME_LIMIT (WC: WILDCARD_TIME_LIMIT)
     solver: Optional[str] = None         # 'highs' (the only solver); None = HiGHS
     chip_report: bool = True             # compute the Chip suggestions section
@@ -57,13 +55,12 @@ class Options:
     check_captain: Optional[int] = None  # TC: the user's captain (FPL player id)
     check_out: Optional[list] = None     # TRANSFERS: the players the user sells now (ids)
     check_in: Optional[list] = None      # TRANSFERS: the players the user buys now (ids), same count
-    check_squad: Optional[list] = None   # 15b WC/FH: the user's 15-man squad of the chip's GW (ids)
-    transfer_gain: bool = True           # 15c: solve 'no transfer now' for the summary (one more solve)
-    formations: bool = True              # 15c: value every formation of the current GW's squad (--details)
-    chip_plan: bool = True               # C13: plan with the suggested chip (TC/BB/FH), one more solve
+    check_squad: Optional[list] = None   # WC/FH: the user's 15-man squad of the chip's GW (ids)
+    transfer_gain: bool = True           # solve 'no transfer now' for the summary (one more solve)
+    formations: bool = True              # value every formation of the current GW's squad (--details)
+    chip_plan: bool = True               # plan with the suggested chip (TC/BB/FH), one more solve
 
 
-# --------------------------------------------------------------------------- output
 @dataclass
 class SquadRow:
     """One player of the squad chosen for the current GW."""
@@ -135,7 +132,7 @@ class SolverInfo:
 
 @dataclass
 class ChipSection:
-    """Chip suggestions (C6-C11)."""
+    """Chip suggestions."""
     source: str                # where the chip windows came from (API or rule fallback)
     sets: list                 # [(chip, start GW, stop GW, state)], state: available / played GWn / expired
     status: str                # computed | no_chip_now | skipped_flag (--no-chip-report) | skipped_chip (--chip)
@@ -150,10 +147,12 @@ class ChipSection:
 
 @dataclass
 class ChipPlan:
-    """C13: the plan with the chip the analysis suggests for the current GW (the same plan as a run with
-    --chip X: same solve, same options). Only TC, BB, FH: the rule never suggests WC (C11)."""
+    """The plan with the chip the analysis suggests for the current GW.
+
+    It is the same plan as a run with --chip X (same solve, same options). Only TC, BB and FH:
+    the suggestion rule never suggests a Wildcard."""
     chip: str
-    status: str                # computed | not_computed (time limit, C12: never a partial plan)
+    status: str                # computed | not_computed (time limit; never a partial plan)
     squad: list = field(default_factory=list)       # [SquadRow] of the current GW
     plan: list = field(default_factory=list)        # [PlanGW] over the horizon
     sales_now: list = field(default_factory=list)   # [(id, name, selling price, available)]
@@ -164,12 +163,12 @@ class ChipPlan:
 
 @dataclass
 class DecisionSection:
-    """Decision check (chat 15): the user's chip decision against the main plan (decision.py)."""
+    """Decision check: the user's decision against the main plan (decision.py)."""
     chip: str
     gw: int
     captain_id: Optional[int]
     captain_name: Optional[str]
-    status: str                # computed | not_computed (time limit, C12) | invalid (a rule of the game)
+    status: str                # computed | not_computed (time limit) | invalid (a rule of the game)
     violations: list = field(default_factory=list)   # [{'code', 'message'}] when status is invalid
     notes: list = field(default_factory=list)        # [{'code', 'message'}]: facts the user should see
     result: Optional[dict] = None                    # decision.check_decision(); None when invalid
@@ -177,7 +176,7 @@ class DecisionSection:
     verdict: list = field(default_factory=list)      # decision.verdict() codes; [] = no verdict
     transfers_out: list = field(default_factory=list)  # TRANSFERS: the user's sales (ids)
     transfers_in: list = field(default_factory=list)   # TRANSFERS: the user's purchases (ids)
-    squad: list = field(default_factory=list)          # 15b WC/FH: the user's squad of the chip's GW (ids)
+    squad: list = field(default_factory=list)          # WC/FH: the user's squad of the chip's GW (ids)
 
 
 @dataclass
@@ -208,7 +207,7 @@ class EngineState:
     budget: float
     ft0: Optional[int]
     players: list
-    chip_plans: dict = field(default_factory=dict)   # W3: {chip or 'NONE': GW-t0 plan of the exact Delta solves}
+    chip_plans: dict = field(default_factory=dict)   # {chip or 'NONE': GW-t0 plan of the exact Delta solves}
 
 
 @dataclass
@@ -242,22 +241,22 @@ class OptimizeResult:
     api_stats: dict                 # requests, retries, cache_hits, cache_writes of the client
     state: EngineState = field(repr=False, default=None)
     decision: Optional[DecisionSection] = None     # --check; None without it
-    # 15c (summary.py): facts for the plain-English summary
+    # Facts for the plain-English summary (summary.py)
     deadline: Optional[str] = None                 # deadline of the current GW as the API gives it (UTC)
     squad_value_high: Optional[float] = None       # upper bound of the squad's selling value; None = exact
     no_transfer: Optional[dict] = None             # decision.transfer_gain(); None = not computed
     formations: list = field(default_factory=list)  # chips.formation_values() for the current GW; [] = none
-    chip_plan: Optional[ChipPlan] = None           # C13: plan with the suggested chip; None = no suggestion
+    chip_plan: Optional[ChipPlan] = None           # plan with the suggested chip; None = no suggestion
 
 
 def optimize(client, opts):
-    """Runs the optimizer for opts.team_id with data from client (api.FplClient or a fake)."""
+    """Run the optimizer for opts.team_id with data from client (api.FplClient or a fake)."""
     require_pulp_4()
     if opts.time_limit is None and (opts.chip == 'WC' or opts.check == 'WC'):
-        # N3: a Wildcard solve often needs more than the general default (see milp.WILDCARD_TIME_LIMIT);
-        # only the default changes, an explicit --time-limit is kept.
-        # 15b O4: --check WC too: main plan + Z+ + Z(D) took at most 552 s on the 8 squads of past seasons
-        # (bench_decision.py, i5-12450HX), within 900 / 1.2. --check FH (at most 120 s) keeps the general default.
+        # A Wildcard solve often needs more than the general default (see milp.WILDCARD_TIME_LIMIT);
+        # an explicit --time-limit is kept. With --check WC the main plan, Z+ and Z(D) took at most
+        # 552 s on 8 squads of past seasons (bench_decision.py), within 900 / 1.2. --check FH (at
+        # most 120 s) keeps the general default.
         opts = replace(opts, time_limit=WILDCARD_TIME_LIMIT)
     with collect() as warnings:
         return _optimize(client, opts, warnings)
@@ -273,41 +272,38 @@ def _optimize(client, opts, warnings):
     bootstrap = client.bootstrap()
     current_gw = get_current_gw(bootstrap['events'])
 
-    # G1: the planning horizon is a list of gameweeks, e.g. [8, 9, 10].
-    # Every xP value and every lineup/captain decision below is indexed by these GWs.
-    # M3: with a Free Hit the horizon is no longer cut to one GW: the FH squad only
-    # exists in the current GW, and the later GWs are planned from the squad it reverts to.
+    # The planning horizon is a list of gameweeks, e.g. [8, 9, 10]. With a Free Hit the later
+    # GWs are planned from the squad it reverts to.
     horizon = [g for g in range(current_gw, current_gw + lookahead) if g <= 38]
     gw_weight = {g: TIME_DECAY_RATE ** (g - current_gw) for g in horizon}
     log.info(f"[*] Planning horizon: GW{horizon[0]}-GW{horizon[-1]} | weights: "
              + ", ".join(f"GW{g}={w:.2f}" for g, w in gw_weight.items()))
-    check_gw = _check_decision_inputs(opts, horizon, bootstrap)    # decision check: None without --check
+    check_gw = _check_decision_inputs(opts, horizon, bootstrap)    # None without --check
 
-    # X3: one request for every fixture of the season (past and future)
-    all_fixtures = client.fixtures()
-    # C7: xP for EVERY remaining GW (not only the horizon): the chip estimates compare GWs up to
-    # the end of each chip's window (GW19 / GW38). The MILP still uses only the horizon.
+    all_fixtures = client.fixtures()                                # the whole season, one request
+    # xP for every remaining GW, not only the horizon: the chip estimates compare GWs up to the
+    # end of each chip's window (GW19 or GW38). The MILP uses only the horizon.
     ext_gws = list(range(current_gw, 39))
     fixtures_map = build_fixture_map(current_gw, len(ext_gws), all_fixtures)
 
-    # X3/X4: the model's inputs come from finished GWs of this season only.
+    # The model's inputs come from finished GWs of this season only.
     hist, history_gws = fetch_history(client, bootstrap, all_fixtures, current_gw)
     pos_of = {p['id']: p['element_type'] for p in bootstrap['elements']}
-    price_of = {p['id']: p['now_cost'] / 10.0 for p in bootstrap['elements']}  # X8: current price
-    # X9: GW from which each player is at his current club (bootstrap field team_join_date)
+    price_of = {p['id']: p['now_cost'] / 10.0 for p in bootstrap['elements']}
+    # GW from which each player is at his current club (bootstrap field team_join_date)
     deadlines = {e['id']: pd.Timestamp(e['deadline_time']) for e in bootstrap['events']
                  if e.get('deadline_time')}
     join_dates = {p['id']: p.get('team_join_date') for p in bootstrap['elements']}
     if deadlines and any(join_dates.values()):
         start_gw_of = xpm.first_gw_at_club(join_dates, deadlines)
-    else:  # field missing from the API -> minutes model uses all GWs (earlier behaviour)
+    else:  # field missing from the API: the minutes model uses all GWs
         log.warning("[WARNING] deadline_time / team_join_date missing; minutes model uses all GWs.",
                     extra={'code': 'join_dates_missing'})
         start_gw_of = None
     feats, team_rating, league_xg = xpm.build_features(hist, pos_of, current_gw, price_of, start_gw_of)
-    # 8c: if the GW before current_gw is not final yet (bonus points / corrections
-    # still pending) it is missing from hist. The ages stay calendar ages, so W is smaller and
-    # the minutes model shrinks more towards its prior; this is on purpose and only reported here.
+    # A GW that is not final yet (bonus points or corrections pending) is missing from hist. The
+    # ages stay calendar ages, so W is smaller and the minutes model shrinks more toward its
+    # prior; this is intended and only reported here.
     if not hist.empty and hist['gw'].max() < current_gw - 1:
         log.info(f"[INFO] GW{current_gw - 1} is not final yet: the minutes model uses data up to "
                  f"GW{int(hist['gw'].max())} (its estimates are shrunk more towards the prior).",
@@ -316,13 +312,13 @@ def _optimize(client, opts, warnings):
         log.warning("[WARNING] No finished GW yet: every player uses FPL's ep_next (fallback).",
                     extra={'code': 'no_history'})
 
-    # G2: number of matches per (team, GW). 0 = blank (BGW), 2 = double (DGW).
+    # Number of matches per (team, GW): 0 = blank, 2 = double.
     team_ids = [t['id'] for t in bootstrap['teams']]
-    n_matches = {(t, g): 0 for t in team_ids for g in ext_gws}   # C7: all remaining GWs
+    n_matches = {(t, g): 0 for t in team_ids for g in ext_gws}
     for t, matches in fixtures_map.items():
         for m in matches:
             n_matches[(t, m['gw'])] += 1
-    # display only; .get() with fallbacks so a renamed API field cannot crash the run
+    # Display only; the fallbacks keep a renamed API field from crashing the run.
     team_name = {t['id']: t.get('short_name') or t.get('name') or str(t['id']) for t in bootstrap['teams']}
     gw_fixtures = []
     for g in horizon:
@@ -332,24 +328,24 @@ def _optimize(client, opts, warnings):
             gw_fixtures.append((g, blank, double))
             log.info(f"[*] GW{g}: blank: {', '.join(blank) or '-'} | double: {', '.join(double) or '-'}")
 
-    # A: fetch the current squad BEFORE filtering players, so the filter below knows who we own.
-    ft0 = None   # M8: None = unlimited free transfers (before the team's first deadline)
+    # The current squad is loaded before the player filter, which keeps every owned player.
+    ft0 = None   # None = unlimited free transfers (before the team's first deadline)
     ft_api, ft_source = None, 'unlimited'
-    history = client.entry_history(team_id)   # also used below for the chips (C6)
-    # R2: a team created during the season has an empty 'current' list until its first deadline
-    # has passed, so it has no picks yet (asking for them gave a misleading 404). It starts like
-    # a GW1 team: no squad, GBP 100.0m, unlimited transfers. [assumption] the API returns
-    # current = [] for such a team (checked only on the fake API).
+    history = client.entry_history(team_id)
+    # A team created during the season has an empty 'current' list until its first deadline has
+    # passed, and no picks yet (asking for them returns a misleading 404). It starts like a GW1
+    # team: no squad, GBP 100.0m, unlimited transfers.
+    # [assumption] The API returns current = [] for such a team (checked on the fake API only).
     new_team = current_gw == 1 or not history.get('current')
     if new_team:
         current_squad = []
         bank = 0.0
         sell_price = {}
     else:
-        # R1 + S1: squad after a possible Free Hit revert, bank, selling prices
+        # Squad after a possible Free Hit revert, bank, selling prices
         current_squad, bank, sell_price, sell_hi = load_current_squad(client, team_id, current_gw, bootstrap,
                                                                       history)
-        # M8: free transfers rebuilt from the GW history; --ft overrides
+        # Free transfers rebuilt from the GW history; --ft overrides
         ft_api, issues = free_transfers_from_history(history, current_gw)
         for msg in issues:
             log.warning(f"[WARNING] Free-transfer rebuild: {msg}", extra={'code': 'ft_rebuild'})
@@ -365,19 +361,19 @@ def _optimize(client, opts, warnings):
     if ft0 is None:
         log.info("[*] Transfers are unlimited this GW (first deadline of the team).")
 
-    # C6: chip sets not played yet (bootstrap-static windows minus the entry history), for the
-    # "Chip suggestions" section. The main plan does NOT get chip variables: with every chip free
-    # the MILP stopped at the time limit with a gap of 117 points at lookahead 5 and a worse plan
-    # than without chips. --chip forces a chip in the current GW, as before.
+    # Chip sets not played yet (bootstrap-static windows minus the entry history). The main plan
+    # has no chip variables: with every chip free, the MILP at lookahead 5 stopped at the time
+    # limit with a gap of 117 points and a worse plan than without chips. --chip forces a chip in
+    # the current GW.
     chip_windows, chip_rows, chip_warn, chip_src = available_chips(bootstrap, history, current_gw)
     for msg in chip_warn:
         log.warning(f"[WARNING] Chips: {msg}", extra={'code': 'chips'})
     if new_team:
-        # R2: before the team's first deadline transfers are unlimited anyway, so a Wildcard gains
-        # nothing and a Free Hit squad would revert to no squad at all (its gain came out as -56
-        # points in a backtest). Their gains are not computed; BB and TC are.
+        # Before the team's first deadline transfers are unlimited anyway, so a Wildcard gains
+        # nothing and a Free Hit squad would revert to no squad at all. Only BB and TC are
+        # computed.
         chip_windows = {cp: w for cp, w in chip_windows.items() if cp not in ('WC', 'FH')}
-    # 15d E1: --chip is checked against the sets still available (before any solve)
+    # --chip is checked against the sets still available, before any solve.
     _check_chip_available(chip_used, current_gw, chip_windows, chip_rows, chips_active_now(history, current_gw),
                           new_team)
 
@@ -387,35 +383,32 @@ def _optimize(client, opts, warnings):
     for p in bootstrap['elements']:
         chance = p['chance_of_playing_next_round']
         available = chance is None or chance >= min_chance  # None = no injury news
-        # A: unavailable players are dropped from the pool EXCEPT our own.
-        # Our own must stay so that (1) their price counts in the budget and
-        # (2) the solver can keep them on the bench or sell them (shown in SELL).
-        # Decision check: the user's captain stays too (FPL lets an injured player be captain;
-        # his xP is 0 below), so that his decision can be solved and compared.
+        # Unavailable players are dropped from the pool, except the user's own: their selling
+        # price counts in the budget, and the solver can bench or sell them. The players of a
+        # decision check also stay (FPL lets an injured player be captain; his xP is 0 below),
+        # so that the decision can be solved.
         if not available and p['id'] not in current_squad and p['id'] != opts.check_captain \
                 and p['id'] not in (opts.check_in or ()) \
-                and p['id'] not in (opts.check_squad or ()):       # D3, 15b: nor the user's purchases / squad
+                and p['id'] not in (opts.check_squad or ()):
             continue
 
         pos = p['element_type']
         team = p['team']
         ep_next = float(p.get('ep_next') or 0.0)
         f = feats.get(p['id'])
-        # X5/X9: fallback for players with no GW yet at their current club (GW1, new signings):
-        # FPL's ep_next per match. A player who has been at the club all season without playing
-        # stays in the model (P(appear) ~ 0). It REPLACES the model for these players, it is
-        # never added to it, so nothing is counted twice.
+        # Players with no GW yet at their current club (GW1, new signings) use FPL's ep_next per
+        # match instead of the model, never in addition to it. A player who has been at the club
+        # all season without playing stays in the model (P(appear) near 0).
         source = 'model' if f is not None else 'FPL ep'
         n_next = n_matches.get((team, current_gw), 0)
         fallback_per_match = ep_next / n_next if n_next > 0 else float(p.get('points_per_game') or 0.0)
 
-        # X4: xp_gw[g] = sum over the team's matches in GW g of match_xp.
-        xp_gw = {g: 0.0 for g in ext_gws}            # C7: every remaining GW
-        # M6: P(no appearance in GW g) = product over his matches of (1 - P(appear)).
-        # [assumption] the matches of a DGW are independent. Blank GW -> product 1 -> P = 0.
-        # M9/8c: per-match P(appear) for the vice-captain / autosub terms is the SAME shrunk
-        # Papp that the xP uses (build_features). Fallback players (no GW at the club, W = 0)
-        # get the prior mean m.
+        # xp_gw[g] = sum of match_xp over the team's matches in GW g.
+        xp_gw = {g: 0.0 for g in ext_gws}
+        # P(no appearance in GW g) = product over his matches of (1 - P(appear)); a blank GW
+        # gives P(appear) = 0. [assumption] The matches of a double GW are independent.
+        # The vice-captain and autosub terms use the same shrunk Papp as the xP; players on the
+        # ep_next fallback get the prior mean.
         p_match = f['Papp'] if f is not None else xpm.APP_PRIOR_MEAN
         p_none = {g: 1.0 for g in ext_gws}
         comp_now = {}
@@ -432,18 +425,17 @@ def _optimize(client, opts, warnings):
             else:
                 mx = fallback_per_match
             if g == current_gw and chance is not None:
-                # X5: FPL's own probability (e.g. 75) scales the NEXT GW only.
-                # [assumption] the percentage is taken at face value.
+                # FPL's own probability (e.g. 75) scales the next GW only.
+                # [assumption] The percentage is taken at face value.
                 mx *= chance / 100.0
             xp_gw[g] += mx
 
         papp_gw = {g: 1.0 - p_none[g] for g in ext_gws}
         if chance is not None:
-            papp_gw[current_gw] *= chance / 100.0   # M6: same face-value use of chance as X5
+            papp_gw[current_gw] *= chance / 100.0
         if not available:
-            # A + G2: below --min-chance counts as not playing. chance_of_playing_next_round
-            # only describes the next GW; we conservatively assume 0 for the whole horizon
-            # (C7: and for the later GWs of the chip estimates).
+            # Below --min-chance counts as not playing. chance_of_playing_next_round describes
+            # only the next GW; 0 is assumed for every later GW too, to be conservative.
             xp_gw = {g: 0.0 for g in ext_gws}
             papp_gw = {g: 0.0 for g in ext_gws}
 
@@ -452,31 +444,30 @@ def _optimize(client, opts, warnings):
 
         players.append({
             'id': p['id'], 'name': p['web_name'], 'team': team,
-            # S2: 'cost' = what the player costs against the budget. Owned players: their
-            # SELLING price (keeping one means not receiving that amount); others: now_cost.
+            # 'cost' is what the player costs against the budget: the selling price for an owned
+            # player (keeping him means not receiving it), now_cost for the others.
             'position': pos, 'cost': sell_price.get(p['id'], p['now_cost'] / 10.0),
-            'xp_gw': {g: round(x, 2) for g, x in xp_gw.items()},  # G2: dict GW -> xP
-            'papp_gw': papp_gw,      # M6: dict GW -> P(appears at least once)
-            'available': available,  # A: used for the lineup constraint and the output
-            'price': p['now_cost'] / 10.0,  # M4: purchase price (owned players: re-buy price)
-            'ep_next': ep_next, 'source': source,  # V1: logged as baseline / X5
+            'xp_gw': {g: round(x, 2) for g, x in xp_gw.items()},
+            'papp_gw': papp_gw,             # P(appears at least once) per GW
+            'available': available,
+            'price': p['now_cost'] / 10.0,  # purchase price (re-buy price for an owned player)
+            'ep_next': ep_next, 'source': source,
         })
     found = {e.name.lower() for e in explained}
     explain_not_found = sorted(explain_names - found)
 
     df = pd.DataFrame(players)
 
-    # Financial state
     squad_sell_value = squad_value_high = None
-    if new_team:                      # R2: GW1 or a team created during the season
+    if new_team:                      # GW1 or a team created during the season
         total_budget = override_budget if override_budget else 100.0
         budget_source = 'override' if override_budget else 'default'
     else:
-        # S2: budget = selling value of the squad + bank. With cost = selling price for owned
-        # players, 'sum of costs <= budget' means: each sale returns the selling price and each
-        # purchase costs now_cost. Unavailable squad players are in df, so their cost counts.
+        # Budget = selling value of the squad + bank. With cost = selling price for owned
+        # players, 'sum of costs <= budget' means that each sale returns the selling price and
+        # each purchase costs now_cost. Unavailable squad players are in df, so their cost counts.
         squad_sell_value = df[df['id'].isin(current_squad)]['cost'].sum()
-        # 15c: the upper bound, for the summary; an exact budget from the user makes it moot
+        # Upper bound for the summary; not needed with an exact budget from the user
         squad_value_high = None if override_budget else float(sum(sell_hi[i] for i in current_squad))
         if override_budget:
             total_budget, budget_source = override_budget, 'override'
@@ -487,19 +478,18 @@ def _optimize(client, opts, warnings):
             log.info(f"[*] Budget: £{total_budget:.1f}m = squad selling value £{squad_sell_value:.1f}m "
                      f"+ bank £{bank:.1f}m")
 
-    # M: pool = plain dicts keyed by player id (the MILP needs fast lookups, not a DataFrame)
+    # Plain dicts keyed by player id: the MILP needs fast lookups, not a DataFrame.
     ids = df['id'].tolist()
     pos_dict = dict(zip(df['id'], df['position']))
-    cost_dict = dict(zip(df['id'], df['cost']))       # S2: selling price if owned, else now_cost
-    avail_dict = dict(zip(df['id'], df['available']))  # A
-    source_dict = dict(zip(df['id'], df['source']))    # X5
+    cost_dict = dict(zip(df['id'], df['cost']))
+    avail_dict = dict(zip(df['id'], df['available']))
+    source_dict = dict(zip(df['id'], df['source']))
     name_of = dict(zip(df['id'], df['name']))
     team_of = dict(zip(df['id'], df['team']))
     pool = {
         'ids': ids, 'pos': pos_dict, 'team': team_of, 'avail': avail_dict,
         'price': dict(zip(df['id'], df['price'])),
         'sell': {i: cost_dict[i] for i in current_squad if i in cost_dict},
-        # G2: key = (player_id, gameweek) tuple -> xP / P(appear) of that player in that GW
         'xp': {(i, g): x for i, xg in zip(df['id'], df['xp_gw']) for g, x in xg.items()},
         'papp': {(i, g): p_ for i, pg in zip(df['id'], df['papp_gw']) for g, p_ in pg.items()},
     }
@@ -510,7 +500,7 @@ def _optimize(client, opts, warnings):
     res = plan_squad(pool, horizon, gw_weight, start_squad, total_budget, ft0, chip_used,
                      max_hits, use_vice, use_bench, time_limit, solver)
 
-    # C: solve() does not raise on failure; it only sets the status.
+    # The solver does not raise on failure; it only sets the status.
     if 'plan' not in res:
         raise SolverError(f"Solver status: {res['status']}. No valid plan exists under these constraints.\n"
                           f"        Check --override-budget, --min-chance, --ft and --max-hits.")
@@ -523,13 +513,11 @@ def _optimize(client, opts, warnings):
         log.info(f"[*] Bench weights still changed by {res['beta_change']:.2f} after {res['passes']} passes "
                  f"(they depend on the chosen XI); the last plan is used.", extra={'code': 'bench_not_converged'})
     if not res['proven']:
-        # M7: time limit reached; the plan is feasible and its distance from the best
-        # possible plan of this model is at most the gap (weighted points)
         log.info(f"[*] Time limit reached before the {MIP_REL_GAP:.2%} target: a longer --time-limit "
                  f"can only improve the plan or tighten the gap.", extra={'code': 'time_limit'})
 
     def outputs(res):
-        """C13: the output rows of a plan result (main plan, or the plan with the suggested chip)."""
+        """Output rows of a plan result: the main plan, or the plan with the suggested chip."""
         plan, now = res['plan'], res['plan'][current_gw]
         # Squad of the current GW with roles
         n_now = {i: n_matches[(team_of[i], current_gw)] for i in ids}
@@ -538,7 +526,7 @@ def _optimize(client, opts, warnings):
             if i == now['captain']:
                 role = 'Captain'
             elif i == now['vice']:
-                role = 'Vice'                       # M6: logged too (counts as a starter in evaluate)
+                role = 'Vice'                       # counts as a starter in evaluate
             elif i in now['xi']:
                 role = 'Start'
             else:
@@ -553,8 +541,8 @@ def _optimize(client, opts, warnings):
         # XI by position, then the bench in its order (GK first, then outfield slots 1-3)
         squad_rows.sort(key=lambda r: (r.role == 'Bench', r.bench_slot, r.pos_id))
 
-        # M: the whole plan (only the current GW is a decision now; later GWs are re-planned
-        # every week with new data)
+        # The whole plan. Only the current GW is a decision now; later GWs are re-planned every
+        # week with new data.
         plan_rows = []
         for g in horizon:
             pg = plan[g]
@@ -567,11 +555,11 @@ def _optimize(client, opts, warnings):
                 vice_id=pg['vice'], vice_name=name_of[pg['vice']] if pg['vice'] is not None else None,
                 squad=list(pg['squad']), xi=list(pg['xi']), bench=list(pg['bench'])))
 
-        # S3: each sale of the current GW with the selling price it returns
+        # Each sale of the current GW with the selling price it returns
         sales_now = [(i, name_of[i], cost_dict[i], bool(avail_dict[i])) for i in now['out']] if not new_team else []
 
-        # G4/M5/M6: current-GW expected points, split into their parts (chip effects included)
-        bb = now['chip'] == 'BB'                      # C3: chip of the current GW in the plan
+        # Expected points of the current GW, split into their parts (chip effects included)
+        bb = now['chip'] == 'BB'
         mult = 2.0 if now['chip'] == 'TC' else 1.0
         xi_pts = sum(xp_dict[(i, current_gw)] for i in (now['squad'] if bb else now['xi']))
         cap_pts = mult * xp_dict[(now['captain'], current_gw)]
@@ -595,12 +583,12 @@ def _optimize(client, opts, warnings):
     squad_rows, plan_rows, sales_now, expected = outputs(res)
     n_fb = sum(1 for p in players if p['source'] != 'model')
     if n_fb:
-        log.info(f"[*] {n_fb} player(s) with no GW at their current club yet use FPL's ep_next (marked '(FPL ep)').")  # X5
+        log.info(f"[*] {n_fb} player(s) with no GW at their current club yet use FPL's ep_next (marked '(FPL ep)').")
 
-    # 15c (decision A): the gain of this GW's transfers over making none, for the summary. Not with
-    # WC/FH (their transfers are free) nor before the first deadline (no squad to keep).
+    # Gain of this GW's transfers over making none, for the summary. Not with WC/FH (their
+    # transfers are free) nor before the first deadline (no squad to keep).
     no_transfer, no_transfer_s = None, 0.0
-    solves = {}                                     # N4: the 'no transfer' solve, reused by --check TRANSFERS
+    solves = {}                                     # the 'no transfer' solve, reused by --check TRANSFERS
     if opts.transfer_gain and now['in'] and not new_team and now['chip'] not in ('WC', 'FH'):
         no_transfer, no_transfer_s = transfer_gain(pool, horizon, gw_weight, start_squad, total_budget, ft0, res,
                                                    chip_used, max_hits, use_vice, use_bench,
@@ -612,7 +600,7 @@ def _optimize(client, opts, warnings):
         else:
             log.info("[*] Transfers vs no transfer: not computed in the time limit.",
                      extra={'code': 'no_transfer_not_computed'})
-    # 15c (--details): every formation of the current GW's squad; not with Bench Boost (all 15 score)
+    # Every formation of the current GW's squad (--details); not with Bench Boost (all 15 score)
     formations, formations_s = [], 0.0
     if opts.formations and now['chip'] != 'BB':
         t_f = time.time()
@@ -623,9 +611,9 @@ def _optimize(client, opts, warnings):
         if any(f['points'] is None for f in formations):
             log.info("[*] Formations: not every formation was computed in the time limit.",
                      extra={'code': 'formations_not_computed'})
-    spent = res['seconds'] + no_transfer_s + formations_s   # M10: one time limit for the whole run
+    spent = res['seconds'] + no_transfer_s + formations_s   # one time limit for the whole run
 
-    # Decision check: after the main plan (its Z0), before the chip analysis (the user asked for it)
+    # The decision check runs before the chip analysis: the user asked for it.
     decision, decision_s = None, 0.0
     if check_gw is not None:
         decision = _decision_section(opts, check_gw, chip_windows, chip_rows, pool, horizon, gw_weight, start_squad,
@@ -635,7 +623,7 @@ def _optimize(client, opts, warnings):
             decision_s = decision.result['seconds']
             log.info(f"[*] Decision check: {decision.chip} GW{decision.gw}: {decision_s:.1f} s")
 
-    # C10: chip suggestions (opportunity costs)
+    # Chip suggestions (opportunity costs)
     chips = ChipSection(source=chip_src, sets=list(chip_rows), status='computed')
     t_chips = time.time()
     chip_plans = {}
@@ -644,11 +632,10 @@ def _optimize(client, opts, warnings):
     elif chip_used != 'NONE':
         chips.status = 'skipped_chip'
     else:
-        # M10: one limit for the whole run (main plan, decision check, chip analysis)
         time_left = (time_limit or SOLVER_TIME_LIMIT) - spent - decision_s
         rep = chip_report(pool, horizon, gw_weight, plan, start_squad, total_budget, ft0, chip_windows,
                           max_hits, use_vice, use_bench, time_left, solver,
-                          main_result=res)          # N1: reused when the horizon is <= 3 GWs (same model)
+                          main_result=res)          # reused when the horizon is at most 3 GWs
         chips.window, chips.exact, chips.error, chips.estimates = rep['window'], rep['exact'], rep['gap'], rep['est']
         chip_plans = rep['plans']
         chips.not_computed = list(rep['skipped'])
@@ -663,9 +650,9 @@ def _optimize(client, opts, warnings):
         log.info(f"[*] Chip analysis: {chips.seconds:.1f} s")
     chips_s = time.time() - t_chips
 
-    # C13: the plan with the suggested chip, so that the user does not have to run again with --chip X.
-    # Same solve as the main plan of such a run (plan_squad with the chip fixed now, same options), in the
-    # time left of the same limit; only a complete solve is shown (C12).
+    # The plan with the suggested chip, so that the user does not have to run again with --chip X:
+    # the same solve as such a run, in the time left of the same limit. Only a complete solve is
+    # shown.
     chip_plan = None
     pick = (chips.advice or {}).get('pick')
     if opts.chip_plan and pick is not None and chip_used == 'NONE':
@@ -686,7 +673,7 @@ def _optimize(client, opts, warnings):
 
     log_written = None
     if opts.write_log:
-        log_predictions(current_gw, players, {r.id: r.role for r in squad_rows}, opts.log_path)  # V1: whole pool
+        log_predictions(current_gw, players, {r.id: r.role for r in squad_rows}, opts.log_path)
         log_written = opts.log_path
     else:
         log.info(f"[*] Predictions not written to {opts.log_path} (--no-log).")
@@ -720,8 +707,10 @@ def _chip_unavailable_message(chip, gw, chip_rows):
 
 
 def _check_chip_available(chip, gw, chip_windows, chip_rows, active_now, new_team):
-    """15d E1: --chip must be playable in GW`gw`: a set of the chip that is open and not played, or the chip
-    already active for this GW (before its deadline). Otherwise the plan could not be played."""
+    """Require --chip to be playable in GW`gw`.
+
+    Playable means a set of the chip that is open and not played, or the chip already active for
+    this GW (before its deadline). Otherwise the plan could not be played."""
     if chip == 'NONE' or chip in active_now:
         return
     if new_team and chip in ('WC', 'FH'):
@@ -737,7 +726,7 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
     chip, cap = opts.check, opts.check_captain
     sec = DecisionSection(chip=chip, gw=gw, captain_id=cap, captain_name=name_of.get(cap), status='invalid')
     if chip in SQUAD_CHIPS:
-        # 15d E2: the user's squad is part of the decision, so it is shown even when a rule stops the check below
+        # The user's squad is part of the decision, so it is shown even when a rule stops the check.
         sec.squad = list(opts.check_squad)
         for i in sec.squad:
             sec.names[i] = name_of[i]             # every id is in the pool (kept by the filter above)
@@ -745,14 +734,14 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
         return _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of,
                                   avail_dict, spent, no_transfer_result)
     if chip in SQUAD_CHIPS and not start_squad:
-        # R2: before the team's first deadline transfers are unlimited and there is no squad to return to
+        # Before the team's first deadline transfers are unlimited and there is no squad to return to
         sec.violations.append({'code': 'chip_unavailable', 'message': f"{chip} cannot be checked before the team's "
                                f"first deadline: transfers are unlimited, so it changes nothing"})
         log.warning(f"[WARNING] Decision check: {sec.violations[0]['message']}", extra={'code': 'decision_invalid'})
         return sec
     window_end = next((e for s, e in chip_windows.get(chip, []) if s <= gw <= e), None)
     if window_end is None:
-        # played already, or its window ended, or (GW1-19 / GW20-38) no unplayed set covers this GW
+        # Played already, its window ended, or no unplayed set covers this GW
         sec.violations.append({'code': 'chip_unavailable', 'message': _chip_unavailable_message(chip, gw, chip_rows)})
         log.warning(f"[WARNING] Decision check: {sec.violations[0]['message']}", extra={'code': 'decision_invalid'})
         return sec
@@ -763,8 +752,8 @@ def _decision_section(opts, gw, chip_windows, chip_rows, pool, horizon, gw_weigh
         sec.notes.append({'code': 'captain_unavailable',
                           'message': f"{sec.captain_name} is below --min-chance: his xP is 0 (the armband "
                                      f"may pass to the vice-captain)"})
-    # the main plan's own time limit is the budget for the whole run; the check gets what is left
-    # (at least 1 ms: a time limit of 0 would mean 'the default' to check_decision)
+    # The check gets what is left of the run's time limit; at least 1 ms, because 0 means
+    # "the default" to check_decision.
     time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, chip, gw, cap,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
@@ -791,8 +780,10 @@ def _finish_section(sec, name_of):
 
 def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget, ft0, res, name_of, avail_dict,
                        spent, no_transfer_result=None):
-    """D3: the user's transfers of the current GW. Rules of the game first (the new squad must be a
-    valid FPL squad within the budget); a broken rule makes the check 'invalid' with no solve."""
+    """Check the user's transfers of the current GW.
+
+    The rules of the game come first (the new squad must be a valid FPL squad within the budget);
+    a broken rule makes the check 'invalid' with no solve."""
     outs, ins = list(opts.check_out), list(opts.check_in)
     sec.transfers_out, sec.transfers_in = outs, ins
     for i in outs + ins:
@@ -810,7 +801,7 @@ def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget,
         sec.violations += _squad_violations(squad, start_squad, pool, name_of, budget,
                                             ": sell and buy the same positions")
         if ft0 is not None and opts.max_hits is not None and len(ins) - ft0 > opts.max_hits:
-            # not a rule of the game but the user's own cap: the decision could not be solved under it
+            # Not a rule of the game but the user's own cap, under which the decision has no plan
             sec.violations.append({'code': 'max_hits', 'message': f"{len(ins) - ft0} hit(s) needed, above "
                                                                    f"--max-hits {opts.max_hits}"})
     if sec.violations:
@@ -828,14 +819,15 @@ def _transfers_section(sec, opts, pool, horizon, gw_weight, start_squad, budget,
     time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, 'TRANSFERS', sec.gw, None,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver, squad=squad,
-                                z0_result=no_transfer_result)       # N4: Z0 = the 'no transfer' solve
+                                z0_result=no_transfer_result)       # Z0 = the 'no transfer' solve
     _finish_section(sec, name_of)
     return sec
 
 
 def _squad_violations(squad, start_squad, pool, name_of, budget, hint=""):
-    """Rules of the game for a new 15-man squad (D3 transfers, 15b WC/FH): 2/5/5/3, at most 3 per club,
-    and the budget. Returns [{'code', 'message'}], [] = valid."""
+    """Rules of the game for a new 15-man squad (transfers, WC, FH).
+
+    2/5/5/3, at most 3 per club, and the budget. Returns [{'code', 'message'}], [] = valid."""
     out, owned = [], set(start_squad)
     pos, team = pool['pos'], pool['team']
     counts = {p_: sum(1 for i in squad if pos[i] == p_) for p_ in (1, 2, 3, 4)}
@@ -846,10 +838,10 @@ def _squad_violations(squad, start_squad, pool, name_of, budget, hint=""):
     if over:
         out.append({'code': 'club_limit', 'message': "more than 3 players from one club: "
                     + ", ".join(", ".join(name_of[i] for i in squad if team[i] == t) for t in over)})
-    # budget in whole tenths of GBPm, as the game counts it (no float rounding at the limit):
-    # a kept player costs his selling price, a bought one his current price (S2). 15b: with constant
-    # prices this is the cheapest the squad can cost in any plan, so the check is exact: the squad fits the
-    # budget in some plan if and only if it passes
+    # Budget in whole tenths of GBPm, as the game counts it (no float rounding at the limit): a kept
+    # player costs his selling price, a bought one his current price. With constant prices this is
+    # the cheapest the squad can cost in any plan, so the squad fits the budget in some plan if and
+    # only if it passes.
     cost = sum(round(10 * pool['sell'][i]) if i in owned else round(10 * pool['price'][i]) for i in squad)
     if cost > round(10 * budget):
         out.append({'code': 'over_budget', 'message': f"the new squad costs £{cost / 10:.1f}m, "
@@ -859,14 +851,16 @@ def _squad_violations(squad, start_squad, pool, name_of, budget, hint=""):
 
 def _squad_chip_section(sec, opts, window_end, chip_rows, pool, horizon, gw_weight, start_squad, budget, ft0, res,
                         name_of, avail_dict, spent):
-    """15b: a Wildcard or Free Hit with the user's squad S in GW sec.gw (the chip's window was checked by the
-    caller). Rules of the game first (positions, clubs, budget, a Free Hit in two GWs in a row); a broken rule
-    makes the check 'invalid' with no solve."""
-    chip, gw, squad = sec.chip, sec.gw, sec.squad   # 15d E2: set (with the names) by the caller
+    """Check a Wildcard or Free Hit with the user's squad in GW sec.gw.
+
+    The caller has checked the chip's window and set the squad and its names. The rules of the game
+    come first (positions, clubs, budget, a Free Hit in two GWs in a row); a broken rule makes the
+    check 'invalid' with no solve."""
+    chip, gw, squad = sec.chip, sec.gw, sec.squad
     sec.violations += _squad_violations(squad, start_squad, pool, name_of, budget)
     fh_before = any(cp == 'FH' and st == f"played GW{gw - 1}" for cp, _, _, st in chip_rows)
     if chip == 'FH' and gw == horizon[0] and fh_before:
-        # the game allows no Free Hit in two GWs in a row; for a later GW the plans play no other chip
+        # No Free Hit in two GWs in a row; for a later GW the plans play no other chip
         sec.violations.append({'code': 'fh_consecutive', 'message': f"a Free Hit was played in GW{gw - 1}: "
                                f"no Free Hit in GW{gw}"})
     if sec.violations:
@@ -887,22 +881,23 @@ def _squad_chip_section(sec, opts, window_end, chip_rows, pool, horizon, gw_weig
         n = horizon[-1] - gw + 1
         sec.notes.append({'code': 'wc_horizon', 'message': f"the Wildcard is measured over {n} GW(s) "
                           f"(GW{gw}-GW{horizon[-1]}), not the rest of the season: raise --lookahead to measure "
-                          f"it over more"})                                                     # 15b O1
+                          f"it over more"})
         sec.notes.append({'code': 'wc_no_timing', 'message': "the GW of a Wildcard is not checked: there is "
-                          "no one-GW estimate for it"})                                         # 15b O3
+                          "no one-GW estimate for it"})
     time_left = max((opts.time_limit or SOLVER_TIME_LIMIT) - spent, 0.001)
     sec.result = check_decision(pool, horizon, gw_weight, start_squad, budget, ft0, res, chip, gw, None,
                                 opts.max_hits, opts.use_vice, opts.use_bench, time_left, opts.solver,
-                                window_end=window_end if chip == 'FH' else None, squad=squad)   # 15b O3: FH only
+                                window_end=window_end if chip == 'FH' else None, squad=squad)   # timing: FH only
     _finish_section(sec, name_of)
     return sec
 
 
 def _check_decision_inputs(opts, horizon, bootstrap):
-    """Decision check: argument errors (InputError, exit 2), found right after bootstrap-static,
-    before the other downloads and any solve. Returns the GW of the decision, or None without a
-    check. The rules of the game that need the team's data (is the chip still available?) are
-    checked later and make the check 'invalid'."""
+    """Validate the decision-check arguments right after bootstrap-static.
+
+    Argument errors raise InputError (exit 2) before the other downloads and any solve. Returns
+    the GW of the decision, or None without a check. The rules of the game that need the team's
+    data (is the chip still available?) are checked later and make the check 'invalid'."""
     if opts.check is None:
         return None
     if opts.check not in CHECK_KINDS:
@@ -938,7 +933,6 @@ def _check_decision_inputs(opts, horizon, bootstrap):
         if outs or ins:
             raise InputError(f"--out and --in are used only with --check TRANSFERS (not with --check {opts.check}).")
         return gw
-    # D3: transfers
     if gw != horizon[0]:
         raise InputError(f"--check TRANSFERS is for the current GW (GW{horizon[0]}), not GW{gw}.")
     if not outs or len(outs) != len(ins):
@@ -952,7 +946,7 @@ def _check_decision_inputs(opts, horizon, bootstrap):
 
 
 def _explain_entry(p, f, comp_now, xp_gw, source, chance, team_name, horizon):
-    """X7: the data behind one --explain block (printed by report.py)."""
+    """The data behind one --explain block (printed by report.py)."""
     mm = None
     if f is not None:
         mm = {k: f[k] for k in ('Papp', 'raw_Papp', 'P60', 'raw_P60', 'Emin', 'raw_Emin', 'Wapp',
