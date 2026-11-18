@@ -1,5 +1,5 @@
-# Slow tests (full optimizer runs on the synthetic season, 5-15 minutes). Started by hand only:
-# Actions tab -> slow-tests -> Run workflow. One Linux job is enough: they check solver results,
+# Slow tests (full optimizer runs on the synthetic season, 5-15 minutes), started by hand from
+# the Actions tab (slow-tests, Run workflow). One Linux job is enough: they check solver results,
 # which the fast tests already cover across platforms.
 name: slow-tests
 
