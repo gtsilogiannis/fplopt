@@ -1,6 +1,6 @@
 """Machine-readable output (--json): one JSON document on stdout, UTF-8.
 
-Written for the C console frontend and the website (roadmap: GUI / frontend). Design rules:
+Written for the C console frontend and the website. Design rules:
   - exactly one document per run, also on failure ({"ok": false, "error": {...}});
   - no object whose keys are numbers: per-GW values are arrays of {"gw": ..., ...};
   - fixed field names; enums are short strings; null = not applicable / unknown;
@@ -23,7 +23,7 @@ def _header(mode, ok):
 
 
 def optimize_to_dict(r):
-    """engine.OptimizeResult -> dict."""
+    """Convert an engine.OptimizeResult to a dict."""
     o, c, ep, s = r.options, r.chips, r.expected_now, r.solver
     adv = c.advice or {}
     doc = _header('optimize', True)
@@ -67,16 +67,16 @@ def optimize_to_dict(r):
             'also_best_now': list(adv.get('also', [])),
             'holds': [{'chip': cp, 'now': now, 'best_gw': g, 'best': best, 'window_end': end}
                       for cp, now, g, best, end in adv.get('holds', [])],
-            'incomplete': list(adv.get('incomplete', [])),   # C12
+            'incomplete': list(adv.get('incomplete', [])),
             'wc_note': ({'wc_delta': adv['wc_note'][0], 'suggested_delta': adv['wc_note'][1]}
                         if adv.get('wc_note') is not None else None),
             'not_computed': list(c.not_computed),
             'seconds': c.seconds,
         },
         'decision_check': _decision(r.decision),
-        'formations': [dict(f) for f in r.formations],  # 15c: every formation of the current GW's squad
-        'chip_plan': _chip_plan(r.chip_plan),            # C13: plan with the suggested chip; null = none
-        # 15c: plain-English summary. Its text gives the deadline in the time zone of the machine that runs
+        'formations': [dict(f) for f in r.formations],  # every formation of the current GW's squad
+        'chip_plan': _chip_plan(r.chip_plan),            # plan with the suggested chip; null = none
+        # Plain-English summary. Its text gives the deadline in the time zone of the machine that runs
         # the engine (the user's own with the C frontend); a server reads 'deadline_utc' instead.
         'summary': build_summary(r),
         'explain': [{
@@ -128,7 +128,7 @@ def _expected(ep):
 
 
 def _chip_plan(cp):
-    """C13: engine.ChipPlan -> dict (same fields as the main plan); None without a suggested chip."""
+    """Convert an engine.ChipPlan to a dict (same fields as the main plan); None without one."""
     if cp is None:
         return None
     done = cp.status == 'computed'
@@ -143,9 +143,11 @@ def _chip_plan(cp):
 
 
 def _decision(d):
-    """engine.DecisionSection -> dict; None without --check. Keys 'no_chip', 'best', 'decision' name
-    Z0 (plan without the action: no chip, or no transfer), Z+ (best version of the action: the best
-    plan with the chip, or the model's transfers) and Z(D) (the user's decision)."""
+    """Convert an engine.DecisionSection to a dict; None without --check.
+
+    The keys 'no_chip', 'best' and 'decision' hold Z0 (the plan without the action: no chip, or no
+    transfer), Z+ (the best version of the action: the best plan with the chip, or the model's
+    transfers) and Z(D) (the user's decision)."""
     if d is None:
         return None
     x = d.result or {}                                    # {} when the check is invalid (nothing solved)
@@ -175,9 +177,9 @@ def _decision(d):
         'captain_bought': x.get('captain_bought'),
         'transfers': ({'out': [who(i) for i in d.transfers_out], 'in': [who(i) for i in d.transfers_in]}
                       if d.chip == 'TRANSFERS' else None),
-        'squad': [who(i) for i in d.squad] if d.squad else None,        # 15b WC/FH: the user's 15
+        'squad': [who(i) for i in d.squad] if d.squad else None,        # WC/FH: the user's 15
         'squad_diff': _squad_diff(x.get('squad_diff'), who),
-        'gws_measured': x.get('gws_measured'),                          # 15b O1: WC only
+        'gws_measured': x.get('gws_measured'),                          # WC only
         'timing': None if t is None else {
             'window_end': t['window_end'], 'at_gw': t['at_gw'], 'best_gw': t['best_gw'], 'best': t['best'],
             'is_best': t['is_best'], 'estimates': [{'gw': g, 'delta': v} for g, v in sorted(t['estimates'].items())]},
@@ -187,7 +189,7 @@ def _decision(d):
 
 
 def _squad_diff(sd, who):
-    """15b: decision.squad_diff with names; None for TC/BB/TRANSFERS or when Z+ was not solved."""
+    """decision.squad_diff with names; None for TC/BB/TRANSFERS or when Z+ was not solved."""
     if sd is None:
         return None
     row = lambda e: dict(who(e['id']), pos=e['pos'], xp=e['xp'])
@@ -196,7 +198,7 @@ def _squad_diff(sd, who):
 
 
 def evaluate_to_dict(r, warnings=()):
-    """predictions.EvaluateResult -> dict."""
+    """Convert a predictions.EvaluateResult to a dict."""
     doc = _header('evaluate', True)
     doc.update({
         'gw': r.gw, 'log_path': r.log_path,
@@ -210,7 +212,7 @@ def evaluate_to_dict(r, warnings=()):
 
 
 def error_to_dict(exc, mode=None, warnings=()):
-    """An exception -> {"ok": false, "error": {"exit_code", "type", "message"}}."""
+    """Convert an exception to {"ok": false, "error": {"exit_code", "type", "message"}}."""
     doc = _header(mode, False)
     doc['error'] = {'exit_code': getattr(exc, 'exit_code', EXIT_INTERNAL),
                     'type': getattr(exc, 'kind', 'internal'),
@@ -220,7 +222,7 @@ def error_to_dict(exc, mode=None, warnings=()):
 
 
 def _clean(x):
-    """Plain JSON types only: numpy scalars -> Python numbers, NaN/infinity -> null, tuples -> lists."""
+    """Convert to plain JSON types: numpy scalars to Python numbers, NaN and infinity to None, tuples to lists."""
     if isinstance(x, dict):
         return {str(k): _clean(v) for k, v in x.items()}
     if isinstance(x, (list, tuple)):

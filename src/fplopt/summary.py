@@ -1,10 +1,10 @@
-"""Plain-English summary of a run (chat 15c): "what do I do this gameweek", for readers with no
-background in maths or programming.
+"""Plain-English summary of a run: "what do I do this gameweek", for readers with no background
+in math or programming.
 
-build_summary() turns an engine.OptimizeResult into (1) a dict for the JSON output and (2) the
-lines of text the command line prints. It computes NO new decision: every fact comes from the
-result (S1), so the summary can never disagree with the full output (--details). Only rounding
-and wording are added here.
+build_summary() turns an engine.OptimizeResult into a dict for the JSON output and the lines of
+text the command line prints. It makes no decision of its own: every fact comes from the result,
+so the summary cannot disagree with the full output (--details). Only rounding and wording are
+added here.
 """
 import math
 import re
@@ -17,24 +17,23 @@ from .rules import HIT_COST, MAX_FT
 # 10th and 90th percentile over 44 GWs of walk-forward backtest (scripts/calibrate_xp.py,
 # top11), 2024/25 (34 GWs) and 2025/26 (10 GWs), only GWs where the dataset has FPL's own
 # projection (the only GWs with an availability proxy; a live run leaves out injured players
-# too). Pooled mean -1.0, SD 19.6. Limits: top11 picks the 11 highest predictions with no
-# budget or formation and no vice / autosubs, so it is close to, not equal to, the plan's XI;
+# too). Pooled mean -1.0, SD 19.6. top11 picks the 11 highest predictions with no budget or
+# formation and no vice-captain or autosubs, so it is close to, not equal to, the plan's XI;
 # with 44 GWs the ends are uncertain by a few points.
 RANGE_LOW = -25.4
 RANGE_HIGH = 24.0
 
 CHIP_NAME = {'WC': 'Wildcard', 'FH': 'Free Hit', 'BB': 'Bench Boost', 'TC': 'Triple Captain'}
 CHIP_ORDER = ('BB', 'TC', 'WC', 'FH')      # display order of the CHIPS section (the order of the FPL app)
-# English names, NOT strftime('%a'): strftime follows the system locale (e.g. 'Σαβ' in Greek)
+# English names, not strftime('%a'), which follows the system locale
 DAYS = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
 WIDTH = 72          # text width of the summary (fits an 80-column terminal)
 NOISE = "Chip gains are estimates: differences of a few tenths are within the model's error."
 
 
-# --------------------------------------------------------------------------- rounding
 def half_up(x):
-    """Rounds to the nearest integer, .5 up (Python's round() sends 62.5 to 62)."""
+    """Round to the nearest integer, .5 up (Python's round() sends 62.5 to 62)."""
     return int(math.floor(x + 0.5))
 
 
@@ -53,20 +52,22 @@ def money(x):
 
 
 def tenths(x):
-    """GBPm -> whole tenths (prices are whole tenths; the game counts money this way)."""
+    """GBPm to whole tenths, the unit in which the game counts money."""
     return round(10 * x)
 
 
 def format_deadline(deadline_utc, tz=None):
-    """'2026-10-31T11:00:00Z' -> 'Sat 31 Oct, 13:00' in the time zone tz (None = the time zone of
-    the operating system). astimezone() applies summer/winter time of that date."""
+    """Format a UTC deadline such as '2026-10-31T11:00:00Z' as 'Sat 31 Oct, 13:00' in time zone tz.
+
+    tz=None uses the time zone of the operating system. astimezone() applies the daylight saving
+    time of that date."""
     t = datetime.fromisoformat(deadline_utc.replace('Z', '+00:00')).astimezone(tz)
     return f"{DAYS[t.weekday()]} {t.day} {MONTHS[t.month - 1]}, {t.hour:02d}:{t.minute:02d}"
 
 
-# --------------------------------------------------------------------------- transfers
 def pays_for(bank, deltas):
     """Which sales pay for the other purchases. All amounts in whole tenths of GBPm.
+
     bank:   money in the bank before the transfers;
     deltas: per move, selling price of the player out minus price of the player in.
     A move k with delta_k > 0 pays for the others iff without it the purchases do not fit and
@@ -77,8 +78,10 @@ def pays_for(bank, deltas):
 
 def _transfers(r, pg, squad=None, sales_now=None, vs_no_transfer=True):
     """Moves of the current GW with their money; None for the bank fields at GW1 (no squad yet).
-    squad, sales_now: those of another plan of the same GW (C13: the plan with the suggested chip);
-    None = the main plan's. vs_no_transfer=False: no gain over 'no transfer' (only the main plan has it)."""
+
+    squad, sales_now: those of another plan of the same GW (the plan with the suggested chip);
+    None = the main plan's. vs_no_transfer=False: no gain over 'no transfer' (only the main plan
+    has it)."""
     squad = r.squad if squad is None else squad
     sales_now = r.sales_now if sales_now is None else sales_now
     sell = {i: price for i, _, price, _ in sales_now}               # selling price of each sale
@@ -96,7 +99,7 @@ def _transfers(r, pg, squad=None, sales_now=None, vs_no_transfer=True):
         'hit_points': HIT_COST * pg.hits, 'moves': moves,
         'bank_before': bank / 10 if bank is not None else None,
         'bank_after': (bank + sum(deltas)) / 10 if known else None,
-        # unweighted gain over making no transfer (engine, decision.transfer_gain); None = not computed
+        # Unweighted gain over making no transfer (decision.transfer_gain); None = not computed
         'vs_no_transfer': r.no_transfer if vs_no_transfer else None,
     }
 
@@ -127,11 +130,11 @@ def _transfer_rows(r, t, chip):
     # the points cost is shown only when there is one
     cost = "" if hits == 0 else f" ({hits} extra transfer{'s' if hits != 1 else ''}: -{t['hit_points']} points)"
     rows = [('Free transfers', f"{ft}{cost}")]
-    w = max(len(m['out']['name']) for m in t['moves'])        # dynamic columns: the longest name sets them
+    w = max(len(m['out']['name']) for m in t['moves'])        # the longest name sets the column
     v = max(len(m['in']['name']) for m in t['moves'])
     for m in t['moves']:
         d = m['money']
-        # money of the move: '-' = you pay more than the sale returns, '+' = money left over
+        # Money of the move: '-' = you pay more than the sale returns, '+' = money left over
         price = "" if d is None else ("(same price)" if d == 0 else f"({'+' if d > 0 else '-'}{money(d)})")
         rows.append(('', f"    {m['out']['name']:<{w}} -> {m['in']['name']:<{v}}   {price}".rstrip()))
     if t['bank_before'] is not None and t['bank_after'] is not None:
@@ -153,7 +156,6 @@ def _transfer_rows(r, t, chip):
     return rows
 
 
-# --------------------------------------------------------------------------- chips
 def _chips(r):
     c = r.chips
     res = {'status': c.status, 'playing': None, 'play': None, 'also': [], 'hold': [], 'no_advice': [],
@@ -175,7 +177,7 @@ def _chips(r):
 
 
 def _with_states(r, res):
-    """Adds 'by_chip': one {chip, status, text} per chip, in the display order (for the text and the JSON)."""
+    """Add 'by_chip': one {chip, status, text} per chip, in display order (for the text and the JSON)."""
     if res['status'] != 'skipped_flag':
         res['by_chip'] = [{'chip': cp, 'status': st, 'text': cap(tx)}
                           for cp, (st, tx) in ((cp, _chip_state(r, res, cp)) for cp in CHIP_ORDER)]
@@ -205,7 +207,7 @@ def _chip_state(r, ch, cp):
                                 f"so the timing is your call")
     if cp in ch['no_advice']:
         return 'no_advice', "no advice (not enough time; see below)"
-    # not playable now: say why, from the chip sets of the season (state: available / played GWn / expired)
+    # Not playable now: say why, from the chip sets of the season (available, played GWn, expired)
     sets = sorted((s0, s1, st) for x, s0, s1, st in c.sets if x == cp)
     now_set = next(((s0, s1, st) for s0, s1, st in sets if s0 <= g0 <= s1), None)
     later = next((s0 for s0, s1, st in sets if s0 > g0 and st == 'available'), None)
@@ -232,7 +234,7 @@ def _chip_rows(r, ch):
     elif ch['play'] is not None:
         cp = ch['play']['chip']
         if r.chip_plan is not None and r.chip_plan.chip == cp:
-            rows.append((None, f"Suggested: {CHIP_NAME[cp]} this gameweek. Its plan is below."))   # C13
+            rows.append((None, f"Suggested: {CHIP_NAME[cp]} this gameweek. Its plan is below."))
         else:
             rows.append((None, f"Suggested: {CHIP_NAME[cp]}. The plan above does not use it: run again with "
                                f"--chip {cp} to see the {CHIP_NAME[cp]} squad."))
@@ -247,7 +249,6 @@ def _chip_rows(r, ch):
     return rows
 
 
-# --------------------------------------------------------------------------- lineup
 def _tag(row):
     """Plain words for a player's flags in the lineup."""
     t = []
@@ -266,7 +267,7 @@ def _xi_rows(squad, chip):
     bench = [s for s in squad if s.role == 'Bench']          # already in bench order (GK first)
     n = {p: sum(1 for x in xi if x.position == p) for p in ('DEF', 'MID', 'FWD')}
     rows = [(p, ", ".join(_tag(x) for x in xi if x.position == p)) for p in ('GK', 'DEF', 'MID', 'FWD')]
-    # bench in its order: the GK first (his own slot), then outfield slots 1-3
+    # Bench in its order: the GK first (his own slot), then outfield slots 1-3
     names = [_tag(b) + " (GK)" if b.pos_id == 1 else f"{b.bench_slot}. {_tag(b)}" for b in bench]
     rows.append(('Bench', ", ".join(names)))
     if chip == 'BB':
@@ -281,10 +282,10 @@ def _captain_text(row, chip):
     return f"{row.name} ({about(row.xp_now)} expected points, {as_cap})"
 
 
-# --------------------------------------------------------------------------- C13: plan with the suggested chip
 def _chip_plan(r):
     """(dict for the JSON, title, rows) of the plan with the suggested chip; (None, None, []) without one.
-    No new number: everything comes from engine.ChipPlan (the same plan as a run with --chip X)."""
+
+    Every number comes from engine.ChipPlan, the same plan as a run with --chip X."""
     cp = r.chip_plan
     if cp is None:
         return None, None, []
@@ -323,12 +324,12 @@ def _chip_plan(r):
     return d, title, rows
 
 
-# --------------------------------------------------------------------------- decision check
 def _decision(r):
-    """15c step 4: the user's own decision (--check) in plain words: (dict for the JSON, rows for _layout).
-    No new number: the gains come from decision.check_decision, the verdict from its codes.
-    Gains in the decision's GW are unweighted (decision B); the gain over the horizon is the G of the
-    check (later gameweeks count less) and is shown only when it differs after rounding."""
+    """The user's own decision (--check) in plain words: (dict for the JSON, rows for _layout).
+
+    The gains come from decision.check_decision and the verdict from its codes. Gains in the
+    decision's GW are unweighted; the gain over the horizon is the G of the check (later gameweeks
+    count less) and is shown only when it differs after rounding."""
     d = r.decision
     if d is None:
         return None, []
@@ -342,7 +343,7 @@ def _decision(r):
         moves = [('', f"    {name(o):<{w}} -> {name(i)}") for o, i in zip(d.transfers_out, d.transfers_in)]
     else:
         on = f" on {d.captain_name}" if d.captain_id is not None else ""
-        squad = " with your squad" if d.squad else ""                  # 15b WC/FH
+        squad = " with your squad" if d.squad else ""                  # WC/FH
         what, none_ = f"{CHIP_NAME[d.chip]}{on} in GW{gw}{squad}", "not playing it"
     out = {'chip': d.chip, 'gw': gw, 'status': d.status, 'verdict': list(d.verdict), 'gain_this_gw': None,
            'gain_horizon': x.get('g'), 'better_captain': None, 'better_gw': None, 'model_transfers': None,
@@ -361,7 +362,7 @@ def _decision(r):
         elif n['code'] == 'captain_bought':
             rows.append(('Note', f"{d.captain_name} is not in your squad: the decision includes buying him in "
                                  f"GW{x.get('captain_bought')}."))
-        elif n['code'] == 'player_unavailable' and d.squad:          # 15b: 'below ...: A, B'
+        elif n['code'] == 'player_unavailable' and d.squad:          # 'below ...: A, B'
             rows.append(('Note', n['message'].split(': ', 1)[1] + ": injured or doubtful, expected to score 0."))
         elif n['code'] == 'player_unavailable':
             rows.append(('Note', n['message'].split(' is below')[0] + " is injured or doubtful: he is expected "
@@ -372,12 +373,12 @@ def _decision(r):
                          .replace("change(s)", "changes") + "."))
         elif n['code'] == 'budget_today':
             rows.append(('Note', f"The budget uses today's prices; they can change by GW{gw}."))
-        elif n['code'] == 'wc_horizon':                                # 15b O1
+        elif n['code'] == 'wc_horizon':
             k = x.get('gws_measured')
             rows.append(('Note', f"The Wildcard is measured over {k} gameweek{'s' if k != 1 else ''} "
                                  f"(GW{gw}-GW{h[-1]}), not the rest of the season. Raise --lookahead to "
                                  f"measure it over more."))
-        elif n['code'] == 'wc_no_timing':                              # 15b O3
+        elif n['code'] == 'wc_no_timing':
             rows.append(('Note', "The gameweek of a Wildcard is not checked: the model has no one-gameweek "
                                  "estimate for it."))
         elif n['code'] == 'hits':
@@ -406,15 +407,15 @@ def _decision(r):
         buy = ", ".join(name(i) for i in best['in']) or "nobody"
         out['model_transfers'] = {'out': [int(i) for i in best['out']], 'in': [int(i) for i in best['in']],
                                   'more': float(x['r'])}
-        # 15d: r_low, not the verdict code, as in 'Better squad': 'worse_than_none' is the
-        # only code when G < 0, and the model's transfers can still gain more (R > 0)
+        # r_low, not the verdict code, as for 'Better squad': 'worse_than_none' is the only code
+        # when G < 0, and the model's transfers can still gain more (R > 0).
         if x.get('r_low') is not None and x['r_low'] > 0:
             rows.append(('Model\'s transfers', f"sell {sell}; buy {buy} ({signed(x['r'])} more over "
                                                f"GW{h[0]}-GW{h[-1]}, later gameweeks count less)"))
         else:
             rows.append(('Model\'s transfers', "the same, or no better set"))
     sd = x.get('squad_diff')
-    if d.squad and sd is not None and x.get('r') is not None:      # 15b WC/FH
+    if d.squad and sd is not None and x.get('r') is not None:      # WC/FH
         # r_low, not the verdict code: 'worse_than_none' is the only code when G < 0, and R can still be > 0
         if x.get('r_low') is not None and x['r_low'] > 0:
             out['better_squad'] = {'out': [int(e['id']) for e in sd['only_decision']],
@@ -463,16 +464,15 @@ def _verdict_words(d, x, out):
         elif code == 'better_version':
             if tr:
                 words.append("the model's transfers gain more (see above).")
-            elif d.squad:                                              # 15b WC/FH
+            elif d.squad:                                              # WC/FH
                 words.append("the model's squad gains more (see above).")
             elif out['better_captain']:
                 words.append(f"captain {out['better_captain']['name']} gains more with the chip.")
     return " ".join(w[0].upper() + w[1:] for w in words)
 
 
-# --------------------------------------------------------------------------- alerts
 def _alerts(r):
-    """Only what changes what the user should do (spec §0.5); the rest stays in --details."""
+    """Only what changes what the user should do; the rest stays in --details."""
     codes = {w['code'] for w in r.warnings}
     out = []
     if 'previous_gw_not_final' in codes:
@@ -501,17 +501,18 @@ def _alerts(r):
     return out
 
 
-# --------------------------------------------------------------------------- whole summary
 def cap(text):
-    """First letter upper case ('keep it' -> 'Keep it'); names and numbers stay as they are."""
+    """Upper-case the first letter ('keep it' becomes 'Keep it'); names and numbers stay as they are."""
     return text[:1].upper() + text[1:] if text[:1].islower() else text
 
 
 def _layout(title, rows, align=True):
-    """One section: '== TITLE ==', then its rows. (label, value) -> 'label: value'; align=True puts
-    every value of the section in one column (the longest label sets it; a long value wraps under
-    that column), align=False leaves one space after each label. (None, sentence) -> the sentence
-    wrapped from the left margin; ('', line) -> the line as it is ('' = an empty line)."""
+    """One section: '== TITLE ==', then its rows.
+
+    (label, value) is printed as 'label: value'; align=True puts every value of the section in one
+    column (the longest label sets it; a long value wraps under that column), align=False leaves
+    one space after each label. (None, sentence) is the sentence wrapped from the left margin;
+    ('', line) is the line as it is ('' = an empty line)."""
     w = max((len(lb) for lb, _ in rows if lb), default=0) + 2          # 'label:' plus one space
     out = [f"== {title} =="]
     for label, value in rows:
@@ -526,8 +527,10 @@ def _layout(title, rows, align=True):
 
 
 def build_summary(r, tz=None):
-    """engine.OptimizeResult -> dict (JSON field 'summary'); its 'text' holds the printed lines.
-    tz: time zone of the deadline (None = the operating system's)."""
+    """Build the summary of an engine.OptimizeResult: the dict of the JSON field 'summary'.
+
+    Its 'text' holds the printed lines. tz: time zone of the deadline (None = the operating
+    system's)."""
     g0, pg = r.current_gw, r.plan[0]
     chip = pg.chip
     rows = {s.id: s for s in r.squad}
@@ -549,7 +552,7 @@ def build_summary(r, tz=None):
         'expected_range': [max(0.0, total + RANGE_LOW), total + RANGE_HIGH],
         'alerts': _alerts(r),
         'decision': None,                                    # --check: filled below
-        'chip_plan': None,                                   # C13: filled below
+        'chip_plan': None,                                   # filled below
     }
     decision, decision_rows = _decision(r)
     if decision is not None:
@@ -572,7 +575,7 @@ def build_summary(r, tz=None):
     chip_rows = _chip_rows(r, s['chip'])
     if chip_rows:
         lines += [""] + _layout("CHIPS", chip_rows)
-    s['chip_plan'], cp_title, cp_rows = _chip_plan(r)             # C13
+    s['chip_plan'], cp_title, cp_rows = _chip_plan(r)
     if cp_rows:
         lines += [""] + _layout(cp_title, cp_rows)
     lo, hi = s['expected_range']

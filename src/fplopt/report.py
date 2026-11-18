@@ -1,6 +1,7 @@
-"""Text output of a run (stdout). Progress lines and warnings ('[*] ...', '[WARNING] ...')
-are not printed here: the engine logs them while it runs and the command line sends them to
-stderr. The text below is the same as the output of the original fpl_v2.py."""
+"""Text output of a run (stdout).
+
+Progress lines and warnings ('[*] ...', '[WARNING] ...') are not printed here: the engine logs
+them while it runs and the command line sends them to stderr."""
 import sys
 
 from .engine import POSITION_NAME
@@ -8,8 +9,9 @@ from .summary import build_summary
 
 
 def print_summary(r, out=None):
-    """15c, the default output: the plain-English summary (summary.py); --explain blocks first, as in
-    the full output, because the user asked for them."""
+    """Print the default output, the plain-English summary (summary.py).
+
+    The --explain blocks come first, as in the full output, because the user asked for them."""
     out = out or sys.stdout
     print_explain(r, out)
     for line in build_summary(r)['text']:
@@ -17,11 +19,11 @@ def print_summary(r, out=None):
 
 
 def print_explain(r, out):
-    """X7: the --explain blocks (nothing without --explain)."""
+    """Print the --explain blocks (nothing without --explain)."""
     def p(line=""):
         print(line, file=out)
 
-    for e in r.explain:                                   # X7: --explain
+    for e in r.explain:
         p(f"\n[explain] {e.name} (id {e.id}, {e.team_name}, pos {e.pos_id}, £{e.price:.1f}m) "
           f"source={e.source} chance={e.chance}")
         mm = e.minutes_model
@@ -40,7 +42,7 @@ def print_explain(r, out):
 
 
 def print_optimize(r, out=None):
-    """Prints an engine.OptimizeResult in full (--details)."""
+    """Print an engine.OptimizeResult in full (--details)."""
     out = out or sys.stdout
 
     def p(line=""):
@@ -53,7 +55,7 @@ def print_optimize(r, out=None):
     p("=" * 84)
     _print_squad(p, r.squad, g0)
     if g0 > 1:
-        p("   Cost = selling price for players you keep, current price for players you buy.")  # S3
+        p("   Cost = selling price for players you keep, current price for players you buy.")
 
     p("-" * 84)
     _print_plan(p, r.plan)
@@ -61,10 +63,10 @@ def print_optimize(r, out=None):
     if g0 > 1:
         _print_sales(p, r.sales_now)
     _print_expected(p, r.expected_now, g0)
-    print_formations(r, out)                              # 15c: the formations of the same squad
+    print_formations(r, out)
     p(f"Objective (weighted over horizon, hits included): {r.solver.objective:.2f}")
 
-    if r.decision is not None:                            # --check only: the text without it is unchanged
+    if r.decision is not None:                            # --check only
         print_decision(r, out)
     print_chips(r, out)
     print_chip_plan(r, out)
@@ -75,12 +77,12 @@ def _print_squad(p, squad, g0):
     p(f"   {'Player':<18} | Pos | Cost  | xP GW{g0:<3}| P(app) | xP horizon | Role")
     for s in squad:
         indicator = ">>" if s.action == 'BUY' else "  "
-        flag = "" if s.available else "  (unavailable)"                                    # A
-        gw_tag = "  (blank)" if s.n_matches_now == 0 else ("  (DGW)" if s.n_matches_now >= 2 else "")   # G4
-        src_tag = "  (FPL ep)" if s.source != 'model' else ""                               # X5
+        flag = "" if s.available else "  (unavailable)"
+        gw_tag = "  (blank)" if s.n_matches_now == 0 else ("  (DGW)" if s.n_matches_now >= 2 else "")
+        src_tag = "  (FPL ep)" if s.source != 'model' else ""
         role = s.role
         if role == 'Bench':
-            role = 'Bench GK' if s.pos_id == 1 else f"Bench {s.bench_slot}"                # M5: bench order
+            role = 'Bench GK' if s.pos_id == 1 else f"Bench {s.bench_slot}"
         p(f"{indicator} {s.name:<18} | {s.position:<3} | £{s.cost:<4.1f} | {s.xp_now:<8.2f} | "
           f"{s.papp_now:<6.2f} | {s.xp_horizon:<10.2f} | {role}{flag}{gw_tag}{src_tag}")
 
@@ -96,7 +98,7 @@ def _print_plan(p, plan):
         vice_txt = f", VC {pg.vice_name}" if pg.vice_id is not None else ""
         p(f"   GW{pg.gw}{chip_tag}: FT {ft_txt} | {moves} | hits {pg.hits} | C {pg.captain_name}{vice_txt}")
         if pg.chip == 'FH' and pg.gw + 1 in gws:
-            p(f"   Free Hit: GW{pg.gw + 1} starts again from the squad before GW{pg.gw}.")    # M3/C4
+            p(f"   Free Hit: GW{pg.gw + 1} starts again from the squad before GW{pg.gw}.")
 
 
 def _print_sales(p, sales_now):
@@ -116,8 +118,10 @@ def _print_expected(p, ep, g0):
 
 
 def print_formations(r, out):
-    """15c: the plan's formation in the current GW and the next two best ones for the same squad
-    (unweighted expected points of the GW, captain and bench solved again with each formation)."""
+    """Print the plan's formation in the current GW and the next two best ones for the same squad.
+
+    The points are the unweighted expected points of the GW, with the captain and bench solved
+    again for each formation."""
     if not r.formations:
         return
     pg = r.plan[0]
@@ -132,20 +136,20 @@ def print_formations(r, out):
     cells = [f"{f['formation']} {f['points']:.2f} ({f['points'] - chosen['points']:+.2f})" for f in others]
     if cells:
         cells[0] = "next best " + cells[0]
-    # points before hits: the hits are the same with every formation of the same squad
+    # Points before hits: the hits are the same with every formation of the same squad.
     print(f"   Formation GW{r.current_gw} (points before hits): {mine} {chosen['points']:.2f}"
           + "".join(f" | {c}" for c in cells), file=out)
 
 
 def _signed(v, lo=None, hi=None):
-    """+1.23 (between +1.10 and +1.30); 'not computed' for None (C12)."""
+    """Format a difference with its bounds, '+1.23 (between +1.10 and +1.30)'; None is 'not computed'."""
     if v is None:
         return "not computed"
     return f"{v:+.2f}" + (f" (between {lo:+.2f} and {hi:+.2f})" if lo is not None and hi is not None else "")
 
 
 def print_decision(r, out):
-    """Decision check: the user's chip decision against the plan without it and the best version."""
+    """Print the decision check: the user's decision against the plan without it and the best version."""
     def p(line=""):
         print(line, file=out)
 
@@ -156,7 +160,7 @@ def print_decision(r, out):
         p(f" DECISION CHECK | transfers in GW{d.gw}: {moves}")
     else:
         who = f" on {d.captain_name}" if d.captain_id is not None else ""
-        squad = " with your squad" if d.squad else ""                  # 15b WC/FH
+        squad = " with your squad" if d.squad else ""                  # WC/FH
         p(f" DECISION CHECK | {d.chip}{who} in GW{d.gw}{squad}")
     p("=" * 84)
     if d.status == 'invalid':
@@ -200,8 +204,10 @@ def print_decision(r, out):
 
 
 def _print_squad_diff(r, d, sd, p):
-    """15b: the players that differ between the user's squad and the best squad of the chip, with the
-    xP the chip is played for (FH: the GW; WC: weighted to the end of the horizon)."""
+    """Print the players that differ between the user's squad and the best squad of the chip.
+
+    Each comes with the xP the chip is played for (FH: the GW; WC: weighted to the end of the
+    horizon)."""
     if not sd['only_decision'] and not sd['only_best']:
         p(f"   Your squad is the squad of the best {d.chip} in GW{d.gw}.")
         return
@@ -231,12 +237,13 @@ def _model_moves(d, x):
     pg = x['plan_best']
     if not pg['in']:
         return "no transfer"
-    # out and in listed apart: which sale pays for which purchase is not a decision of the plan
+    # Sales and purchases are listed apart: which sale pays for which purchase is not a decision
+    # of the plan.
     return f"out {', '.join(d.names[i] for i in pg['out'])} | in {', '.join(d.names[i] for i in pg['in'])}"
 
 
 def _print_transfers(r, d, x, p):
-    """D3: the user's transfers against rolling the transfer and against the model's transfers."""
+    """Print the user's transfers against rolling the transfer and against the model's transfers."""
     hz = f"GW{r.horizon[0]}-GW{r.horizon[-1]}"
     p(f"   Expected points over {hz}, weighted as in the plan; the transfers after GW{d.gw} stay free:")
     p(f"      G = your transfers - no transfer:      {_signed(x['g'], x['g_low'], x['g_high'])}")
@@ -271,18 +278,18 @@ def _verdict_text(code, d, x):
         return (f"{d.chip} is estimated higher in GW{t['best_gw']} ({t['best']:+.1f}) than in GW{d.gw} "
                 f"({t['at_gw']:+.1f}).")
     if code == 'better_version':
-        if d.squad:                                                    # 15b WC/FH
+        if d.squad:                                                    # WC/FH
             return f"the best {d.chip} squad gains {x['r']:+.2f} more than yours (players above)."
         cap = d.names.get(x['plan_best']['captain'], x['plan_best']['captain'])
         return f"captain {cap} gains {x['r']:+.2f} more with {d.chip} than your choice."
-    if t is None:                                                      # 15b O3: WC has no timing
+    if t is None:                                                      # a Wildcard has no timing
         return (f"play it: it gains {x['g']:+.2f} and no better squad exists; GW{d.gw} itself was not checked "
                 f"(no one-GW estimate for a Wildcard).")
     return f"play it: it gains {x['g']:+.2f}, GW{d.gw} is the best GW of the window and no better version exists."
 
 
 def print_chips(r, out):
-    """C10/C11: the CHIP SUGGESTIONS section."""
+    """Print the CHIP SUGGESTIONS section."""
     def p(line=""):
         print(line, file=out)
 
@@ -315,11 +322,11 @@ def print_chips(r, out):
     adv = c.advice
     for cp, now, t_best, best, window_end in adv['holds']:
         now_txt = f"now {now:+.1f}, " if now is not None else ""
-        # the margin is printed because estimates of different GWs that differ by a few
-        # tenths are within the error of the xP model (RMSE ~2.5 per player-GW)
+        # The margin is printed because estimates of different GWs that differ by a few tenths
+        # are within the error of the xP model (RMSE about 2.5 per player-GW).
         p(f"   {cp}: hold ({now_txt}best estimate GW{t_best} {best:+.1f}; window ends GW{window_end})")
     for cp in adv.get('incomplete', []):
-        # C12: no suggestion from part of the numbers (it could differ between machines)
+        # No suggestion from part of the numbers: it could differ between machines.
         p(f"   {cp}: no suggestion: not every number up to GW{c.window[cp]} was computed in the time limit "
           f"(raise --time-limit).")
     if 'WC' in c.window:
@@ -328,7 +335,7 @@ def print_chips(r, out):
           f"(window ends GW{c.window['WC']}).")
     pick = adv['pick']
     if pick is not None:
-        # C13: the plan that uses it follows (PLAN WITH ...), unless it was switched off
+        # The plan that uses it follows (PLAN WITH ...), unless it was switched off.
         then = ("Its plan follows." if r.chip_plan is not None
                 else f"Re-run with --chip {pick} for the plan that uses it.")
         p(f">> Suggestion: play {pick} in GW{g0} (exact Delta {c.exact[pick]:+.2f}). {then}")
@@ -344,7 +351,7 @@ def print_chips(r, out):
 
 
 def print_chip_plan(r, out):
-    """C13: the plan with the suggested chip (the same as a run with --chip X)."""
+    """Print the plan with the suggested chip (the same as a run with --chip X)."""
     cp = r.chip_plan
     if cp is None:
         return
@@ -371,7 +378,7 @@ def print_chip_plan(r, out):
 
 
 def print_evaluate(r, out=None):
-    """Prints a predictions.EvaluateResult (nothing if the log had no row for the GW)."""
+    """Print a predictions.EvaluateResult (nothing if the log had no row for the GW)."""
     out = out or sys.stdout
     if not r.rows:
         return
