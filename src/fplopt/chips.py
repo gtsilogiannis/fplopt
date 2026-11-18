@@ -1,5 +1,5 @@
-"""Chip suggestions: the opportunity cost of each chip that can be
-played now, and the rule that turns the numbers into a suggestion."""
+"""Chip suggestions: the opportunity cost of each chip that can be played now, and the rule
+that turns the numbers into a suggestion."""
 import time
 
 from .milp import MIN_PASS_SECONDS, plan_squad
@@ -7,9 +7,10 @@ from .rules import CHIPS, HIT_COST
 
 
 def gw_points(pg, g, pool, beta_g, use_bench=True):
-    """C8: expected points of GW g of a plan, UNWEIGHTED (no 0.85^k), split into parts:
-    XI (all 15 with Bench Boost) + captain x m + vice-captain x m x (1 - P_C) + autosubs
-    (not with Bench Boost) - hits, with m = 2 for Triple Captain, else 1. Same terms as the
+    """Unweighted expected points of GW g of a plan, split into parts.
+
+    XI (all 15 with Bench Boost) + captain x m + vice-captain x m x (1 - P_C) + autosubs (not
+    with Bench Boost) - hits, with m = 2 for Triple Captain, else 1. These are the terms of the
     objective of solve_plan for that GW, without the weight and the tie-breaks."""
     xp, papp, pos = pool['xp'], pool['papp'], pool['pos']
     bb = pg['chip'] == 'BB'
@@ -30,18 +31,19 @@ def gw_points(pg, g, pool, beta_g, use_bench=True):
 
 
 def plan_points(res, pool, horizon, use_bench=True):
-    """C8: unweighted expected points of a whole plan (sum of gw_points over the horizon)."""
+    """Unweighted expected points of a whole plan: gw_points summed over the horizon."""
     beta = res.get('beta') or {}
     return sum(gw_points(res['plan'][g], g, pool, beta.get(g), use_bench)['total'] for g in horizon)
 
 
 def squad_value(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solver=None, formation=None,
                 time_limit=30):
-    """C9: best one-GW value (unweighted) of a FIXED 15-man squad: plan_squad on a pool that
-    holds only these 15 players, so the XI, captain, vice-captain and autosubs come from the
-    same model as the plan. Every player may start: an unavailable one has xP 0 and P(app) 0,
-    so the model benches him or counts him as autosubbed (as the game would).
-    formation: 15c (DEF, MID, FWD) of the XI held fixed; None = the best one."""
+    """Best unweighted one-GW value of a fixed 15-man squad.
+
+    Runs plan_squad on a pool that holds only these 15 players, so the XI, captain, vice-captain
+    and autosubs come from the same model as the plan. Every player may start: an unavailable
+    one has xP 0 and P(app) 0, so the model benches him or counts him as autosubbed, as the game
+    would. formation: (DEF, MID, FWD) of the XI held fixed; None = the best one."""
     sub = {k: pool[k] for k in ('pos', 'team', 'price', 'xp', 'papp')}
     sub['ids'] = list(squad)
     sub['avail'] = {i: True for i in squad}
@@ -50,22 +52,23 @@ def squad_value(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solv
     res = plan_squad(sub, [g], {g: 1.0}, list(squad), budget, 1, chip, 0, use_vice, use_bench,
                      time_limit=time_limit, solver=solver,
                      force_formation={g: formation} if formation else None)
-    # C12: a value cut by the time limit would differ between machines: None (not computed) instead
+    # A value cut by the time limit would differ between machines, so it is not returned.
     return plan_points(res, sub, [g], use_bench) if res.get('complete') else None
 
 
-# 15c: every formation the game allows (1 GK + DEF-MID-FWD = 10; DEF >= 3, MID >= 2, FWD >= 1). A 2/5/5/3
+# Every formation the game allows (1 GK + DEF-MID-FWD = 10; DEF >= 3, MID >= 2, FWD >= 1). A 2/5/5/3
 # squad also caps them at 5 DEF, 5 MID, 3 FWD, which leaves these 8.
 FORMATIONS = [(d, m, 10 - d - m) for d in range(3, 6) for m in range(2, 6) if 1 <= 10 - d - m <= 3]
 
 
 def formation_values(pool, squad, g, chip='NONE', use_vice=True, use_bench=True, solver=None, time_limit=60):
-    """15c (--details): the best one-GW expected points (unweighted, same terms as the plan: XI,
-    captain, vice-captain, autosubs) of the fixed squad in GW g with each formation of FORMATIONS.
-    The captain, vice-captain and bench order are solved again with each formation. Not for Bench
-    Boost (all 15 score, so the formation changes nothing). time_limit: for all 8 solves.
-    Returns [{'formation': '3-4-3', 'def', 'mid', 'fwd', 'points'}] in the order of FORMATIONS; points
-    is None for a formation the squad cannot field or a solve not completed in time (C12)."""
+    """Best one-GW expected points of the fixed squad in GW g with each of FORMATIONS.
+
+    Unweighted, with the same terms as the plan (XI, captain, vice-captain, autosubs). The
+    captain, vice-captain and bench order are solved again with each formation. Not for Bench
+    Boost, where all 15 score and the formation changes nothing. time_limit covers all 8 solves.
+    Returns [{'formation': '3-4-3', 'def', 'mid', 'fwd', 'points'}] in the order of FORMATIONS;
+    points is None for a formation the squad cannot field or a solve not completed in time."""
     out, deadline = [], time.time() + time_limit
     cp = chip if chip == 'TC' else 'NONE'          # WC/FH: the squad is fixed here, only TC changes the points
     have = {p_: sum(1 for i in squad if pool['pos'][i] == p_) for p_ in (2, 3, 4)}
@@ -82,24 +85,27 @@ def formation_values(pool, squad, g, chip='NONE', use_vice=True, use_bench=True,
 
 def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_windows, max_hits,
                 use_vice, use_bench, time_left, solver=None, main_result=None):
-    """C10: opportunity cost of each chip that can be played now (design decision of the
-    user: unweighted points).
+    """Opportunity cost, in unweighted points, of each chip that can be played now.
+
       exact[c]    = Delta_c(t0): points of the best plan with chip c in t0 minus the best plan
                     without a chip, both solved with the full model over min(3, L) GWs and
-                    scored UNWEIGHTED (plan_points).
+                    scored unweighted (plan_points).
       est[c][t]   = estimate of Delta_c(t) for t0 <= t <= end of the chip's window, on the
                     squad Q_t of the main plan (after the horizon: the squad of its last GW,
                     [assumption] no transfers after the horizon):
                     TC, BB: squad_value(Q_t, chip) - squad_value(Q_t);
                     FH: best one-GW Free Hit squad (whole pool) - squad_value(Q_t);
                     WC: not estimated after t0 ([assumption], no one-GW proxy exists).
-    C12: a number is kept only if every solve behind it was complete (milp.plan_squad: gap target
-    reached, bench-weight passes not cut by the time limit), so the numbers that are shown do not
-    depend on the speed of the machine; a slower machine shows fewer of them ('skipped').
-    main_result: N1 the result of the main plan (milp.plan_squad, no chip, same pool, budget, FTs, hit limit,
-    vice-captain and bench options), or None. When the horizon has at most 3 GWs, the 'no chip' solve below is
-    the SAME model as the main plan; a complete main plan is then used instead of solving it again (a complete
-    solve does not depend on the time limit, see milp.plan_squad, so the numbers are the same).
+
+    A number is kept only if every solve behind it was complete (gap target reached, bench-weight
+    passes not cut by the time limit), so the numbers that are shown do not depend on the speed
+    of the machine; a slower machine shows fewer of them ('skipped').
+
+    main_result: the main plan (no chip, same pool, budget, FTs, hit limit, vice-captain and
+    bench options), or None. When the horizon has at most 3 GWs, the 'no chip' solve below is
+    the same model, so a complete main plan is reused; a complete solve does not depend on the
+    time limit, so the numbers are the same.
+
     Returns a dict with the numbers; the caller prints them."""
     t0 = horizon[0]
     deadline = time.time() + time_left
@@ -109,45 +115,43 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
         out['window'][cp] = next(e for s, e in chip_windows[cp] if s <= t0 <= e)
     if not now_chips:
         return out
-    # --- exact Delta_c(t0): 1 + len(now_chips) solves with the full model ---
+    # Exact Delta_c(t0): 1 + len(now_chips) solves with the full model
     h3 = horizon[:3]
     w3 = {g: weight[g] for g in h3}
     runs = [('NONE', 4.0)] + [(cp, 4.0 if cp == 'WC' else 2.0) for cp in now_chips]   # time shares
     base = None
     for k, (cp, share) in enumerate(runs):
         left = deadline - time.time()
-        # this solve's share of the remaining time, in proportion to the measured solve times
-        # (WC ~2x the others, measured), and at least MIN_PASS_SECONDS
+        # This solve's share of the remaining time, in proportion to the measured solve times
+        # (a Wildcard takes about twice as long), and at least MIN_PASS_SECONDS.
         tl = max(MIN_PASS_SECONDS, left * share / sum(s for _, s in runs[k:]) * 0.75)
         if cp == 'NONE':
-            # N5: every Delta needs the 'no chip' value, so a cut NONE solve leaves all chips 'not computed'.
-            # It gets all the time of the exact solves (the other 25% stays for the estimates): a solve
-            # stops once it reaches the gap target, and a complete result does not depend on the time
-            # limit (milp.plan_squad), so when it finished within its old share nothing changes; when it
-            # was cut, it can now finish and the chips use what remains.
+            # Every Delta needs the 'no chip' value, so a cut NONE solve would leave every chip
+            # 'not computed'. It gets all the time of the exact solves (the other 25% stays for the
+            # estimates); it stops once it reaches the gap target, and the chips use what remains.
             tl = max(MIN_PASS_SECONDS, left * 0.75)
         if left < MIN_PASS_SECONDS or (cp != 'NONE' and base is None):
             out['skipped'].append(f"exact {cp}")
             continue
         if cp == 'NONE' and h3 == horizon and main_result is not None and main_result.get('complete'):
-            res = main_result                       # N1: same model, already solved completely
+            res = main_result                       # same model, already solved completely
         else:
             res = plan_squad(pool, h3, w3, start_squad, budget, ft0, cp, max_hits, use_vice, use_bench,
                              time_limit=tl, solver=solver)
         if 'plan' not in res:
             out['skipped'].append(f"exact {cp} (no plan)")
             continue
-        if not res['complete']:                     # C12: cut by the time limit
+        if not res['complete']:                     # cut by the time limit
             out['skipped'].append(f"exact {cp}")
             continue
         pts = plan_points(res, pool, h3, use_bench)
-        out['plans'][cp] = res['plan'][t0]          # W3: the GW-t0 decisions of this solve (backtest)
+        out['plans'][cp] = res['plan'][t0]          # GW-t0 decisions of this solve, for the backtest
         if cp == 'NONE':
             base = (pts, res.get('gap'))
         else:
             out['exact'][cp] = pts - base[0]
             out['gap'][cp] = (res.get('gap') or 0.0) + (base[1] or 0.0)   # bound on the error of Delta
-    # --- estimates Delta_c(t) up to the end of each window (one-GW solves) ---
+    # Estimates of Delta_c(t) up to the end of each window (one-GW solves)
     last = horizon[-1]
     for t in range(t0, max(out['window'].values()) + 1):
         if time.time() > deadline:
@@ -162,43 +166,47 @@ def chip_report(pool, horizon, weight, plan, start_squad, budget, ft0, chip_wind
             if est_t[cp] is not None:
                 out['est'].setdefault(cp, {})[t] = est_t[cp]
             else:
-                out['skipped'].append(f"estimate {cp} GW{t}")     # C12: not computed in time
+                out['skipped'].append(f"estimate {cp} GW{t}")
     return out
 
 
 def estimate_gw(pool, q, t, t0, chips_t, budget, max_hits, use_vice, use_bench, solver=None):
-    """C8-C9: one-GW estimate of Delta_c(t) for each chip c in chips_t (TC, BB, FH) on the squad q
-    (the squad the main plan holds in GW t). Moved out of chip_report unchanged (decision check,
-    step 3), so that the timing of a user's chip uses the same numbers:
+    """One-GW estimate of Delta_c(t) for each chip c in chips_t (TC, BB, FH) on the squad q.
+
+    q is the squad the main plan holds in GW t. Shared with the decision check, so that the
+    timing of a user's chip uses the same numbers:
       TC, BB: squad_value(q, chip) - squad_value(q);
       FH: best one-GW Free Hit squad from the whole pool - squad_value(q).
-    Returns {chip: estimate, or None if a solve behind it was not complete (C12)}."""
+    Returns {chip: estimate, or None if a solve behind it was not complete}."""
     v0 = squad_value(pool, q, t, 'NONE', use_vice, use_bench, solver)
     out = {}
     for cp in chips_t:
         if cp in ('TC', 'BB'):
             v = squad_value(pool, q, t, cp, use_vice, use_bench, solver)
-        else:   # FH: whole pool, start from Q_t, sell = price ([assumption] constant prices)
+        else:   # FH: whole pool, start from Q_t. [assumption] Constant prices: sell = price.
             sub = dict(pool)
             sub['sell'] = {i: pool['sell'].get(i, pool['price'][i]) for i in q}
             sub['avail'] = {i: True for i in pool['ids']} if t > t0 else pool['avail']
             res = plan_squad(sub, [t], {t: 1.0}, list(q), budget, 1, 'FH', max_hits, use_vice, use_bench,
                              time_limit=30, solver=solver)
-            v = plan_points(res, sub, [t], use_bench) if res.get('complete') else None   # C12
+            v = plan_points(res, sub, [t], use_bench) if res.get('complete') else None
         out[cp] = v - v0 if (v is not None and v0 is not None) else None
     return out
 
 
 def advise(rep, current_gw):
-    """C10/C11: the suggestion rule applied to the numbers of chip_report.
-    C12: the rule needs the exact Delta now and an estimate for EVERY GW up to the end of the
-    window; a chip that misses any of them (time limit) gets no suggestion at all, neither 'play'
-    nor 'hold', and is listed in 'incomplete' (a rule applied to part of the window could say
-    'play' on one machine and 'hold' on another).
-    A chip c is suggested now only if its estimate now is the maximum up to the end of its window
-    AND its exact Delta now is positive; with several, the largest exact Delta (one chip per GW).
-    WC has no estimates after now, so it is never suggested by the rule; C11 adds a note when
-    the WC gains more now than the suggested chip.
+    """Apply the suggestion rule to the numbers of chip_report.
+
+    A chip is suggested now only if its estimate now is the maximum up to the end of its window
+    and its exact Delta now is positive; with several, the one with the largest exact Delta (one
+    chip per GW). The Wildcard has no estimates after now, so the rule never suggests it; a note
+    is added when it gains more now than the suggested chip.
+
+    The rule needs the exact Delta now and an estimate for every GW up to the end of the window.
+    A chip that misses any of them (time limit) gets no suggestion at all, neither 'play' nor
+    'hold', and is listed in 'incomplete': a rule applied to part of the window could say 'play'
+    on one machine and 'hold' on another.
+
     Returns {'now_ok': [...], 'pick': chip or None, 'also': [...],
              'holds': [(chip, estimate now or None, best GW, best estimate, window end), ...],
              'wc_note': (WC exact, pick exact) or None, 'incomplete': [chip, ...]}."""
@@ -206,7 +214,7 @@ def advise(rep, current_gw):
         cp not in rep['exact'] or
         any(t not in rep['est'].get(cp, {}) for t in range(current_gw, rep['window'][cp] + 1)))]
     est_all = {cp: est for cp, est in rep['est'].items() if cp not in incomplete}
-    # the 1e-9 lets an estimate equal to the maximum count as the maximum (float rounding)
+    # The 1e-9 lets an estimate equal to the maximum count as the maximum despite float rounding.
     now_ok = [cp for cp, est in est_all.items()
               if est.get(current_gw) is not None and est[current_gw] >= max(est.values()) - 1e-9
               and rep['exact'].get(cp, 0.0) > 0.0]
