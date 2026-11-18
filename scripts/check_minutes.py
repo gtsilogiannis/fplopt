@@ -1,8 +1,9 @@
-"""Chat 8c: calibration of the minutes model (P(appear), P(60+), E[minutes]) and fit of its shrinkage.
+"""Calibration of the minutes model (P(appear), P(60+), E[minutes]) and fit of its shrinkage.
+
 Usage (from the repository root):  python scripts/check_minutes.py [measure|fit|verify|recency]
 Data: the same vaastav files and data_cache/ as calibrate_xp.py.
 
-Walk-forward: for every GW t = 2..38 the sums behind the model (xp_model.minutes_sums) are built
+Walk-forward: for every GW t = 2 to 38 the sums behind the model (xp_model.minutes_sums) are built
 from GWs < t only, and compared with what the player did in GW t.
 Sample = the rows calibrate_xp.score() uses: GWs where the dataset has FPL's projection and
 the player is not flagged out (FPL ep of that GW > 0, used as the availability proxy),
@@ -28,17 +29,18 @@ def season_data(season):
 
 def table(season, recency=None, lag=0, age_from_last=False):
     """One row per (player, GW t) of the sample: sums S_app, S_60, S_min, W and the outcome of GW t.
-    lag = 1 hides GW t-1 from the model (the live situation when the last GW is not final yet)."""
+
+    lag = 1 hides GW t-1 from the model, as in a live run when the last GW is not final yet."""
     d, hist, pos_of = season_data(season)
     start_all = hist.attrs['start_gw_of']
-    hist = hist.copy(deep=False)        # N2: without attrs, pandas does not deep-copy start_gw_of into
-    hist.attrs = {}                     # every frame derived from hist (same values, see calibrate_xp.predict)
+    hist = hist.copy(deep=False)        # without attrs, pandas does not deep-copy start_gw_of into
+    hist.attrs = {}                     # every frame derived from hist (see calibrate_xp.predict)
     has_ep = hist.groupby('gw')['fpl_ep'].transform('mean') > 0.5
     ok = hist[has_ep & (hist['fpl_ep'] > 0)]
     parts = []
     for t in range(2 + lag, 39):
         start = {k: v for k, v in start_all.items() if v <= t}
-        # lag: the model of GW t only knows GWs <= t-1-lag, but is asked about GW t (calendar ages)
+        # The model of GW t only knows GWs <= t-1-lag, but is asked about GW t (calendar ages).
         # age_from_last emulates 'age counted from the last GW present': ask the function for GW t - lag
         s = F.minutes_sums(hist[hist['gw'] <= t - 1 - lag], t - lag if age_from_last else t, start, recency)
         tgt = ok[ok['gw'] == t][['element', 'minutes', 'n_matches']]
@@ -55,7 +57,6 @@ def table(season, recency=None, lag=0, age_from_last=False):
     return x
 
 
-# ---------------------------------------------------------------- estimators
 def p_app(df, a, m):
     """P(appear in a match) = (S_app + a*m) / (W + a). a, m scalars or per-row arrays."""
     return (df['S_app'] + a * m) / (df['W'] + a)
@@ -78,13 +79,12 @@ def ll_app(df, a, m):
 
 
 def prior_arrays(df, par, key):
-    """par = scalar or {pos: scalar} -> per-row array."""
+    """Per-row array from par, a scalar or {pos: scalar}."""
     if isinstance(par, dict):
         return df['pos'].map(par).values
     return par
 
 
-# ---------------------------------------------------------------- report helpers
 def bins_table(pred, act, edges):
     t = pd.DataFrame({'pred': pred, 'act': act})
     t['bin'] = pd.cut(t['pred'], edges, include_lowest=True)
@@ -127,7 +127,6 @@ def measure(recency=None):
     return x
 
 
-# ---------------------------------------------------------------- fitting
 GRID_A = (0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0)
 GRID_M = tuple(np.round(np.arange(0.2, 0.91, 0.05), 2))
 GRID_MU = tuple(float(v) for v in range(40, 91, 5))
@@ -192,7 +191,7 @@ def fit_emin(tr, a, m):
 def fit(recency=None, verbose=True):
     tr, te = table(SEASONS[0], recency), table(SEASONS[1], recency)
     res = {}
-    # ---- P(appear)
+    # P(appear)
     base_tr, base_te = ll_app(tr, 1e-9, 0.5), ll_app(te, 1e-9, 0.5)
     ll, a, m = fit_papp(tr)
     ll_pp, a_pp, ms_pp = fit_papp(tr, per_pos=True)
@@ -203,7 +202,7 @@ def fit(recency=None, verbose=True):
               f"{ll_app(te, a_pp, te['pos'].map(ms_pp).values):.4f}")
         print(f"   best on test season alone (global): {fit_papp(te)}")
     res['papp'] = (a, m)
-    # ---- P(60+): raw / direct shrinkage / conditional
+    # P(60+): raw, direct shrinkage, conditional
     t1, e1 = one_match(tr), one_match(te)
     raw_p60 = lambda d: (d['S_60'] / d['W']).values
     ll_raw = (logloss(t1['y60'].values, raw_p60(t1)), logloss(e1['y60'].values, raw_p60(e1)))
@@ -219,7 +218,7 @@ def fit(recency=None, verbose=True):
         print(f"   direct shrinkage a={a2}, m={m2}: {ll_dir[0]:.4f} / {ll_dir[1]:.4f}")
         print(f"   conditional  P60 = Papp* x q60*, b={b}, m_q={mq}: {ll_c:.4f} / {ll_cte:.4f}")
     res['p60'] = (b, mq)
-    # ---- Emin
+    # Emin
     mse_raw = (float((((t1['S_min'] / t1['W']) - t1['m']) ** 2).mean()), float((((e1['S_min'] / e1['W']) - e1['m']) ** 2).mean()))
     best_dm = min(((float(((((t1['S_min'] + a3 * m3) / (t1['W'] + a3)) - t1['m']) ** 2).mean()), a3, m3)
                    for a3 in GRID_A for m3 in GRID_MU))
@@ -237,7 +236,7 @@ def fit(recency=None, verbose=True):
 
 
 def fit_per_position(recency=None):
-    """Does a per-position prior mean for the CONDITIONAL layer help on the test season?"""
+    """Does a per-position prior mean for the conditional layer help on the test season?"""
     res, tr, te = fit(recency, verbose=False)
     a, m = res['papp']
     b, mq = res['p60']
@@ -258,7 +257,7 @@ def fit_per_position(recency=None):
         g_m = float(((emin_cond(d, a, m, c, mu) - d['m']) ** 2).mean())
         pp_m = float(((emin_cond(d, a, m, c, d['pos'].map(mu_pos).values) - d['m']) ** 2).mean())
         print(f"   {name}: P60 log-loss global {g_p:.4f} -> per-position {pp_p:.4f} | Emin MSE global {g_m:.2f} -> per-position {pp_m:.2f}")
-    # best per-position prior means fitted on the TEST season alone (stability across seasons)
+    # Best per-position prior means fitted on the test season alone (stability across seasons)
     mq_te = {p: min(GRID_M, key=lambda v: logloss(e1[e1['pos'] == p]['y60'].values,
                                                    p60_cond(e1[e1['pos'] == p], a, m, b, v).values)) for p in POS_NAME}
     mu_te = {p: min(GRID_MU, key=lambda v: float(((emin_cond(e1[e1['pos'] == p], a, m, c, v) - e1[e1['pos'] == p]['m']) ** 2).mean()))
@@ -269,8 +268,9 @@ def fit_per_position(recency=None):
 
 
 def verify():
-    """The production code (xp_model.shrink_minutes) must equal the formulas used by the fit, and
-    the consistency inequalities must hold on every row of the walk-forward sample."""
+    """Verify xp_model.shrink_minutes against the formulas used by the fit.
+
+    The consistency inequalities must also hold on every row of the walk-forward sample."""
     a, m = F.APP_PRIOR_WEIGHT, F.APP_PRIOR_MEAN
     b, mq, c, mu = F.P60_PRIOR_WEIGHT, F.P60_PRIOR_MEAN, F.MIN_PRIOR_WEIGHT, F.MIN_PRIOR_MEAN
     for season in SEASONS:

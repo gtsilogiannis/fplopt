@@ -1,4 +1,4 @@
-"""W4: timing of the main-plan solve when a Wildcard or Free Hit is played, on real past squads.
+"""Timing of the main-plan solve when a Wildcard or Free Hit is played, on real past squads.
 
 The squads are GWs of a saved backtest path (scripts/backtest_season.py --save-gws ...), so every
 case is a real pool of the vaastav data and a squad the optimizer itself built during a season.
@@ -9,11 +9,11 @@ case is a real pool of the vaastav data and a squad the optimizer itself built d
 
 Each row: case, chip, lookahead, time limit, total seconds, passes, proven, the seconds / proven /
 gap of every bench-weight pass, the final change of the bench weights, and
-  value = weighted expected points of the final plan with the bench weights implied by its OWN XI
+  value = weighted expected points of the final plan with the bench weights implied by its own XI
           (the fixed point the passes aim for). Two runs with different bench weights have
           objectives that cannot be compared; their 'value' can.
 Times depend on the machine and on its load; run nothing else meanwhile.
-W5: --highs adds HiGHS options to every solve, for measurements only (the program itself does not use them), e.g.
+--highs adds HiGHS options to every solve, for measurements only (the program itself does not use them), e.g.
     --highs parallel=on threads=4 mip_heuristic_effort=0.3
 """
 import argparse
@@ -38,8 +38,10 @@ FIELDS = ['case', 'chip', 'lookahead', 'time_limit', 'seconds', 'passes', 'prove
 
 
 def record_passes():
-    """Wraps milp.solve_plan (called once per bench-weight pass by plan_squad) and returns the list
-    it appends to: (horizon length, seconds, proven, gap) of every solve."""
+    """Wrap milp.solve_plan and return the list the wrapper appends to.
+
+    plan_squad calls solve_plan once per bench-weight pass; each entry is (horizon length,
+    seconds, proven, gap)."""
     log, original = [], milp.solve_plan
 
     def timed(*args, **kwargs):
@@ -52,7 +54,7 @@ def record_passes():
 
 
 def highs_options(pairs):
-    """'name=value' strings -> {name: value}: true/false -> bool, digits -> int, numbers -> float, else text."""
+    """Parse 'name=value' strings: true/false to bool, digits to int, numbers to float, else text."""
     out = {}
     for pair in pairs:
         name, value = pair.split('=', 1)
@@ -70,8 +72,9 @@ def highs_options(pairs):
 
 
 def add_highs_options(extra):
-    """Every HiGHS solver object that milp.run_solver creates gets the extra options (PuLP passes options it
-    does not know to HiGHS by name)."""
+    """Give every HiGHS solver object that milp.run_solver creates the extra options.
+
+    PuLP passes options it does not know to HiGHS by name."""
     original = pulp.HiGHS
 
     def with_options(*args, **kwargs):

@@ -29,8 +29,8 @@ def download(season, path):
         os.makedirs(CACHE_DIR, exist_ok=True)
         r = requests.get(DATA_URL.format(season=season, path=path), timeout=60)
         r.raise_for_status()
-        # write to a private temporary file, then rename it: the rename is atomic, so a script
-        # running in parallel never sees a half-written (or empty) cache file
+        # Write to a private temporary file, then rename it: the rename is atomic, so a script
+        # running in parallel never sees a half-written (or empty) cache file.
         tmp = f"{local}.{os.getpid()}.tmp"
         with open(tmp, 'wb') as fh:
             fh.write(r.content)
@@ -39,7 +39,7 @@ def download(season, path):
 
 
 def load(season):
-    """Per-match rows -> the same per-(player, GW) table that fplopt.data.fetch_history() builds live."""
+    """Per-match rows to the per-(player, GW) table that fplopt.data.fetch_history() builds live."""
     d = pd.read_csv(download(season, 'gws/merged_gw.csv'))
     teams = pd.read_csv(download(season, 'teams.csv'))
     d = d[d['position'].isin(POS)].copy()
@@ -53,19 +53,19 @@ def load(season):
                   pts=('total_points', 'sum'), **{c: (c, 'sum') for c in F.STAT_COLS})
              .reset_index())
     pos_of = d.groupby('element')['pos'].last().to_dict()
-    # X9: first GW at the current club, from the END-of-season team_join_date.
+    # First GW at the current club, from the end-of-season team_join_date.
     # predict() only uses it when it is not later than the GW being predicted.
     raw = pd.read_csv(download(season, 'players_raw.csv'))
-    deadlines = pd.to_datetime(d.groupby('gw')['kickoff_time'].min(), utc=True).to_dict()  # first kickoff ~ deadline
+    deadlines = pd.to_datetime(d.groupby('gw')['kickoff_time'].min(), utc=True).to_dict()  # first kickoff as deadline
     join = {pid: (jd if isinstance(jd, str) else None) for pid, jd in zip(raw['id'], raw['team_join_date'])}
     start_gw_of = F.first_gw_at_club(join, deadlines)
     # FPL's own projection, made right after GW t-1 (the dataset's xP for row t-1).
-    # The xP of row t itself is NOT used: it was recorded after GW t and contains
+    # The xP of row t itself is not used: it was recorded after GW t and contains
     # its result (checked: high scorers in GW t already have high xP in row t).
     ep = d.groupby(['element', 'gw'])['xP'].first().reset_index()
     ep['gw'] += 1
     hist = hist.merge(ep.rename(columns={'xP': 'fpl_ep'}), on=['element', 'gw'], how='left')
-    hist.attrs['start_gw_of'] = start_gw_of   # attrs: metadata dict attached to a DataFrame
+    hist.attrs['start_gw_of'] = start_gw_of
     return d, hist, pos_of
 
 
@@ -78,14 +78,14 @@ def price_table(d):
 def predict(d, hist, pos_of, gws, prices=None):
     prices = prices if prices is not None else price_table(d)
     start_all = hist.attrs.get('start_gw_of', {})
-    # N2: pandas deep-copies DataFrame.attrs into every table or row derived from it (filter, groupby,
-    # .loc, iterrows), so the ~700-entry dict above was copied ~87 000 times per predict: 84% of the run time
-    # (measured, 2024/25: 18.9 s -> 3.1 s per predict). A shallow copy without attrs gives the same values.
+    # pandas deep-copies DataFrame.attrs into every table or row derived from it (filter, groupby, .loc,
+    # iterrows), so the 700-entry dict above would be copied about 87,000 times per predict. A shallow copy
+    # without attrs gives the same values (measured on 2024/25: 3.1 s instead of 18.9 s per predict).
     hist = hist.copy(deep=False)
     hist.attrs = {}
     out = []
     for gw in gws:
-        # X9: a join date after this GW was not known yet at that time -> ignore it
+        # A join date after this GW was not known yet at that time.
         start = {k: v for k, v in start_all.items() if v <= gw}
         feats, teams, L = F.build_features(hist, pos_of, gw, prices.get(gw), start)
         comp = {}
@@ -107,13 +107,13 @@ def predict(d, hist, pos_of, gws, prices=None):
                 row['source'] = 'model'
                 row.update({'c_' + k: v for k, v in comp[r.element].items()})
             else:
-                # X9: no minutes yet -> the live script uses FPL's ep_next; here the
-                # FPL projection made after GW t-1 (0 if the dataset has none)
+                # No minutes yet: a live run uses FPL's ep_next; here the FPL projection made
+                # after GW t-1 (0 if the dataset has none).
                 row['xp'] = 0.0 if pd.isna(r.fpl_ep) else r.fpl_ep
                 row['source'] = 'FPL ep'
             out.append(row)
     p = pd.DataFrame(out)
-    # Availability: the live script drops players with chance_of_playing below
+    # Availability: a live run drops players with chance_of_playing below
     # --min-chance. History has no such field; FPL's ep = 0 is used as the proxy.
     # Only in GWs where the dataset has FPL's xP at all (it is 0 for everyone in some GWs).
     has_ep = p.groupby('gw')['fpl_ep'].transform('mean') > 0.5
@@ -123,11 +123,12 @@ def predict(d, hist, pos_of, gws, prices=None):
 
 
 def score(p):
-    """Tuning objective: RMSE over GWs with an FPL projection and players FPL expects
-    may play (fpl_ep > 0). The subset does not depend on the model, so every
-    parameter set is scored on the same rows. RMSE, not MAE: squared error is
-    minimised by the conditional MEAN (= expected points); absolute error by the
-    MEDIAN, which is below the mean for right-skewed points and favours under-prediction."""
+    """Tuning objective: RMSE over GWs with an FPL projection and players FPL expects may play.
+
+    The subset (fpl_ep > 0) does not depend on the model, so every parameter set is scored on the
+    same rows. RMSE, not MAE: squared error is minimized by the conditional mean (the expected
+    points), absolute error by the median, which is below the mean for right-skewed points and
+    favors under-prediction."""
     s = p[p['has_ep'] & (p['fpl_ep'] > 0)]
     return float(np.sqrt(((s['xp'] - s['pts']) ** 2).mean())), len(s)
 
@@ -161,9 +162,10 @@ def actual_components(d):
 
 
 def top11(p):
-    """Scale check (acceptance criterion of the project): for every GW, the 11
-    highest predictions + the captain (the highest one, counted twice), with no budget or
-    formation. Returns an array with one row per GW: (predicted, actual)."""
+    """Scale check of the acceptance criterion: the 11 highest predictions + the captain per GW.
+
+    The captain is the highest prediction, counted twice; there is no budget or formation.
+    Returns an array with one row per GW: (predicted, actual)."""
     tops = []
     for gw, g in p.groupby('gw'):
         top = g.nlargest(11, 'xp')
@@ -213,11 +215,12 @@ def report(season, d, p):
 
 
 def tune(d, hist, pos_of):
-    """Grid search of the [tuned] constants by RMSE (see score()). TEAM_PRIOR_MATCHES
-    stays at 10: in an earlier grid it changed MAE by < 0.01."""
+    """Grid search of the [tuned] constants by RMSE (see score()).
+
+    TEAM_PRIOR_MATCHES stays at 10: a grid over it changed MAE by less than 0.01."""
     prices = price_table(d)
     rows = []
-    # 8c: the recency grid is centred on the chosen 0.6 (the earlier grid 0.8/0.9/1.0 did not contain it)
+    # The recency grid is centered on the chosen 0.6.
     for rec, kp, b in itertools.product([0.5, 0.6, 0.7], [300, 600, 1200, 2400], [0.0, 0.5, 1.0, 1.5, 2.0]):
         F.MINUTES_RECENCY, F.PLAYER_PRIOR_MINUTES, F.PRICE_PRIOR_EXPONENT = rec, kp, b
         rmse, n = score(predict(d, hist, pos_of, range(2, 39), prices))

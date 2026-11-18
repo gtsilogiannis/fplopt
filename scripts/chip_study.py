@@ -1,14 +1,14 @@
-"""W3: counterfactual test of the chip suggestion rule on past seasons.
+"""Counterfactual test of the chip suggestion rule on past seasons.
 
 Comparing chip rules by replaying whole seasons does not work: the same setting can differ by
 60-100 points over a season only because one early decision changed the rest of the path, and a
-chip is worth 8-20 points. So the chips are judged on ONE path, the season played without chips
+chip is worth 8-20 points. So the chips are judged on one path, the season played without chips
 (scripts/backtest_season.py, same fake API and scoring):
 
   1. collect: at every GW t of that path the optimizer runs with the chip analysis. For every chip c
      it can play at t this records the exact gain Delta_c(t) (best plan with c minus best plan
      without, next 3 GWs, expected points), the estimates Delta_c(t') up to the end of the chip's
-     window, and the REAL gain at t: real points of the GW-t decisions of the plan with c minus
+     window, and the real gain at t: real points of the GW-t decisions of the plan with c minus
      those of the plan without (both from the same exact solves, autosubs and hits included).
   2. evaluate: every rule is replayed on these records, window by window (GW2-19, GW20-38), with
      one chip per GW; a chip a rule never plays gains 0. The oracle (best real gains, one GW per
@@ -17,7 +17,7 @@ chip is worth 8-20 points. So the chips are judged on ONE path, the season playe
     python scripts/chip_study.py collect --season 2024-25 --out chips_2425.jsonl
     python scripts/chip_study.py evaluate chips_2425.jsonl chips_2526.jsonl
 
-[assumption] the path after a chip is the path without it: Triple Captain and Bench Boost leave the
+[assumption] The path after a chip is the path without it: Triple Captain and Bench Boost leave the
 squad as it is, a Free Hit squad reverts at the next deadline; only the transfers made in the chip's
 GW (and with a Free Hit the free transfer it keeps) can differ. The Wildcard changes the squad for
 good, so it is recorded (exact Delta, gain in its own GW) but not part of the rules, as in the code
@@ -42,7 +42,6 @@ RULE_CHIPS = ('TC', 'BB', 'FH')                               # chips the rules 
 WINDOWS = [(2, 19), (20, 38)]                                 # 2026/27 sets (GW1 is not simulated)
 
 
-# --------------------------------------------------------------------------- collect
 def as_gw(pg):
     """A plan dict of milp.solve_plan (one GW) in the form score_gw expects."""
     return SimpleNamespace(squad=pg['squad'], xi=pg['xi'], bench=pg['bench'], captain_id=pg['captain'],
@@ -64,7 +63,7 @@ def collect(season, lookahead, out_path, first_gw=2, last_gw=38):
             t0 = time.time()
             r = optimize(B.Client(B.VaastavApi(data, m, t)),
                          Options(team_id=1, lookahead=lookahead, write_log=False, time_limit=B.NO_LIMIT,
-                                 chip_plan=False))   # C13: not part of the study (one more solve per GW)
+                                 chip_plan=False))   # not part of the study (one more solve per GW)
             plans = r.state.chip_plans
             base = real_points(data, t, as_gw(plans['NONE'])) if 'NONE' in plans else None
             rec = {'season': season, 'gw': t, 'window_end': r.chips.window,
@@ -82,13 +81,13 @@ def collect(season, lookahead, out_path, first_gw=2, last_gw=38):
                   + f"  {rec['seconds']:6.1f} s", flush=True)
 
 
-# --------------------------------------------------------------------------- rules
 def rule_now_ok(rec, c, tol, kind, horizon=None):
     """Would the rule play chip c at rec['gw'] (before the one-chip-per-GW choice)?
+
     horizon: compare only with the estimates of the next 'horizon' GWs (this one included)
     instead of those up to the end of the window: the choice of a MILP that may play the chip
-    anywhere in a horizon of that length, where a chip not played inside it is worth 0
-    [assumption: its exact gains are close to these estimates]."""
+    anywhere in a horizon of that length, where a chip not played inside it is worth 0.
+    [assumption] Its exact gains are close to these estimates."""
     ex = rec['exact'].get(c)
     if ex is None:
         return False
@@ -104,7 +103,7 @@ def rule_now_ok(rec, c, tol, kind, horizon=None):
 
 
 def replay(recs, kind, tol=0.0, force=False, horizon=None):
-    """Replays one rule over one season. Returns {(window, chip): (gw or None, real gain, exact)}."""
+    """Replay one rule over one season. Returns {(window, chip): (gw or None, real gain, exact)}."""
     by_gw = {r['gw']: r for r in recs}
     out = {}
     for w0, w1 in WINDOWS:
@@ -163,7 +162,7 @@ def evaluate(paths):
     for p in paths:
         recs = [json.loads(ln) for ln in open(p, encoding='utf-8')]
         seasons[recs[0]['season']] = recs
-    # calibration: exact expected gain against the real gain, every GW and chip
+    # Calibration: exact expected gain against the real gain, every GW and chip
     print("Exact Delta (expected) vs real gain, all GWs of the no-chip path:")
     for c in ('TC', 'BB', 'FH', 'WC'):
         pairs = [(r['exact'][c], r['gain'][c]) for recs in seasons.values() for r in recs

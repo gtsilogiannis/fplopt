@@ -1,17 +1,21 @@
-"""Acceptance check of a change to the xP model (roadmap, permanent criterion, decision 2026-10-20).
+"""Acceptance check of a change to the xP model.
+
 Usage (from the repository root):
     cp src/fplopt/xp_model.py xp_model_base.py           (before the change)
     python scripts/check_acceptance.py xp_model_base.py [<candidate>] [--season 2024-25]
-A version is a .py file that defines the xP model (a copy of src/fplopt/xp_model.py, or an older
-single-file version such as fpl_v2.py) or 'current' (the installed fplopt.xp_model), optionally
+
+A version is a .py file that defines the xP model (a copy of src/fplopt/xp_model.py, or a
+single-file version of the optimizer) or 'current' (the installed fplopt.xp_model), optionally
 with constants overridden: current@PRICE_PRIOR_EXPONENT=1.0,... The candidate defaults to 'current'.
-Criterion, in EACH season (2024-25 and 2025-26):
+
+Criterion, in each season (2024-25 and 2025-26):
   (1) RMSE (calibrate_xp tuning score) of the candidate < RMSE of the baseline, and
   (2) |gap| of the best XI + captain (mean over GWs of predicted - actual, calibrate_xp.top11)
-      of the candidate <= |gap| of the baseline + 2 standard errors of the PAIRED difference
-      (same GWs; the gap of one season alone has a standard error of ~2.5-3.5 points, the
-      paired difference of two versions ~0.4-1.1).
-Runtime: two backtests per season (~1-2 minutes each)."""
+      of the candidate <= |gap| of the baseline + 2 standard errors of the paired difference
+      (same GWs; the gap of one season alone has a standard error of 2.5-3.5 points, the
+      paired difference of two versions 0.4-1.1).
+
+Runtime: two backtests per season (1-2 minutes each)."""
 import argparse
 import importlib.util
 import os
@@ -23,7 +27,7 @@ SEASONS = ('2024-25', '2025-26')
 
 
 def load_version(spec):
-    """'<file.py>' / 'current', optionally '@NAME=value,NAME=value' -> an independent copy of that module."""
+    """Load '<file.py>' or 'current', optionally with '@NAME=value,NAME=value', as an independent module."""
     name, _, overrides = spec.partition('@')
     if name == 'current':
         path = importlib.util.find_spec('fplopt.xp_model').origin     # the file of the installed package

@@ -1,4 +1,4 @@
-"""W6: cost and effect of the solver's gap target (milp.MIP_REL_GAP) on the default run, on real past squads.
+"""Cost and effect of the solver's gap target (milp.MIP_REL_GAP) on the default run, on real past squads.
 
 The default run is what `fplopt --team ID` does: main plan (L5), 'no transfer' for the summary, chip report,
 plan with the suggested chip. The squads come from a saved backtest path (scripts/backtest_season.py
@@ -8,7 +8,7 @@ plan with the suggested chip. The squads come from a saved backtest path (script
         --time-limit 180 --out gap_180.csv
 
 Each row: case, gap target, time limit, total seconds, seconds per stage, how many numbers were
-'not computed' (C12: chips Delta, 'no transfer', chip plan), and what the user sees (objective, transfers,
+'not computed' (chip Deltas, 'no transfer', chip plan), and what the user sees (objective, transfers,
 captain, chip Deltas, suggested chip) to compare the gap targets case by case.
 --gaps changes milp.MIP_REL_GAP for the measurement only; the program itself uses the value in milp.py.
 Times depend on the machine and on its load; run nothing else meanwhile.
@@ -40,7 +40,7 @@ def run_case(states, case, gap, time_limit):
     seconds = time.time() - t
     pg = r.plan[0]
     cp = r.chip_plan
-    # C12: every number the run could not finish in the time limit
+    # Every number the run could not finish in the time limit
     tried_no_transfer = bool(pg.transfers) and pg.chip not in ('WC', 'FH')   # when the engine solves it
     nc = len(r.chips.not_computed) + (tried_no_transfer and r.no_transfer is None) \
         + (cp is not None and cp.status == 'not_computed')

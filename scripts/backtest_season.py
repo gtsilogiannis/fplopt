@@ -1,8 +1,8 @@
-"""W1: rolling-horizon backtest of the whole optimizer on a past season.
+"""Rolling-horizon backtest of the whole optimizer on a past season.
 
 At every gameweek t the optimizer sees only what was known before the deadline of t, plans
-gameweeks t .. t+L-1, and only the decisions of t are applied (squad, transfers, XI, bench order,
-captain, vice-captain, chip). The REAL points of t are then counted with the game's rules
+gameweeks t to t+L-1, and only the decisions of t are applied (squad, transfers, XI, bench order,
+captain, vice-captain, chip). The real points of t are then counted with the game's rules
 (autosubs, vice-captain, chips, hits) and the next gameweek starts from the new state.
 
     python scripts/backtest_season.py --season 2024-25 --lookahead 3 --out bt_2425_L3.csv
@@ -11,7 +11,7 @@ captain, vice-captain, chip). The REAL points of t are then counted with the gam
 
 How the past is replayed (the optimizer itself is not changed: it is fed a fake FPL API that
 answers from the vaastav data, github.com/vaastav/Fantasy-Premier-League):
-  - rules: the 2026/27 rules of the code (two chip sets, GW1-19 and GW20-38) in BOTH seasons;
+  - rules: the 2026/27 rules of the code (two chip sets, GW1-19 and GW20-38) in both seasons;
     the player points of the data do not depend on the chip rules.
   - start: a new team before the GW2 deadline (GBP 100.0m, unlimited transfers), the same for
     every setting. GW1 is not played: the xP model needs one finished GW.
@@ -56,7 +56,6 @@ POS = {'GK': 1, 'DEF': 2, 'MID': 3, 'FWD': 4}    # 2024/25 also has 'AM' rows: d
 NO_LIMIT = 10 ** 6                               # seconds: in practice no time limit
 
 
-# --------------------------------------------------------------------------- data
 class SeasonData:
     """Everything the fake API needs, from vaastav's merged_gw.csv, fixtures.csv and teams.csv."""
 
@@ -80,33 +79,33 @@ class SeasonData:
         fx['kickoff'] = pd.to_datetime(fx['kickoff_time'], utc=True)
         self.fixtures = [{'event': int(r.event), 'team_h': int(r.team_h), 'team_a': int(r.team_a),
                           'kickoff': r.kickoff} for r in fx.itertuples()]
-        # deadline of GW g ~ 90 minutes before its first kickoff [assumption]
+        # [assumption] The deadline of GW g is 90 minutes before its first kickoff.
         self.deadline = {g: k - pd.Timedelta(minutes=90) for g, k in fx.groupby('event')['kickoff'].min().items()}
-        self.n_matches = {}                                  # (team, GW) -> matches
+        self.n_matches = {}                                  # {(team, GW): matches}
         for f in self.fixtures:
             for t in (f['team_h'], f['team_a']):
                 self.n_matches[(t, f['event'])] = self.n_matches.get((t, f['event']), 0) + 1
         g1 = d.groupby(['element', 'GW'])
         first = g1.first()                                   # first row of each (player, GW)
-        # price per (player, GW) in tenths; GWs without a row take the last known value,
-        # and GWs before the player's first row the first value (only used as a fallback)
+        # Price per (player, GW) in tenths. GWs without a row take the last known value, and GWs
+        # before the player's first row the first value (only used as a fallback).
         pr = first['value'].unstack().reindex(columns=range(1, 39))
         self.price = pr.ffill(axis=1).bfill(axis=1).astype(int)
         self.ep = first['xP']                                # FPL projection recorded with the row
-        # GWs whose rows carry FPL's projection: in vaastav's 2025/26 file the column is 0 for every
+        # GWs whose rows carry FPL's projection. In vaastav's 2025/26 file the column is 0 for every
         # player in most GWs (checked 2026-10-23: only GW1-6, 8, 9, 24, 29, 38 have it; 2024/25
         # lacks GW22, 32, 34). Same test as calibrate_xp.py: mean projection of the GW > 0.5.
         self.has_ep = {int(g) for g, v in d.groupby('GW')['xP'].mean().items() if v > 0.5}
         agg = g1.agg(minutes=('minutes', 'sum'), points=('total_points', 'sum'))
-        self.minutes = agg['minutes'].to_dict()              # (player, GW) -> minutes (DGW: sum)
-        self.points = agg['points'].to_dict()                # (player, GW) -> FPL points
+        self.minutes = agg['minutes'].to_dict()              # {(player, GW): minutes}, summed in a DGW
+        self.points = agg['points'].to_dict()                # {(player, GW): FPL points}
         self.pos = d.groupby('element')['position'].first().map(POS).to_dict()
         self.name = d.groupby('element')['name'].first().to_dict()
         self.first_gw = d.groupby('element')['GW'].min().to_dict()
-        # (player, GW) -> team of his last row in that GW
+        # {(player, GW): team of his last row in that GW}
         self.team_at = g1['team_id'].last().astype(int).to_dict()
         self.gws_of = d.groupby('element')['GW'].apply(lambda s: sorted(set(s))).to_dict()
-        # per-GW live stats, the fields fplopt.data.fetch_history reads
+        # Per-GW live stats: the fields fplopt.data.fetch_history reads
         stat_cols = ['minutes', 'total_points', 'expected_goals', 'expected_assists',
                      'expected_goals_conceded', 'defensive_contribution', 'saves', 'bonus',
                      'yellow_cards', 'red_cards']
@@ -133,24 +132,27 @@ class SeasonData:
         return start
 
     def chance(self, pid, t):
-        """Availability proxy for GW t: None (no news) or 0 (flagged out). Without FPL's projection
-        for GW t in the data (see has_ep) nobody is flagged: the model then only learns of an
-        injury from the minutes played [assumption: no better source without future data]."""
+        """Availability proxy for GW t: None (no news) or 0 (flagged out).
+
+        Without FPL's projection for GW t in the data (see has_ep) nobody is flagged, and the model
+        learns of an injury only from the minutes played.
+        [assumption] No better source exists without future data."""
         if t - 1 not in self.has_ep or self.n_matches.get((self.team_of(pid, t), t), 0) == 0:
             return None                                      # no data, or blank GW (projection 0 is not news)
         ep = self.ep.get((pid, t - 1))
         return 0 if ep is not None and not pd.isna(ep) and ep == 0 else None
 
     def ep_next(self, pid, t, ppg):
-        """FPL's projection for GW t (row t-1); where the data lacks it: points per game x matches
-        in GW t [assumption]. The optimizer uses it only for players with no GW at their club."""
+        """FPL's projection for GW t (row t-1).
+
+        [assumption] Where the data lacks it: points per game x matches in GW t. The optimizer uses
+        it only for players with no GW at their club."""
         ep = self.ep.get((pid, t - 1))
         if t - 1 in self.has_ep and ep is not None and not pd.isna(ep):
             return float(ep)
         return ppg * self.n_matches.get((self.team_of(pid, t), t), 0)
 
 
-# --------------------------------------------------------------------------- manager state
 class Manager:
     """The simulated team, in the form the FPL API reports it (picks, bank, transfers, history)."""
 
@@ -160,7 +162,7 @@ class Manager:
         self.saved = None                                      # (squad, purchase, bank) during a FH
 
     def apply(self, data, g, plan_gw):
-        """Applies the decisions of GW g (plan_gw = OptimizeResult.plan[0])."""
+        """Apply the decisions of GW g (plan_gw = OptimizeResult.plan[0])."""
         if self.saved is not None:                             # last GW was a Free Hit: revert
             self.squad, self.purchase, self.bank = self.saved
             self.saved = None
@@ -199,7 +201,6 @@ class Manager:
             self.chips.append({'name': CHIP_API_NAME[chip], 'event': g})
 
 
-# --------------------------------------------------------------------------- fake API
 class VaastavApi:
     """Answers the FPL API paths the optimizer requests, as they were before the deadline of GW t."""
 
@@ -255,7 +256,7 @@ class VaastavApi:
                                 for r in rows.itertuples()]}
         if path.startswith('/entry/') and path.count('/') == 3:
             g0 = m.current[0]['event'] if m.current else t
-            # created just before its first deadline: the price at creation is the deadline price
+            # Created just before its first deadline: the price at creation is the deadline price.
             return {'joined_time': (d.deadline[g0] - pd.Timedelta(hours=2)).isoformat(), 'started_event': g0}
         raise KeyError(path)
 
@@ -271,7 +272,6 @@ class Client(FplClient):
         return self.api.respond(path)
 
 
-# --------------------------------------------------------------------------- scoring
 def valid_xi(xi, pos):
     """Formation rule: 1 GK, at least 3 DEF, 2 MID (implied by the squad limits) and 1 FWD."""
     n = [sum(1 for i in xi if pos[i] == k) for k in (1, 2, 3, 4)]
@@ -279,9 +279,11 @@ def valid_xi(xi, pos):
 
 
 def score_gw(pg, pos, minutes, points):
-    """Real FPL points of one GW for the decisions pg (PlanGW): XI after autosubs (none with Bench
-    Boost), captain x2 (x3 with Triple Captain), passed to the vice-captain if the captain did not
-    play, minus 4 per hit. A player 'plays' with minutes > 0 in any of his matches of the GW.
+    """Real FPL points of one GW for the decisions pg (PlanGW).
+
+    XI after autosubs (none with Bench Boost), captain x2 (x3 with Triple Captain), passed to the
+    vice-captain if the captain did not play, minus 4 per hit. A player 'plays' with minutes > 0
+    in any of his matches of the GW.
     Autosubs: the bench in its order (GK slot first); a bench player who played replaces the first
     starter who did not, among those whose replacement keeps a valid formation (GK only by GK).
     Returns (total, {'xi': final XI, 'captain_used': id or None, 'subs': bench slots that came on
@@ -317,7 +319,6 @@ def score_gw(pg, pos, minutes, points):
                                         'sub_points': sub_points, 'out': out, 'gk_out': gk_out}
 
 
-# --------------------------------------------------------------------------- simulation
 def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, save_gws=(), save_dir=None):
     data = SeasonData(season)
     m = Manager()
@@ -325,15 +326,15 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, 
     for t in range(first_gw, last_gw + 1):
         t0 = time.time()
         if t in save_gws:
-            # W4: the team as it is before the deadline of t, so that one GW of this path can be
-            # solved again on its own (e.g. to time a Wildcard solve): load_state(season, t, dir)
+            # The team as it is before the deadline of t, so that one GW of this path can be solved
+            # again on its own (e.g. to time a Wildcard solve): load_state(season, t, dir)
             with open(Path(save_dir) / f"state_{season}_gw{t}.pkl", 'wb') as fh:
                 pickle.dump(vars(m), fh)       # the fields only: loadable from any script
         opts = Options(team_id=1, lookahead=lookahead, write_log=False, time_limit=time_limit,
                        chip_report=(chips == 'advice'),
-                       transfer_gain=False,        # 15c: the summary's extra solve is not part of the decision
-                       formations=False,           # 15c: nor the comparison of formations (--details)
-                       chip_plan=False)            # C13: the chip plan is solved below with opts.chip
+                       transfer_gain=False,        # the summary's extra solve is not part of the decision
+                       formations=False,           # nor the comparison of formations (--details)
+                       chip_plan=False)            # the chip plan is solved below with opts.chip
         r = optimize(Client(VaastavApi(data, m, t)), opts)
         played_chip = 'NONE'
         if chips == 'advice' and r.chips.advice and r.chips.advice.get('pick'):
@@ -341,8 +342,8 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, 
             opts.chip, opts.chip_report = played_chip, False
             r = optimize(Client(VaastavApi(data, m, t)), opts)
         pg = r.plan[0]
-        # check of the fake API: the budget the optimizer rebuilt (lower bound of the selling
-        # values, S5) against the exact one the simulation knows
+        # Check of the fake API: the budget the optimizer rebuilt (lower bound of the selling
+        # values) against the exact one the simulation knows.
         sq, pur, bank = m.saved if m.saved is not None else (m.squad, m.purchase, m.bank)   # after a FH revert
         exact = (bank + sum(selling_price(pur[p], int(data.price.at[p, t])) for p in sq)) / 10 if sq else 100.0
         m.apply(data, t, pg)
@@ -357,7 +358,7 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, 
                      'captain': data.name[pg.captain_id], 'captain_used': data.name.get(info['captain_used']),
                      'expected': round(r.expected_now.total, 2), 'objective': round(r.solver.objective, 3),
                      'gap': None if r.solver.gap is None else round(r.solver.gap, 3),
-                     # predicted P(outfield bench slot k is used) and what happened (bench check)
+                     # Predicted P(outfield bench slot k is used) and what happened (bench check)
                      **{f'beta{k}': (None if bw is None else round(bw[k - 1], 4)) for k in (1, 2, 3)},
                      **{f'used{k}': int(k in info['subs']) for k in (0, 1, 2, 3)},
                      'out': info['out'], 'gk_out': info['gk_out'],
@@ -376,8 +377,9 @@ def simulate(season, lookahead, first_gw, last_gw, chips, time_limit, out_path, 
 
 
 def load_state(season, t, save_dir):
-    """(SeasonData, Client) of GW t of a saved path (see --save-gws): the optimizer sees the same
-    data and team as it did at t in the simulation."""
+    """(SeasonData, Client) of GW t of a saved path (see --save-gws).
+
+    The optimizer sees the same data and team as it did at t in the simulation."""
     with open(Path(save_dir) / f"state_{season}_gw{t}.pkl", 'rb') as fh:
         m = Manager()
         m.__dict__.update(pickle.load(fh))
@@ -393,9 +395,10 @@ def write_rows(path, rows):
 
 
 def compare(path_a, path_b):
-    """Paired difference A - B of the points per GW (same season, same GWs): mean, standard error
-    s_d / sqrt(n), and whether |mean| > 2 SE. The GWs are not independent (the squads drift
-    apart), so the standard error is an approximation."""
+    """Paired difference A - B of the points per GW (same season, same GWs).
+
+    Prints the mean, the standard error s_d / sqrt(n), and whether |mean| > 2 SE. The GWs are not
+    independent (the squads drift apart), so the standard error is an approximation."""
     a = pd.read_csv(path_a).set_index(['season', 'gw'])['points']
     b = pd.read_csv(path_b).set_index(['season', 'gw'])['points']
     dd = (a - b).dropna()

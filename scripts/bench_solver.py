@@ -1,15 +1,16 @@
-"""Solver timing on the 700-player synthetic season: one main-plan solve of the
-optimizer per setting, without the chip analysis, on the same data for every PuLP version.
+"""Solver timing on the 700-player synthetic season.
+
+One main-plan solve of the optimizer per setting, without the chip analysis, on the same data for
+every PuLP version.
 
     python scripts/bench_solver.py                         # HiGHS, lookahead 3 5 8
     python scripts/bench_solver.py --start partial --lookahead 5 --out bench.csv
 
 Settings:
-  --solver   highs; cbc only with an older PuLP 3 checkout of this repository (its bundled CBC): CBC was
-             removed from milp.py after measurement, and with the current code 'cbc' is refused
-  --start    full    = starting solution with every variable set (0 where none was given);
-                       what the PuLP 3 version of milp.py passed to HiGHS
-             partial = only the variables that have a value (PuLP 4's own HiGHS behaviour);
+  --solver   highs; cbc only with a PuLP 3 checkout of this repository and its bundled CBC (the
+             current milp.py accepts only highs)
+  --start    full    = starting solution with every variable set (0 where none was given)
+             partial = only the variables that have a value (PuLP 4's own HiGHS behavior);
                        PuLP 4 only (milp.fill_start switched off)
              none    = no starting solution at all
 Each row: PuLP and highspy versions, setting, solve seconds (all bench-weight passes), passes,
@@ -50,12 +51,12 @@ FIELDS = ['pulp', 'highspy', 'python', 'solver', 'start', 'lookahead', 'seconds'
 
 
 def set_start(mode):
-    """Switches the starting-solution behaviour of milp.run_solver for this process."""
+    """Switch the starting-solution behavior of milp.run_solver for this process."""
     run_solver = milp.run_solver
     if mode == 'partial':
         if not hasattr(milp, 'fill_start'):
-            return False                                 # PuLP 3 version: no partial start
-        milp.fill_start = lambda prob: None              # PuLP 4: pass only the variables with a value
+            return False                                 # PuLP 3: no partial start
+        milp.fill_start = lambda prob: None              # pass only the variables with a value
     elif mode == 'none':
         def no_start(prob, solver, time_limit, warm_start):
             return run_solver(prob, solver, time_limit, False)   # warm_start=False in every solve

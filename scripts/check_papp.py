@@ -1,18 +1,20 @@
-"""Chat 6b (M9): calibration of P(appear) of the minutes model.
-Since 8c the same shrinkage is applied in build_features (a = 0.4, m = 0.45 unchanged) and
-check_minutes.py measures and fits P(appear), P(60+) and E[minutes] together; this script
-stays as the original, simpler P(appear) check.
+"""Calibration of P(appear) of the minutes model, on its own.
+
+check_minutes.py measures and fits P(appear), P(60+) and E[minutes] together; this is the
+simpler check of P(appear) alone, with the shrinkage of build_features (a = 0.4, m = 0.45).
+
 Usage (from the repository root): python scripts/check_papp.py
-Data: the same vaastav files and data_cache/ as calibrate_xp.py.
+Data: the same vaastav files (merged_gw.csv) and data_cache/ as calibrate_xp.py.
+
 Walk-forward, same estimator as build_features: Papp = recency-weighted share
-(MINUTES_RECENCY^(age)) of the player's team-match GWs before t in which he played.
-Compares it with the actual appearance in GW t. Data: vaastav merged_gw.csv.
-Availability proxy: FPL xP of row t-1 (= FPL estimate for GW t,
-made after GW t-1) > 0; rows with xP(t-1) == 0 correspond to players flagged out."""
+(MINUTES_RECENCY^age) of the player's team-match GWs before t in which he played, compared
+with the actual appearance in GW t.
+Availability proxy: FPL xP of row t-1 (the FPL estimate for GW t, made after GW t-1) > 0;
+rows with xP(t-1) == 0 correspond to players flagged out."""
 import numpy as np
 import pandas as pd
 from fplopt import xp_model as F
-from calibrate_xp import download   # same download + cache as the xP backtest
+from calibrate_xp import download   # same download and cache as the xP backtest
 
 R = F.MINUTES_RECENCY
 

@@ -1,17 +1,16 @@
-"""15b: timing and consistency of the decision check solves for a Wildcard or Free Hit, on real past squads.
+"""Timing and consistency of the decision-check solves for a Wildcard or Free Hit, on real past squads.
 
 For a chip c (WC or FH) played in GW g, the decision check needs three values of the multi-period MILP:
     Z0    the main plan, no chip,
     Z+    the best plan with c in GW g (chip_fix),
     Z(D)  the best plan with c in GW g and the user's squad S in GW g (chip_fix + force_squad),
     G = Z(D) - Z0,  R = Z+ - Z(D) (>= 0 if both solves use the same bench weights).
-The decision check itself does not support WC/FH yet; this script calls milp.plan_squad directly, with the
-options of the engine, so it measures the same solves the check will make. The squads S are made by rule,
-with no choice by hand:
-    a  S = S+, the squad of Z+ in GW g (then R must be 0 within the gaps: K2),
+The script calls milp.plan_squad directly with the options of the engine, so it measures the same solves
+as the check. The squads S are made by rule, with no choice by hand:
+    a  S = S+, the squad of Z+ in GW g (then R must be 0 within the gaps),
     b  S+ with one change: the outfield player of S+ with the lowest xP (FH: xP in GW g; WC: weighted xP
-       from GW g to the end of the horizon) -> the cheapest player of the same position outside S+ that keeps
-       the club limit and the budget (ties: the lowest id),
+       from GW g to the end of the horizon) replaced by the cheapest player of the same position outside
+       S+ that keeps the club limit and the budget (ties: the lowest id),
     c  S = the current squad (the chip played with no change).
 The squads come from a saved backtest path (scripts/backtest_season.py --save-gws ...), as in
 scripts/bench_chip_solve.py:
@@ -46,13 +45,15 @@ FIELDS = ['case', 'chip', 'gw', 'solve', 'seconds', 'passes', 'complete', 'gap',
 
 
 def tenths(x):
-    """GBPm -> integer tenths (prices in the API are tenths; float sums are not exact)."""
+    """GBPm to integer tenths (prices in the API are tenths; float sums are not exact)."""
     return int(round(x * 10))
 
 
 def squad_cost(pool, squad, start_squad):
-    """Static budget check of the Wildcard / Free Hit check: owned players at their selling price, the others at
-    now_cost, in integer tenths. With constant prices this is exactly the cheapest cost of the squad in the MILP."""
+    """Cost of a squad for the static budget check, in integer tenths.
+
+    Owned players count at their selling price, the others at now_cost. With constant prices this is
+    exactly the cheapest cost of the squad in the MILP."""
     owned = set(start_squad)
     return sum(tenths(pool['sell'][i]) if i in owned else tenths(pool['price'][i]) for i in squad)
 
@@ -74,9 +75,10 @@ def violations(pool, squad, start_squad, budget):
 
 
 def one_change(pool, best, start_squad, budget, chip, g, horizon, weights):
-    """Decision b: S+ with its weakest outfield player replaced by the cheapest valid player of the same position.
-    Weakest = lowest xP in GW g (FH lasts one GW) or lowest weighted xP from g to the end of the horizon (WC).
-    Returns the new squad, or None if no valid change exists."""
+    """Decision b: S+ with its weakest outfield player replaced by the cheapest valid one of the same position.
+
+    Weakest = lowest xP in GW g (FH lasts one GW) or lowest weighted xP from g to the end of the horizon
+    (WC). Returns the new squad, or None if no valid change exists."""
     xp = pool['xp']
     gws = [g] if chip == 'FH' else [t for t in horizon if t >= g]
     score = {i: sum(weights[t] * xp[(i, t)] for t in gws) for i in best}
@@ -93,9 +95,11 @@ def one_change(pool, best, start_squad, budget, chip, g, horizon, weights):
 
 
 def self_consistent_value(res, pool, horizon, weights):
-    """J of a plan with the bench weights implied by its OWN XI in every GW (the fixed point the passes aim for),
-    so that two plans solved with different bench weights can be compared. The proof of R >= 0 needs the same
-    objective, and the bench weights of the last pass depend on each plan's XI: this value measures that risk."""
+    """J of a plan with the bench weights implied by its own XI in every GW.
+
+    This is the fixed point the passes aim for, so two plans solved with different bench weights can be
+    compared. The proof of R >= 0 needs the same objective, and the bench weights of the last pass depend
+    on each plan's XI: this value measures that risk."""
     total = 0.0
     for g in horizon:
         pg = res['plan'][g]
@@ -117,7 +121,8 @@ def solve_row(name, res, seconds, pool, horizon, weights):
 
 
 def run_decisions(state, chip, g, opts, time_limit, decisions=('a', 'b', 'c'), z0_seconds=None):
-    """Solves Z+ and Z(D) for each decision of 'decisions' on the state of an engine run (main plan = Z0).
+    """Solve Z+ and Z(D) for each decision of 'decisions' on the state of an engine run (main plan = Z0).
+
     Returns the rows: z0, z_best, then z_a, z_b, z_c (those that exist)."""
     pool, horizon, weights = state.pool, state.horizon, state.weights
     start, budget, ft0 = state.start_squad, state.budget, state.ft0
@@ -161,10 +166,10 @@ def run_decisions(state, chip, g, opts, time_limit, decisions=('a', 'b', 'c'), z
                        G_high=None if g_hi is None else round(g_hi, 3), R=round(R, 3),
                        R_low=None if r_lo is None else round(r_lo, 3), R_high=None if r_hi is None else round(r_hi, 3))
             if gap_d is not None and best.get('gap') is not None:
-                # bool(): the xP are numpy floats, and their comparisons give numpy.bool_ (not a Python bool)
-                row['r_below_gap'] = bool(R < -gap_d)             # P1: R below 0 by more than the gap
+                # bool() because comparing numpy floats gives numpy.bool_, which is not a Python bool
+                row['r_below_gap'] = bool(R < -gap_d)             # R below 0 by more than the gap
                 if d == 'a':
-                    row['k2_ok'] = bool(-gap_d <= R <= best['gap'])   # K2: same squad as Z+ -> R = 0 within the gaps
+                    row['k2_ok'] = bool(-gap_d <= R <= best['gap'])   # same squad as Z+: R = 0 within the gaps
         rows.append(row)
     return rows
 

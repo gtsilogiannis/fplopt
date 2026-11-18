@@ -1,4 +1,4 @@
-"""X11: fixture congestion vs the minutes model: is there an error the model does not already see?
+"""Fixture congestion against the minutes model: is there an error the model does not already see?
 
 Usage (from scripts/):  python check_congestion.py OPENFOOTBALL_DIR [SEASON]
   OPENFOOTBALL_DIR: folder with clones of github.com/openfootball/england and .../champions-league
@@ -11,10 +11,10 @@ Congestion: days since the team's previous match / until its next one, any compe
 (PL + UCL/UEL/UECL + FA Cup + EFL Cup), in UK calendar days.
 Standard errors are clustered by (team, PL match): the rotation decision is one per team per match.
 
-Result, 2024/25 (rule fixed before the run: a correction is worth modelling only if the gap exceeds
+Result, 2024/25 (rule fixed before the run: a correction is worth modeling only if the gap exceeds
 2 s.e.): previous match outside the PL <= 4 days before vs previous match >= 6 days before,
-P(appear) residual -0.008 +/- 0.006, P(60+) residual -0.003 +/- 0.006 -> no effect the walk-forward
-minutes model misses; congestion is not part of the xP model.
+P(appear) residual -0.008 +/- 0.006, P(60+) residual -0.003 +/- 0.006. The walk-forward minutes
+model misses no effect, so congestion is not part of the xP model.
 """
 import os
 import sys
@@ -24,12 +24,12 @@ from fplopt import xp_model as F
 from check_minutes import table, season_data, POS_NAME
 from fixtures_txt import parse
 
-# openfootball name (after normalise) -> FPL / vaastav short name; names equal after normalise are not listed
+# openfootball name (normalized) to FPL / vaastav short name; names that are already equal are not listed
 ALIAS = {'Brighton & Hove Albion': 'Brighton', 'Ipswich Town': 'Ipswich',
          'Leicester City': 'Leicester', 'Manchester City': 'Man City', 'Manchester United': 'Man Utd',
          'Newcastle United': 'Newcastle', 'Nottingham Forest': "Nott'm Forest", 'Tottenham Hotspur': 'Spurs',
          'West Ham United': 'West Ham', 'Wolverhampton Wanderers': 'Wolves', 'Leeds United': 'Leeds'}
-NON_PL = {  # competition key -> files (repository, file name); a missing qualifier file is skipped
+NON_PL = {  # competition key: files (repository, file name); a missing qualifier file is skipped
     'UCL': [('champions-league', 'cl.txt'), ('champions-league', 'clq.txt')],
     'UEL': [('champions-league', 'el.txt'), ('champions-league', 'elq.txt')],
     'UECL': [('champions-league', 'conf.txt'), ('champions-league', 'confq.txt')],   # e.g. Chelsea, 2024/25 play-off round
@@ -38,7 +38,7 @@ EUROPE = ('UCL', 'UEL', 'UECL')
 
 
 def normalise(name):
-    """'Arsenal FC (ENG)' -> 'Arsenal'; 'AFC Bournemouth' -> 'Bournemouth'; then the FPL short name."""
+    """Normalize a team name ('Arsenal FC (ENG)': 'Arsenal', 'AFC Bournemouth': 'Bournemouth') to the FPL short name."""
     n = name.split(' (')[0].strip()             # drop the country tag of UEFA files
     for pre in ('AFC ',):
         if n.startswith(pre):
@@ -50,19 +50,19 @@ def normalise(name):
 
 
 def pl_fixtures(d):
-    """vaastav per-player rows -> one row per (team, PL fixture): team name, fixture id, UK date, home/away."""
+    """vaastav per-player rows to one row per (team, PL fixture): team name, fixture id, UK date, home/away."""
     teams = d[['team', 'team_id']].drop_duplicates()
     name_of = dict(zip(teams['team_id'], teams['team']))
     f = d[['fixture', 'team', 'opponent_team', 'was_home', 'kickoff_time']].drop_duplicates(['fixture', 'team'])
     f = f.copy()
-    # UTC kickoff -> calendar date in the UK (all other sources give UK/European local dates)
+    # UTC kickoff to calendar date in the UK (all other sources give UK/European local dates)
     f['date'] = pd.to_datetime(f['kickoff_time'], utc=True).dt.tz_convert('Europe/London').dt.date
     f['opp'] = f['opponent_team'].map(name_of)
     return f[['team', 'fixture', 'date', 'was_home', 'opp']]
 
 
 def check_pl(of_dir, season, f):
-    """The openfootball PL file must give the same (date, home, away) set as vaastav: proves names + dates."""
+    """Require the openfootball PL file to give the same (date, home, away) set as vaastav (names and dates)."""
     of = {(dt, normalise(h), normalise(a)) for dt, h, a in parse(os.path.join(of_dir, 'england', season, '1-premierleague.txt'))}
     home = f[f['was_home']]
     va = {(dt, h, a) for dt, h, a in zip(home['date'], home['team'], home['opp'])}
@@ -124,7 +124,7 @@ def build(of_dir, season):
     x['Papp'], x['P60'] = np.asarray(papp), np.asarray(p60)
     x['r_app'], x['r_60'] = x['played'] - x['Papp'], x['y60'] - x['P60']
     x['cluster'] = x['team'] + '#' + x['fixture'].astype(str)
-    x['prev_nonpl'] = x['prev_comp'].notna() & (x['prev_comp'] != 'PL')   # NaN (no previous match) -> False
+    x['prev_nonpl'] = x['prev_comp'].notna() & (x['prev_comp'] != 'PL')   # no previous match: False
     x['next_nonpl'] = x['next_comp'].notna() & (x['next_comp'] != 'PL')
     print(f'[check] rows {len(x)}, without a previous match {int(x["d_prev"].isna().sum())}')
     return x
