@@ -1,4 +1,4 @@
-"""X11: the Football.TXT parser (scripts/fixtures_txt.py) and the club-name map of the congestion study."""
+"""The Football.TXT parser (scripts/fixtures_txt.py) and the club-name map of the congestion study."""
 import sys
 from datetime import date
 from pathlib import Path
@@ -37,7 +37,7 @@ def test_dates_teams_and_year_rollover(tmp_path):
     assert m == [
         (date(2024, 12, 28), "Arsenal FC", "Manchester United FC"),
         (date(2024, 12, 28), "Bodø/Glimt (NOR)", "Tottenham Hotspur (ENG)"),   # no time: same date
-        (date(2025, 1, 5), "AFC Bournemouth", "West Ham United FC"),              # Dec -> Jan: next year
+        (date(2025, 1, 5), "AFC Bournemouth", "West Ham United FC"),              # December to January
         (date(2025, 1, 12), "Nottingham Forest FC", "Wolverhampton Wanderers FC"),  # no score yet
     ]
 

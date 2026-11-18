@@ -1,6 +1,7 @@
-"""15b: scripts/bench_decision.py on the synthetic season (GW8 next, lookahead 2): the squads made by rule
-are valid and change what they should, the decision 'a' (the model's own chip squad) gives R = 0 within the
-gaps (K2), and the static budget check is exact to the tenth."""
+"""scripts/bench_decision.py on the synthetic season (GW8 next, lookahead 2).
+
+The squads made by rule are valid and change what they should, the decision 'a' (the model's own chip
+squad) gives R = 0 within the gaps, and the static budget check is exact to the tenth."""
 import sys
 from pathlib import Path
 
@@ -31,7 +32,7 @@ def test_decisions_by_rule(engine_run, chip):
     rows = {row['solve']: row for row in BD.run_decisions(st, chip, g, opts, 600)}
     assert set(rows) == {'z0', 'z_best', 'z_a', 'z_b', 'z_c'}
     assert all(row['complete'] for row in rows.values())
-    assert rows['z_a']['changed_vs_best'] == 0 and rows['z_a']['k2_ok'] is True     # K2
+    assert rows['z_a']['changed_vs_best'] == 0 and rows['z_a']['k2_ok'] is True     # R = 0 within the gaps
     assert rows['z_b']['changed_vs_best'] == 1                                        # exactly one change
     assert rows['z_c']['changed_vs_current'] == 0                                     # the current squad
     for d in ('z_a', 'z_b', 'z_c'):

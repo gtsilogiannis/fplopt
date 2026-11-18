@@ -8,8 +8,9 @@ from fpl_fake import FakeApi, Season, build_manager
 
 
 class FakeClient(FplClient):
-    """An FplClient whose requests are answered by a FakeApi instead of the network. Only get()
-    is replaced, so everything built on it (endpoint methods, cache) runs as in production."""
+    """An FplClient whose requests are answered by a FakeApi instead of the network.
+
+    Only get() is replaced, so everything built on it (endpoint methods, cache) runs as in production."""
 
     def __init__(self, api, **kw):
         super().__init__(**kw)
@@ -27,7 +28,7 @@ def season():
 
 @pytest.fixture
 def fake_client(season):
-    """Factory: fake_client(**manager options) -> FakeClient for the test manager."""
+    """Factory: fake_client(**manager options) returns a FakeClient for the test manager."""
     def make(**manager_kw):
         return FakeClient(FakeApi(season, build_manager(season, **manager_kw)))
     return make
@@ -35,9 +36,11 @@ def fake_client(season):
 
 @pytest.fixture(autouse=True)
 def restore_fplopt_logger():
-    """cli.main() points the 'fplopt' logger at the sys.stderr of the test that calls it, and pytest
-    closes that stream when the test ends; a later test that logs through the engine then printed
-    'Logging error ... I/O operation on closed file'. Every test gets back the logger it started with."""
+    """Give every test back the logger it started with.
+
+    cli.main() points the 'fplopt' logger at the sys.stderr of the test that calls it, and pytest
+    closes that stream when the test ends; a later test that logs through the engine would then
+    print 'Logging error ... I/O operation on closed file'."""
     logger = logging.getLogger('fplopt')
     handlers, level = logger.handlers[:], logger.level
     yield

@@ -1,5 +1,5 @@
-"""W1: the real-points scoring of the rolling-horizon backtest (scripts/backtest_season.py),
-checked on hand-made gameweeks against the game's rules (autosubs, formation, vice-captain,
+"""Real-points scoring of the rolling-horizon backtest (scripts/backtest_season.py), checked on
+hand-made gameweeks against the game's rules (autosubs, formation, vice-captain,
 Triple Captain, Bench Boost, hits)."""
 import sys
 from pathlib import Path

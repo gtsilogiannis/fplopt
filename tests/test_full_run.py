@@ -1,16 +1,17 @@
 """Whole optimizer on the synthetic season (GW8, lookahead 3, chip suggestions).
 
-The text must equal the reference run of the original version (tests/data/full_run_L3.txt)
-except for the solve times and the optimality gaps. Since the refactor the progress
-lines ('[*] ...', '[WARNING] ...', '[INFO] ...') are logged to stderr and the rest is printed to
-stdout, so each stream is compared with its own lines of the reference.
+The text must equal the reference run (tests/data/full_run_L3.txt) except for the solve times
+and the optimality gaps. The progress lines ('[*] ...', '[WARNING] ...', '[INFO] ...') are logged
+to stderr and the rest is printed to stdout, so each stream is compared with its own lines of the
+reference.
 
 The gaps ('proven within X', 'error <= X') are not compared exactly: the solver stops as soon as
 the gap is below MIP_REL_GAP, and the bound it has proven at that moment depends on its search
 path, which differs between machines and Python builds through last-digit floating-point
-differences (Arch, Python 3.14: error <= 0.12 / 0.14; reference, Python 3.13: 0.14 / 0.13, with
-the same plan, objective and Deltas). They are checked against their guarantee instead.
-Slow (~1.5 minutes): pytest -m slow"""
+differences (Python 3.14: error <= 0.12 / 0.14; reference, Python 3.13: 0.14 / 0.13, with the
+same plan, objective and Deltas). They are checked against their guarantee instead.
+
+Slow (about 1.5 minutes): pytest -m slow"""
 import io
 import re
 from datetime import timezone
@@ -24,10 +25,10 @@ from fplopt.milp import MIP_REL_GAP
 from fplopt.summary import build_summary
 
 GOLDEN = Path(__file__).parent / "data" / "full_run_L3.txt"
-GOLDEN_SUMMARY = Path(__file__).parent / "data" / "full_run_L3_summary.txt"   # 15c: the default output
+GOLDEN_SUMMARY = Path(__file__).parent / "data" / "full_run_L3_summary.txt"   # the default output
 TIME = re.compile(r"(in |Chip analysis: )\d+\.\d s")      # solve times vary between runs and machines
 GAP = re.compile(r"(proven within |error <= )\d+\.\d+")  # optimality gaps vary between machines (see above)
-# 15c: the gain over no transfer is a difference of two solves, each exact only to its gap -> its value is
+# The gain over no transfer is a difference of two solves, each exact only to its gap, so its value is
 # checked by tests/test_engine_summary.py, here only the line and its place
 GAIN = re.compile(r"(no transfer: )[+-]\d+\.\d+( in GW\d+, )[+-]\d+\.\d+")
 LOG_PREFIXES = ('[*]', '[WARNING]', '[INFO]')
@@ -40,11 +41,11 @@ def mask(lines):
 @pytest.mark.slow
 def test_full_run_equals_reference(fake_client, messages, tmp_path):
     log_path = tmp_path / "predictions_log.csv"
-    # Time limit far above the ~2.5 minutes the run needs. With the default 180 s each solve
-    # of the chip analysis gets a share of the time LEFT, so on a slow or busy machine the bench-weight
-    # fixed point of the BB solve stopped after 2 passes instead of 3 (BB +3.01 instead of +2.85).
-    # The reference was recorded with every pass done; the time-sharing rule itself
-    # is not what this test checks.
+    # Time limit far above the 2.5 minutes the run needs. With the default 180 s each solve of the
+    # chip analysis gets a share of the time left, so on a slow or busy machine the bench-weight
+    # fixed point of the BB solve can stop after 2 passes instead of 3 (BB +3.01 instead of +2.85).
+    # The reference was recorded with every pass done; the time-sharing rule itself is not what
+    # this test checks.
     result = optimize(fake_client(), Options(team_id=1, lookahead=3, log_path=str(log_path), time_limit=600))
     out = io.StringIO()
     report.print_optimize(result, out)
@@ -55,12 +56,12 @@ def test_full_run_equals_reference(fake_client, messages, tmp_path):
     golden_log[-1] = golden_log[-1].replace("predictions_log.csv", str(log_path))   # written to tmp
     assert mask(out.getvalue().splitlines()) == mask(golden_out)
     assert mask(messages()) == mask(golden_log)
-    # 15c (S5): the plain-English summary of the same run; the deadline in UTC, so that the reference
+    # The plain-English summary of the same run; the deadline in UTC, so that the reference
     # does not depend on the time zone of the machine. Rounded numbers: not masked.
     summary = build_summary(result, timezone.utc)['text']
     assert summary == GOLDEN_SUMMARY.read_text(encoding='utf-8').splitlines()
 
-    # the same numbers as data (what --json returns)
+    # The same numbers as data (what --json returns)
     assert result.current_gw == 8 and result.horizon == [8, 9, 10]
     assert (result.ft, result.ft_source) == (3, 'history')
     assert round(result.budget, 1) == 99.1
@@ -72,7 +73,7 @@ def test_full_run_equals_reference(fake_client, messages, tmp_path):
     assert result.chips.advice['pick'] is None
     assert result.warnings == []
 
-    # gaps: within the guarantee of the solver. The main plan is proven within MIP_REL_GAP of its
+    # Gaps: within the guarantee of the solver. The main plan is proven within MIP_REL_GAP of its
     # objective; each chip Delta is the difference of two such solves over the same 3 GWs (no chip,
     # objective = the main plan's; with the chip, objective <= that + Delta), so its error bound
     # is at most MIP_REL_GAP x (2 x objective + Delta).

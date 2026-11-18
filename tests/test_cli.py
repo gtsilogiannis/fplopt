@@ -171,7 +171,7 @@ def test_check_transfers_text_and_json(cli_client, capsys, season):
     assert (d['status'], d['chip'], d['timing'], d['captain']) == ('computed', 'TRANSFERS', None, None)
     assert d['transfers'] == {'out': [{'id': out, 'name': f"P{out}"}], 'in': [{'id': inn, 'name': f"P{inn}"}]}
     assert d['g'] + d['r'] == pytest.approx(d['gain_action'], abs=1e-9)
-    # 15d: the row 'Model's transfers' follows r_low, not the verdict code (as 'Better squad' in 15b)
+    # The row 'Model's transfers' follows r_low, not the verdict code (as 'Better squad' does)
     assert doc['summary']['decision']['model_transfers']['more'] == pytest.approx(d['r'])
     shown = "Model's transfers: Sell" in " ".join("\n".join(doc['summary']['text']).split())
     assert shown == (d['r_low'] > 0)
@@ -228,7 +228,7 @@ def test_subprocess_utf8_output(tmp_path):
                                   timeout=300)
             assert proc.returncode == 0, proc.stderr.decode('utf-8', 'replace')
             out = proc.stdout.decode('utf-8')                # raises if the bytes are not UTF-8
-            if not extra:                                    # 15c summary: the lineup, written as it is
+            if not extra:                                    # summary: the lineup, written as it is
                 assert out.startswith("Fantasy Premier League plan for GW8")
                 assert any(name in out for name in names.values())
                 continue
@@ -240,7 +240,7 @@ def test_subprocess_utf8_output(tmp_path):
                 assert "£" in out
 
 
-# --------------------------------------------------------------------------- 15c: summary by default
+# Summary by default
 QUICK = ['--team', '1', '--lookahead', '1', '--no-chip-report', '--no-log']
 
 
@@ -257,7 +257,7 @@ def test_summary_is_the_default(cli_client, capsys):
 
 
 def test_details_is_the_full_output(cli_client, capsys, season):
-    """--details prints exactly what report.print_optimize prints for the same options (S6)."""
+    """--details prints exactly what report.print_optimize prints for the same options."""
     import io
     from fplopt import report
     from fplopt.engine import Options, optimize
@@ -283,18 +283,18 @@ def test_json_has_the_summary(cli_client, capsys):
 @pytest.mark.parametrize("argv, expected", [
     (['--team', '1'], 180),                                  # general default (milp.SOLVER_TIME_LIMIT)
     (['--team', '1', '--chip', 'FH'], 180),
-    (['--team', '1', '--chip', 'WC'], 900),                  # N3: Wildcard default (milp.WILDCARD_TIME_LIMIT)
+    (['--team', '1', '--chip', 'WC'], 900),                  # Wildcard default (milp.WILDCARD_TIME_LIMIT)
     (['--team', '1', '--chip', 'WC', '--time-limit', '300'], 300),   # an explicit limit is kept
     (['--team', '1', '--time-limit', '60'], 60),
 ])
 def test_default_time_limit(argv, expected):
-    """N3: the time limit the CLI passes to the engine."""
+    """The time limit the CLI passes to the engine."""
     args = cli.build_parser().parse_args(argv)
     assert cli._time_limit(args) == expected
 
 
 def test_engine_wildcard_default(monkeypatch):
-    """N3: an API caller (Options without time_limit) gets the Wildcard default too; other chips keep None,
+    """An API caller (Options without time_limit) gets the Wildcard default too; other chips keep None,
     which the engine reads as milp.SOLVER_TIME_LIMIT."""
     from fplopt import engine
     seen = []
@@ -305,7 +305,7 @@ def test_engine_wildcard_default(monkeypatch):
     assert seen == [900, 120, None]
 
 
-# --------------------------------------------------------------------------- 15b: --check WC / FH
+# --check WC and FH
 def _no_chips_client(monkeypatch, season):
     """The synthetic manager without its WC (GW5) and FH (GW7), so that both are available in GW8 (--ft 3:
     the free-transfer rebuild would count the GW5 Wildcard transfers)."""
@@ -316,7 +316,7 @@ def _no_chips_client(monkeypatch, season):
 
 
 def test_check_wildcard_text_and_json(monkeypatch, season, capsys):
-    """--check WC with the current squad: the summary (notes of 15b O1 and O3, better squad), --details
+    """--check WC with the current squad: the summary (horizon and timing notes, better squad), --details
     (players that differ) and the JSON (squad, squad_diff, gws_measured; time limit 900 by default)."""
     m = _no_chips_client(monkeypatch, season)
     sq = ",".join(map(str, m['truth'][0]))

@@ -1,5 +1,6 @@
 """Decision check (decision.py): G, R and the gain of the action for Triple Captain, Bench Boost,
 transfers, Wildcard and Free Hit.
+
 Toy pool (toy_pools.py): 15 owned players, the last forward (sq[14]) has 20 xP in every GW, every
 other player 2 xP, price 5.0, budget 75.0, 1 FT. Expected values are computed by hand."""
 import pytest
@@ -70,7 +71,7 @@ def test_triple_captain_by_hand():
 
 def test_triple_captain_later_gw_is_weighted():
     """The same decision in GW10 (weight 0.7225): G = -16 * 0.7225 = -11.56, R = 36 * 0.7225 = 26.01;
-    the points of GW10 itself are unweighted (D2)."""
+    the points of GW10 itself are unweighted."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     dc = check(pool, sq, main_plan(pool, sq), 'TC', 10, sq[13])
     assert dc['g'] == pytest.approx(-16.0 * 0.7225, abs=1e-6)
@@ -79,17 +80,17 @@ def test_triple_captain_later_gw_is_weighted():
 
 
 def test_triple_captain_on_the_models_captain():
-    """K2: the user's captain is the model's -> R = 0 within the gaps (all terms on)."""
+    """The user's captain is the model's: R = 0 within the gaps (all terms on)."""
     pool, sq = varied_pool()
     beta_kw = dict(use_vice=True, use_bench=True)
     dc = check(pool, sq, main_plan(pool, sq, **beta_kw), 'TC', 9, sq[14], **beta_kw)
     assert dc['plan_best']['captain'] == sq[14]
-    # both solves stop within their gaps (0.05%), so R = 0 holds only up to them
+    # Both solves stop within their gaps (0.05%), so R = 0 holds only up to them.
     assert dc['r_low'] - 1e-9 <= 0.0 <= dc['r_high'] + 1e-9
 
 
 def test_triple_captain_never_beats_the_best_version():
-    """K3: R >= 0 within the gaps for every owned player as the TC captain in GW8 (all terms on)."""
+    """R >= 0 within the gaps for every owned player as the TC captain in GW8 (all terms on)."""
     pool, sq = varied_pool()
     beta_kw = dict(use_vice=True, use_bench=True)
     base = main_plan(pool, sq, **beta_kw)
@@ -101,7 +102,7 @@ def test_triple_captain_never_beats_the_best_version():
 
 
 def test_triple_captain_on_a_player_not_owned():
-    """O1: the captain is bought with the free transfer in GW8 (no hit), selling a 2-xP forward:
+    """The captain is bought with the free transfer in GW8 (no hit), selling a 2-xP forward:
     G = -16 as above (plan_value has no tie-breaks), and the purchase GW is reported."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     new_fwd = next(i for i in pool['ids'] if pool['pos'][i] == 4 and i not in sq)
@@ -123,7 +124,7 @@ def test_bench_boost_by_hand():
 
 @pytest.mark.parametrize("chip", ['TC', 'BB'])
 def test_gain_matches_the_chip_analysis(chip):
-    """K4: with every weight 1, the gain of the action in the current GW (Z+ - Z0) equals the
+    """With every weight 1, the gain of the action in the current GW (Z+ - Z0) equals the
     exact Delta of the chip analysis (chips.chip_report: other code path, the chip passed as
     'chip' instead of chip_fix, points summed by plan_points), within the solver gaps."""
     pool, sq = varied_pool()
@@ -137,8 +138,8 @@ def test_gain_matches_the_chip_analysis(chip):
 
 
 def test_incomplete_main_plan_gives_no_numbers_that_need_it():
-    """C12: a main plan cut by the time limit -> no G and no gain of the action; R does not use
-    Z0, so it is still given."""
+    """A main plan cut by the time limit gives no G and no gain of the action; R does not use Z0,
+    so it is still given."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     base = dict(main_plan(pool, sq), complete=False)
     dc = check(pool, sq, base, 'TC', 8, sq[13])
@@ -156,9 +157,9 @@ def test_invalid_requests(chip, gw, captain):
         check(pool, sq, {'plan': {}}, chip, gw, captain)
 
 
-# --------------------------------------------------------------------------- step 3: timing
+# Timing
 def test_estimate_gw_by_hand():
-    """One-GW estimates on the kept squad (chips.estimate_gw, moved out of chip_report):
+    """One-GW estimates on the kept squad (chips.estimate_gw):
     TC = the captain's 20 xP once more, BB = bench 4 x 2 = 8."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     assert estimate_gw(pool, sq, 8, 8, ['TC', 'BB'], 75.0, None, False, False) == pytest.approx(
@@ -191,8 +192,8 @@ def test_timing_tie_counts_as_best():
 
 
 def test_timing_with_a_missing_estimate(monkeypatch):
-    """C12: one GW of the window not estimated -> no verdict on the timing, the GW is listed;
-    G and R do not depend on it and are still given."""
+    """One GW of the window not estimated: no verdict on the timing, and the GW is listed. G and R
+    do not depend on it and are still given."""
     real = fplopt.decision.estimate_gw
 
     def cut_gw9(pool, q, t, *args, **kw):
@@ -214,7 +215,7 @@ def test_gw_after_the_window_is_an_error():
         check(pool, sq, {'plan': {}}, 'TC', 10, sq[14], window_end=9)
 
 
-# --------------------------------------------------------------------------- verdict (spec 0.4)
+# Verdict
 def _res(g, g_lo, g_hi, r=0.0, r_lo=-0.1, r_hi=0.1, is_best=True):
     return {'g': g, 'g_low': g_lo, 'g_high': g_hi, 'r': r, 'r_low': r_lo, 'r_high': r_hi,
             'timing': {'is_best': is_best}}
@@ -227,8 +228,8 @@ def _res(g, g_lo, g_hi, r=0.0, r_lo=-0.1, r_hi=0.1, is_best=True):
     (_res(5.0, 4.9, 5.1, is_best=False), ['better_gw']),
     (_res(5.0, 4.9, 5.1, r=2.0, r_lo=1.9, r_hi=2.1), ['better_version']),
     (_res(5.0, 4.9, 5.1, r=2.0, r_lo=1.9, r_hi=2.1, is_best=False), ['better_gw', 'better_version']),
-    (_res(5.0, 4.9, 5.1, is_best=None), []),                            # timing incomplete (C12)
-    (_res(None, None, None), []),                                       # G not computed (C12)
+    (_res(5.0, 4.9, 5.1, is_best=None), []),                            # timing incomplete
+    (_res(None, None, None), []),                                       # G not computed
     (dict(_res(5.0, 4.9, 5.1), timing=None), ['agrees']),               # no timing asked
 ])
 def test_verdict(res, codes):
@@ -237,7 +238,7 @@ def test_verdict(res, codes):
     assert set(codes) <= set(VERDICTS)
 
 
-# --------------------------------------------------------------------------- step 7: transfers (D3)
+# Transfers
 def _targets(n):
     """Toy pool with n target DEFs (101, ...) of 4 xP in every GW, and the squad with the first n
     squad DEFs (sq[2], ...) replaced by them."""
@@ -281,7 +282,7 @@ def test_invalid_transfer_requests(chip, gw, squad):
 
 
 def test_transfers_reuse_the_no_transfer_solve(monkeypatch):
-    """N4: a complete 'no transfer' solve of decision.transfer_gain (same model) is used as Z0 instead of a
+    """A complete 'no transfer' solve of decision.transfer_gain (same model) is used as Z0 instead of a
     second solve, with the same numbers; an incomplete one is solved again."""
     pool, sq, new = _targets(2)
     base = main_plan(pool, sq)
@@ -307,7 +308,7 @@ def test_transfers_reuse_the_no_transfer_solve(monkeypatch):
     assert {8: list(sq)} in forced                              # incomplete: solved again
 
 
-# --------------------------------------------------------------------------- 15b: Wildcard and Free Hit
+# Wildcard and Free Hit
 def _two_targets():
     """Toy pool with two target MIDs (101, 102) of 8 xP in every GW, price 5.0 (the budget of 75.0 is
     then exactly the price of any 15). With no vice-captain and no autosubs, by hand:
@@ -329,12 +330,12 @@ def _swap(pool, squad, out_id):
 
 @pytest.mark.parametrize("chip, z_best", [('FH', 181.82), ('WC', 185.22)])
 def test_squad_chip_by_hand(chip, z_best):
-    """15b K5. Decision c (the chip with the current squad): the same Z(D) for both chips, 60 in GW8 and
-    then 101 with the FT, 102 with a hit (as Z0, one GW later) = 60 + 57.8 + 52.02 = 169.82 -> G = -11.40.
-    Decision S+ with the starting 101 (8 xP) -> a 2-xP MID, d = 6:
+    """Decision c (the chip with the current squad): the same Z(D) for both chips, 60 in GW8 and then
+    101 with the FT, 102 with a hit (as Z0, one GW later) = 60 + 57.8 + 52.02 = 169.82, so G = -11.40.
+    Decision S+ with the starting 101 (8 xP) replaced by a 2-xP MID, d = 6:
       FH: R = w8 x d = 6 (GW8 only, the old squad returns);
       WC: R = w8 x d = 6 too, not d x (sum of the weights) = 15.435: the decision plan buys 101 back
-          in GW9 with the FT the Wildcard kept (the transfers after the decision are free, D1)."""
+          in GW9 with the FT the Wildcard kept (the transfers after the decision are free)."""
     pool, sq = _two_targets()
     base = main_plan(pool, sq)
     dc = check(pool, sq, base, chip, 8, squad=sq)
@@ -348,7 +349,7 @@ def test_squad_chip_by_hand(chip, z_best):
     dc = check(pool, sq, base, chip, 8, squad=squad)
     assert dc['r'] == pytest.approx(6.0, abs=1e-6)
     assert dc['r_low'] > 0
-    # G = Z+ - 6 - Z0: FH 175.82 - 181.22 = -5.40, WC 179.22 - 181.22 = -2.00 -> worse than no chip
+    # G = Z+ - 6 - Z0: FH 175.82 - 181.22 = -5.40, WC 179.22 - 181.22 = -2.00, worse than no chip
     assert dc['g'] == pytest.approx(z_best - 6.0 - 181.22, abs=1e-6)
     assert verdict(dc) == ['worse_than_none']
     assert sorted(dc['plan_decision']['squad']) == sorted(squad)
@@ -373,7 +374,7 @@ def _wc_decision_buys(pool, sq, squad, g):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_on_the_models_squad(chip):
-    """15b K2: S = S+ (the squad of Z+ in the chip's GW) -> R = 0 within the gaps, all terms on."""
+    """S = S+ (the squad of Z+ in the chip's GW): R = 0 within the gaps, all terms on."""
     pool, sq = varied_pool()
     kw = dict(use_vice=True, use_bench=True)
     base = main_plan(pool, sq, **kw)
@@ -385,7 +386,7 @@ def test_squad_chip_on_the_models_squad(chip):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_never_beats_the_best_version(chip):
-    """15b K3: R >= -gap of Z(D) for the current squad and for S+ with each outfield player swapped
+    """R >= -gap of Z(D) for the current squad and for S+ with each outfield player swapped
     (14 valid squads; no autosubs, so the bench weights of the solves do not enter)."""
     pool, sq = varied_pool()
     kw = dict(use_vice=True, use_bench=False)
@@ -401,7 +402,7 @@ def test_squad_chip_never_beats_the_best_version(chip):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_now_is_the_chip_plan(chip):
-    """15b K4': in the current GW, Z+ is the same model as the main plan with --chip (the chip passed as
+    """In the current GW, Z+ is the same model as the main plan with --chip (the chip passed as
     'chip' instead of chip_fix): the same plan in every GW and the same J. With every weight 1 and
     L <= 3, the gain of the action equals the exact Delta of the chip analysis within the gaps."""
     pool, sq = varied_pool()
@@ -421,7 +422,7 @@ def test_squad_chip_now_is_the_chip_plan(chip):
 
 def test_free_hit_timing_uses_the_chip_estimates():
     """FH timing: the Free Hit estimates of the chip analysis (chips.estimate_gw) on the main plan's
-    squads, for every GW of the window. WC: no timing (15b O3)."""
+    squads, for every GW of the window. WC: no timing."""
     pool, sq = _two_targets()
     base = main_plan(pool, sq)
     dc = check(pool, sq, base, 'FH', 8, squad=sq, window_end=10)
@@ -434,8 +435,8 @@ def test_free_hit_timing_uses_the_chip_estimates():
 
 @pytest.mark.parametrize("chip, first_forced", [('WC', True), ('FH', False)])
 def test_squad_chip_solve_order(monkeypatch, chip, first_forced):
-    """15b O5: WC solves Z(D) first (half of the time limit) and Z+ with all that is left (here almost all
-    of it: the toy Z(D) takes milliseconds); FH keeps the order of TC (Z+ first)."""
+    """WC solves Z(D) first (half of the time limit) and Z+ with all that is left (here almost all of
+    it: the toy Z(D) takes milliseconds); FH keeps the order of TC (Z+ first)."""
     pool, sq = _two_targets()
     base = main_plan(pool, sq)
     original, calls = fplopt.decision.plan_squad, []
@@ -464,8 +465,8 @@ def test_squad_diff_by_hand():
 @pytest.mark.parametrize("chip, kw", [
     ('WC', {}),                                  # no squad
     ('FH', {'squad': 'short'}),                  # 14 players
-    ('WC', {'squad': 'ok', 'window_end': 10}),   # 15b O3: no timing for WC
-    ('FH', {'squad': 'ok', 'captain': 15}),      # 15b O2: no captain with WC/FH
+    ('WC', {'squad': 'ok', 'window_end': 10}),   # no timing for WC
+    ('FH', {'squad': 'ok', 'captain': 15}),      # no captain with WC/FH
     ('BB', {'squad': 'ok'}),                     # a squad only with TRANSFERS, WC, FH
 ])
 def test_invalid_squad_chip_requests(chip, kw):

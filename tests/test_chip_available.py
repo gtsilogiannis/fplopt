@@ -1,7 +1,9 @@
-"""15d E1: --chip must be playable in the current GW. A chip whose sets are all played, expired or not open
-yet is an input error (exit 2) before any solve; a chip already active for the GW (played before its
-deadline) is still allowed, and so is NONE. Synthetic season, GW8 next; its manager played WC in GW5
-and FH in GW7 (set 1 of both), BB and TC are unplayed."""
+"""--chip must be playable in the current GW.
+
+A chip whose sets are all played, expired or not open yet is an input error (exit 2) before any
+solve; a chip already active for the GW (played before its deadline) is still allowed, and so is NONE.
+Synthetic season, GW8 next; its manager played WC in GW5 and FH in GW7 (set 1 of both), BB and TC are
+unplayed."""
 import pytest
 
 from fplopt.engine import Options, _check_chip_available, optimize
@@ -26,7 +28,7 @@ def no_chips(season):
     return m
 
 
-# --------------------------------------------------------------------------- the rule by hand
+# The rule by hand
 ROWS = [('WC', 2, 19, 'played GW5'), ('WC', 20, 38, 'available'), ('TC', 1, 19, 'available')]
 
 
@@ -63,7 +65,7 @@ def test_new_team_wildcard_and_free_hit():
     _check_chip_available('BB', 1, {'BB': [(1, 19)]}, [], set(), True)
 
 
-# --------------------------------------------------------------------------- through the engine
+# Through the engine
 @pytest.mark.parametrize("chip, played", [('WC', 'GW2-19 played GW5'), ('FH', 'GW2-19 played GW7')])
 def test_played_chip_is_an_input_error(season, chip, played):
     with pytest.raises(InputError) as e:

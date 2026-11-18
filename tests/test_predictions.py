@@ -1,4 +1,4 @@
-"""Prediction log (V1) and evaluation (V2) with hand-computed errors."""
+"""Prediction log and evaluation with hand-computed errors."""
 import pandas as pd
 import pytest
 
@@ -34,9 +34,9 @@ def test_evaluate(tmp_path):
     path = tmp_path / "log.csv"
     players = [player(1, 6.0, 4.0), player(2, 2.0, 3.0), player(3, 1.0, 1.0)]
     log_predictions(8, players, {1: 'Captain', 2: 'Start'}, str(path))
-    r = evaluate(LiveClient({1: 10, 2: 1}), 8, str(path))        # player 3 missing -> 0 points
+    r = evaluate(LiveClient({1: 10, 2: 1}), 8, str(path))        # player 3 missing: 0 points
     rows = {row.label: row for row in r.rows}
-    # model errors: 6-10 = -4, 2-1 = 1, 1-0 = 1 -> MAE 2, bias -2/3; FPL: -6, 2, 1 -> MAE 3, bias -1
+    # Model errors: 6-10 = -4, 2-1 = 1, 1-0 = 1: MAE 2, bias -2/3. FPL: -6, 2, 1: MAE 3, bias -1.
     allr = rows["All logged"]
     assert (allr.n, allr.mae, allr.mae_fpl) == (3, pytest.approx(2.0), pytest.approx(3.0))
     assert (allr.bias, allr.bias_fpl) == (pytest.approx(-2 / 3), pytest.approx(-1.0))

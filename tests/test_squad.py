@@ -1,5 +1,4 @@
-"""Squad, bank, selling prices and free transfers rebuilt from the public API
-(reference values from harness_offline.py and harness_6b.py in the first commit)."""
+"""Squad, bank, selling prices and free transfers rebuilt from the public API."""
 import pytest
 
 from fpl_fake import CUR, sell_rule
@@ -9,12 +8,12 @@ from fplopt.squad import free_transfers_from_history, load_current_squad, sellin
 @pytest.mark.parametrize("purchase, now, expected", [
     (70, 73, 71), (70, 74, 72), (70, 70, 70), (70, 68, 68), (70, 71, 70), (55, 56, 55), (55, 57, 56)])
 def test_selling_price(purchase, now, expected):
-    # a rise is shared 50/50 and rounded down to 0.1m; a fall is passed on in full
+    # A rise is shared 50/50 and rounded down to 0.1m; a fall is passed on in full.
     assert selling_price(purchase, now) == expected
 
 
 def load(season, client, messages):
-    """Runs load_current_squad against the fake API; returns its result, its messages and the truth."""
+    """Run load_current_squad against the fake API; return its result, its messages and the truth."""
     squad, bank, sell, _ = load_current_squad(client, 1, CUR, {'elements': season.elements})
     t_sq, t_pur, t_bank = client.api.manager['truth']
     truth_sell = {p: sell_rule(t_pur[p], season.price(p, CUR)) / 10 for p in t_sq}
@@ -49,7 +48,7 @@ def test_load_current_squad(season, fake_client, messages, scenario, manager_kw,
 
 
 def test_midmix_purchase_prices(season, fake_client, messages):
-    # two players were bought between two price changes; the true sum is 96.3, the code uses 96.2
+    # Two players were bought between two price changes; the true sum is 96.3, the code uses 96.2.
     client = fake_client(first_gw=2, mix=True)
     assert client.api.manager['mixed'] == ([39, 57], [(70, 69, 69), (45, 46, 46)])
     *_, (_, _, _, truth_sell) = load(season, client, messages)
@@ -73,7 +72,7 @@ def history(first, rows, chips=()):
 @pytest.mark.parametrize("hist, expected", [
     # test manager: F2=1 F3=2 F4=2 F5=3 F6=3 (WC) F7=3 F8=3 (FH)
     (history(1, {3: (1, 0), 5: (2, 0), 6: (1, 0), 7: (3, 0)}, [('wildcard', 5), ('freehit', 7)]), (3, [])),
-    # user's team (first GW3), three allocations allowed by its bank history -> 2 in each
+    # a team created in GW3: three transfer histories that its bank allows, 2 FT in each
     (history(3, {4: (1, 0), 5: (1, 0), 7: (1, 0)}), (2, [])),
     (history(3, {5: (2, 0), 7: (1, 0)}), (2, [])),
     (history(3, {5: (2, 0), 6: (1, 0)}), (2, [])),
@@ -87,7 +86,7 @@ def test_free_transfers_from_history(hist, expected):
 
 
 def test_new_team_mid_season_starts_like_gw1(season):
-    """R2: a team created before the GW8 deadline has no finished GW yet ('current' is empty) and
+    """A team created before the GW8 deadline has no finished GW yet ('current' is empty) and
     no picks: it gets the GW1 treatment (GBP 100.0m, unlimited transfers, no sales) instead of a
     404 for the picks of GW7."""
     from conftest import FakeClient
@@ -102,7 +101,7 @@ def test_new_team_mid_season_starts_like_gw1(season):
 
 
 def test_new_team_gets_no_wildcard_or_free_hit_gain(season):
-    """R2: the chip analysis of a team before its first deadline leaves out WC and FH (~3 s)."""
+    """The chip analysis of a team before its first deadline leaves out WC and FH (about 3 s)."""
     from conftest import FakeClient
     from fpl_fake import FakeApi, build_manager
     from fplopt.engine import Options, optimize

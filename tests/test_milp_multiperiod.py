@@ -1,6 +1,7 @@
-"""Multi-period MILP: free transfers, hits, chips fixed in the first GW, budget with
-selling prices, vice-captain, GW1. Expected values are computed by hand in each test
-(reference output: harness_6b.py in the first commit).
+"""Multi-period MILP: free transfers, hits, chips fixed in the first GW, budget with selling
+prices, vice-captain, GW1.
+
+Expected values are computed by hand in each test.
 
 Players with exactly equal xP are interchangeable for the solver, and HiGHS may pick a
 different one between runs; the tests therefore check counts, objectives and properties,
@@ -31,7 +32,7 @@ def test_waits_for_the_next_free_transfer():
     assert set(res['plan'][8]['in'] + res['plan'][9]['in']) == {101, 102}
     keep = sum(W3[g] * (2.0 * 10 + 20 * 2) for g in H3)      # XI 10 x 2 + captain 20 x 2
     assert res['objective'] - keep == pytest.approx(2 * 2.5725 + 2 * 1.5725 - 0.002, abs=1e-6)
-    # lookahead 1 sees only GW8: one transfer, no hit (a second gains 2 < 4)
+    # Lookahead 1 sees only GW8: one transfer, no hit (a second gains 2 < 4)
     res1 = solve_plan(pool, [8], {8: 1.0}, sq, 75.0, 1, **NO_TERMS)
     assert (n_in(res1, 8), res1['plan'][8]['hits']) == (1, 0)
 
@@ -91,7 +92,7 @@ def test_free_hit_in_the_first_gw():
 
 
 def test_budget_selling_price_and_rebuy():
-    """Owned player A: bought 7.0, now 7.3 -> sells for 7.1. Bank 0.1. A blanks in GW9, a 7.2
+    """Owned player A: bought 7.0, now 7.3, sells for 7.1. Bank 0.1. A blanks in GW9, a 7.2
     target is strong only in GW9. Selling A in GW9 is possible; buying him back in GW10 costs
     7.3 > 7.2 available, so the plan must not do it."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
@@ -110,8 +111,8 @@ def test_budget_selling_price_and_rebuy():
     assert a in res['plan'][9]['out'] and 201 in res['plan'][9]['in']
     assert a not in res['plan'][10]['squad']
     assert [n_in(res, g) for g in H3] == [0, 2, 0]
-    # the error the original-copy variable k prevents: if re-buying cost the selling price,
-    # the plan would buy A back in GW10
+    # The error the original-copy variable k prevents: if re-buying cost the selling price,
+    # the plan would buy A back in GW10.
     pool['price'][a] = 7.1
     res = solve_plan(pool, H3, W3, sq, budget, 2, **NO_TERMS)
     assert a in res['plan'][10]['in']
@@ -150,7 +151,7 @@ def test_before_the_first_deadline():
 
 @pytest.mark.parametrize("value, transfers", [(0.0, 1), (1.0, 1), (2.0, 0)])
 def test_value_of_free_transfers_after_the_horizon(monkeypatch, value, transfers):
-    """W2: a target +2 xP over the squad only in GW10 gains 2 x 0.7225 = 1.445 weighted points.
+    """A target +2 xP over the squad only in GW10 gains 2 x 0.7225 = 1.445 weighted points.
     With 1 FT, 4 FTs are left after GW10 if he is not bought, 3 if he is. A value per FT
     above 1.445 keeps the transfer; the objective then holds 4 x value."""
     import fplopt.milp as milp

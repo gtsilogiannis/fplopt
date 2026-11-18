@@ -1,7 +1,9 @@
-"""Plain-English summary (summary.py, chat 15c): every fact equals its source in the result (S1),
-the 'pays for' rule by hand (S2), numbers in the text equal the rounded fields (S3), no technical
-words in the text (S4), the deadline in local time (S9). One engine run on the synthetic season
-(GW8 next, lookahead 2, no chip analysis); the other cases change copies of that result."""
+"""Plain-English summary (summary.py).
+
+Every fact equals its source in the result, the 'pays for' rule by hand, numbers in the text equal
+the rounded fields, no technical words in the text, and the deadline in local time. One engine run
+on the synthetic season (GW8 next, lookahead 2, no chip analysis); the other cases change copies of
+that result."""
 import json
 import locale
 import re
@@ -46,10 +48,10 @@ def advice(pick=None, also=(), holds=(), incomplete=()):
             'wc_note': None, 'incomplete': list(incomplete)}
 
 
-# --------------------------------------------------------------------------- S2: pays for, by hand
+# 'Pays for', by hand
 @pytest.mark.parametrize("bank, deltas, expected", [
-    (30, [-40, 14], [False, True]),          # K9 (chat 15): Cherki -> Fernandes needs Araujo -> Thomas
-    (30, [-19, -2], [False, False]),         # GW9 plan of 2026-10-26: both purchases fit the bank
+    (30, [-40, 14], [False, True]),          # the first purchase needs the second sale
+    (30, [-19, -2], [False, False]),         # both purchases fit the bank
     (0, [-10, 10], [False, True]),           # exactly at the limit: 0 <= 0 counts as fitting
     (0, [-30, 20, 20], [False, True, True]),  # two sales, each needed
     (29, [0, 13, 4, -20, -16], [False, True, False, False, False]),   # synthetic season: 10 left
@@ -58,14 +60,14 @@ def test_pays_for_by_hand(bank, deltas, expected):
     assert pays_for(bank, deltas) == expected
 
 
-# --------------------------------------------------------------------------- rounding
+# Rounding
 def test_rounding():
     assert half_up(62.5) == 63 and half_up(62.49) == 62 and half_up(64.33) == 64   # round(62.5) would be 62
     assert signed(0.04) == "no difference" and signed(-0.04) == "no difference"
     assert signed(1.76) == "+1.8" and signed(-4.04) == "-4.0"
 
 
-# --------------------------------------------------------------------------- S1: fields = sources
+# Every field equals its source
 def test_fields_equal_their_sources(plain):
     s = build_summary(plain)
     pg = plain.plan[0]
@@ -87,7 +89,7 @@ def test_fields_equal_their_sources(plain):
     json.dumps(s)                                                          # plain types only
 
 
-# --------------------------------------------------------------------------- S3: text = fields
+# The text equals the fields
 def test_text_numbers_equal_fields(plain):
     s = build_summary(plain)
     x, f = text(s), flat(s)
@@ -105,7 +107,7 @@ def test_text_numbers_equal_fields(plain):
     assert x.endswith("Full numbers: Run again with --details")
 
 
-# --------------------------------------------------------------------------- S4: plain words
+# Plain words
 def variants(r):
     """The result and copies of it that reach every branch of the text."""
     pg = r.plan[0]
@@ -127,7 +129,7 @@ def test_no_technical_words(plain):
         assert all(len(line) <= 80 for line in x.splitlines())
 
 
-# --------------------------------------------------------------------------- branches
+# Branches
 def test_no_transfer_saves_it(plain):
     pg = plain.plan[0]
     r = replace(plain, plan=[replace(pg, transfers=[], hits=0, ft=2)] + plain.plan[1:])
@@ -154,7 +156,7 @@ def test_chip_texts(plain):
     starts = {len(ln) - len(ln.split(':', 1)[1].lstrip()) for ln in lines}
     assert starts == {len("Triple Captain: ")}
     assert s['chip']['play'] == {'chip': 'FH', 'gain': 1.76}
-    # BB is available but was not analysed here (not in the window of this hand-made chip section)
+    # BB is available but was not analyzed here (not in the window of this hand-made chip section)
     assert [c['status'] for c in s['chip']['by_chip']] == ['not_estimated', 'hold', 'used', 'play']
     x = flat(build_summary(replace(with_chips(plain, status='skipped_chip'), options=replace(plain.options, chip='TC'))))
     assert "Triple Captain: Playing it this gameweek: the plan above uses it" in x and "Suggested" not in x
@@ -190,7 +192,7 @@ def test_alerts(plain):
     assert f"{bench.name} (injured or doubtful" in text(s)
 
 
-# --------------------------------------------------------------------------- S9: deadline
+# Deadline
 @pytest.mark.parametrize("utc, local", [
     ("2026-10-31T11:00:00Z", "Sat 31 Oct, 13:00"),     # Athens UTC+2 (winter time from 25 Oct)
     ("2026-10-24T10:00:00Z", "Sat 24 Oct, 13:00"),     # Athens UTC+3 (summer time)
@@ -216,12 +218,12 @@ def test_deadline_ignores_the_locale():
 
 def test_header_with_deadline(plain):
     r = replace(plain)
-    r.deadline = "2026-10-31T11:00:00Z"        # the engine sets it from step 2 of 15c
+    r.deadline = "2026-10-31T11:00:00Z"        # the engine sets it from bootstrap-static
     assert build_summary(r, tz=ZoneInfo("Europe/Athens"))['text'][:2] == \
         ["Fantasy Premier League plan for GW8", "Deadline: Sat 31 Oct, 13:00 (your time)"]
 
 
-# --------------------------------------------------------------------------- 15d: Model's transfers
+# Model's transfers
 def _transfers_check(r, g, r_):
     """A hand-made TRANSFERS check: sell 1 for 2; the model's plan sells 3 for 4. g and r_ are (value, low,
     high); the verdict comes from decision.verdict, as in the engine."""
@@ -241,8 +243,8 @@ def _transfers_check(r, g, r_):
     ((1.0, 0.9, 1.1), (0.0, -0.1, 0.1), False),     # agrees (unchanged)
 ])
 def test_model_transfers_follow_r_low(plain, g, r_, shown):
-    """15d: the row 'Model's transfers' shows the model's set exactly when r_low > 0, whatever the
-    verdict. Before 15d it followed the code 'better_version', which verdict() never gives when g_high < 0."""
+    """The row 'Model's transfers' shows the model's set exactly when r_low > 0, whatever the verdict
+    (verdict() never gives 'better_version' when g_high < 0)."""
     r = _transfers_check(plain, g, r_)
     s = build_summary(r)
     x = flat(s)

@@ -58,7 +58,7 @@ def test_bench_boost_check(season):
 
 def test_captain_unavailable_and_not_owned():
     """A forward outside the squad with chance 0 (filtered out of the pool without a check): he
-    stays in the pool for the check, is bought in GW8 and captained with xP 0 -> R > 0."""
+    stays in the pool for the check, is bought in GW8 and captained with xP 0, so R > 0."""
     season = Season()
     owned = set(build_manager(season)['truth'][0])
     # the cheapest forward not owned, so that the budget cannot rule the decision out
@@ -74,8 +74,8 @@ def test_captain_unavailable_and_not_owned():
 
 
 def test_chip_already_played_is_invalid(season):
-    """TC played in GW3 (first set used): a TC in GW8 breaks a rule of the game -> 'invalid',
-    with the reason, a warning, and no solve; the main plan is still given."""
+    """TC played in GW3 (first set used): a TC in GW8 breaks a rule of the game. The check is
+    'invalid', with the reason, a warning and no solve; the main plan is still given."""
     manager = build_manager(season)
     manager['chips'].append({'name': '3xc', 'event': 3})
     r = run(season, manager, check='TC', check_captain=1)
@@ -100,7 +100,7 @@ def test_argument_errors(season, kw, message):
         run(season, **kw)
 
 
-# --------------------------------------------------------------------------- transfers (D3)
+# Transfers
 def _owned(season):
     return build_manager(season)['truth'][0]
 
@@ -173,7 +173,7 @@ def test_transfers_argument_errors(season, kw, message):
         run(season, **kw)
 
 
-# --------------------------------------------------------------------------- 15b: Wildcard and Free Hit
+# Wildcard and Free Hit
 def _no_chips(season):
     """The synthetic manager without the chips it played (WC GW5, FH GW7), so that WC and FH are available
     in GW8. --ft 3 is passed: the history still has the GW5 transfers, which the rebuild would now count."""
@@ -183,8 +183,8 @@ def _no_chips(season):
 
 
 def test_wildcard_check_with_the_models_squad(season):
-    """15b K2/K4': the squad of the main plan of --chip WC checked as the user's Wildcard: R = 0 within the
-    gaps, the notes of 15b O1 (measured over 1 GW) and O3 (no timing), and the default time of a Wildcard (O4)."""
+    """The squad of the main plan of --chip WC checked as the user's Wildcard: R = 0 within the gaps, the
+    notes 'measured over 1 GW' and 'no timing', and the default time limit of a Wildcard."""
     m, kw = _no_chips(season)
     best = [s.id for s in run(season, m, chip='WC', **kw).squad]
     r = run(season, m, check='WC', check_squad=best, **kw)
@@ -218,7 +218,7 @@ def test_free_hit_check_with_the_current_squad(season):
 
 
 def test_squad_chip_with_two_unavailable_goalkeepers(season):
-    """15b K8: the current squad with both goalkeepers replaced by the two cheapest ones not owned, both with
+    """The current squad with both goalkeepers replaced by the two cheapest ones not owned, both with
     chance 0 (dropped from the pool without a check): they stay in the pool, the plan exists (a GK with xP 0
     starts), and the note lists them."""
     season = Season()
@@ -237,7 +237,7 @@ def test_squad_chip_with_two_unavailable_goalkeepers(season):
 
 
 def test_squad_chip_rules(season):
-    """15b K7: each broken rule gives its code and no solve; the main plan is still given."""
+    """Each broken rule gives its code and no solve; the main plan is still given."""
     m, kw = _no_chips(season)
     owned, el = list(m['truth'][0]), _elem(season)
     pos = {i: el[i]['element_type'] for i in el}
@@ -264,7 +264,7 @@ def test_squad_chip_rules(season):
 
 @pytest.mark.parametrize("chip", ['WC', 'FH'])
 def test_squad_chip_already_played_is_invalid(season, chip):
-    """The synthetic manager played WC in GW5 and FH in GW7 (first sets): a check in GW8 -> chip_unavailable."""
+    """The synthetic manager played WC in GW5 and FH in GW7 (first sets): a check in GW8 is chip_unavailable."""
     sq = list(build_manager(season)['truth'][0])
     r = run(season, check=chip, check_squad=sq)
     d = r.decision
@@ -273,7 +273,7 @@ def test_squad_chip_already_played_is_invalid(season, chip):
 
 
 def _shows_the_squad(r, sq):
-    """15d E2: an invalid WC/FH check still carries the user's squad: the section, the JSON and the summary."""
+    """An invalid WC/FH check still carries the user's squad: the section, the JSON and the summary."""
     import json
     from fplopt import jsonout
     from fplopt.summary import build_summary
@@ -287,7 +287,7 @@ def _shows_the_squad(r, sq):
 
 
 def test_new_team_squad_chip_check_shows_the_squad(season):
-    """15d E2, R2: a team before its first deadline cannot check WC/FH; the squad is shown all the same."""
+    """A team before its first deadline cannot check WC/FH; the squad is shown all the same."""
     m = build_manager(season)
     m.update(current=[], chips=[], picks={}, banks={}, transfers=[])
     sq = list(build_manager(season)['truth'][0])
@@ -303,7 +303,7 @@ def _toy_section(chip, gw, horizon, budget=75.0):
     sec = DecisionSection(chip=chip, gw=gw, captain_id=None, captain_name=None, status='invalid')
     opts = Options(team_id=1, check=chip, check_squad=list(sq), lookahead=len(horizon), max_hits=None)
     names = {i: str(i) for i in pool['ids']}
-    sec.squad = list(sq)                              # 15d E2: set by the caller (_decision_section)
+    sec.squad = list(sq)                              # set by the caller (_decision_section)
     sec.names = {i: names[i] for i in sq}
     return sec, opts, pool, sq, names
 
@@ -321,7 +321,7 @@ def test_free_hit_after_a_free_hit_is_invalid():
 
 
 def test_squad_budget_at_the_limit():
-    """15b K7: the budget in whole tenths: a squad that costs exactly the budget is valid, GBP 0.1m less is
+    """The budget in whole tenths: a squad that costs exactly the budget is valid, GBP 0.1m less is
     'over_budget' by 0.1. Toy: the 15 owned at 5.0 (sell) and one bought at 5.3 instead of an owned 5.0."""
     pool = toy_pool(); fill(pool, [8]); sq = base_squad(pool)
     new = next(i for i in pool['ids'] if pool['pos'][i] == 3 and i not in sq)

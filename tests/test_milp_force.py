@@ -1,4 +1,5 @@
-"""Decisions of the user held fixed in the MILP (decision check, D1): a captain forced in one GW.
+"""Decisions of the user held fixed in the MILP (decision check): a captain forced in one GW.
+
 Expected values are computed by hand on the toy pool (toy_pools.py): 15 owned players, the last
 forward (sq[14]) has 20 xP in every GW, every other player 2 xP, price 5.0, budget 75.0, 1 FT."""
 import pytest
@@ -21,7 +22,7 @@ def test_forced_tc_captain_by_hand():
       Z0   (no chip)                 : XI 40 + 20       = 60
       Z+   (TC, the model's captain) : XI 40 + 2 * 20   = 80
       Z(D) (TC on a 2-xP forward)    : XI 40 + 2 * 2    = 44
-    -> G = Z(D) - Z0 = -16, R = Z+ - Z(D) = 2 * (20 - 2) = 36, G + R = 20 = Delta_TC(GW8).
+    G = Z(D) - Z0 = -16, R = Z+ - Z(D) = 2 * (20 - 2) = 36, G + R = 20 = Delta_TC(GW8).
     (The XI is 40 in all three because both forwards start either way; only the multiplier moves.)"""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     z0 = solve(pool, sq)
@@ -36,7 +37,7 @@ def test_forced_tc_captain_by_hand():
 
 
 def test_forcing_the_models_captain_changes_nothing():
-    """R = 0 when the user's captain is the one the model picks (K2), with the vice-captain and
+    """R = 0 when the user's captain is the one the model picks, with the vice-captain and
     bench terms on (P(app) 0.9, fixed bench weights)."""
     pool = toy_pool(); fill(pool, H3, papp=0.9); sq = base_squad(pool)
     kw = dict(use_vice=True, use_bench=True, beta={g: [0.5, 0.15, 0.03] for g in H3}, chip_fix={('TC', 9): 1})
@@ -48,7 +49,7 @@ def test_forcing_the_models_captain_changes_nothing():
 
 
 def test_forced_captain_never_beats_the_free_plan():
-    """R >= 0 (K3): each of the 15 owned players forced as the GW8 captain, xP and P(app) varied
+    """R >= 0: each of the 15 owned players forced as the GW8 captain, xP and P(app) varied
     by player and GW, all terms on. Forcing only removes plans, so no forced plan can be better."""
     pool = toy_pool()
     for i in pool['ids']:
@@ -80,8 +81,8 @@ def test_forced_captain_outside_the_squad_is_bought():
 
 def test_unavailable_forced_captain_may_start():
     """FPL lets an injured captain start (he scores 0); the decision must still have a plan.
-    sq[13] unavailable, 0 xP in GW8.  Z0: XI of the 14 others = 20 + 10 * 2 = 40, captain +20 -> 60.
-    Z(D), TC on sq[13]: XI = 20 + 0 + 9 * 2 = 38, captain extra 2 * 0 = 0 -> 38.  G = -22."""
+    sq[13] unavailable, 0 xP in GW8.  Z0: XI of the 14 others = 20 + 10 * 2 = 40, captain +20 = 60.
+    Z(D), TC on sq[13]: XI = 20 + 0 + 9 * 2 = 38, captain extra 2 * 0 = 0, total 38.  G = -22."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     pool['avail'][sq[13]] = False
     pool['xp'][(sq[13], 8)] = 0.0
@@ -89,7 +90,7 @@ def test_unavailable_forced_captain_may_start():
     z0 = solve(pool, sq)
     zd = solve(pool, sq, chip_fix={('TC', 8): 1}, force_captain={8: sq[13]})
     assert zd['plan'][8]['captain'] == sq[13]
-    assert sq[13] not in z0['plan'][8]['xi']                         # A still applies without forcing
+    assert sq[13] not in z0['plan'][8]['xi']                         # the availability rule without forcing
     assert zd['objective'] - z0['objective'] == pytest.approx(-22.0, abs=1e-6)
 
 
@@ -109,11 +110,11 @@ def test_forced_captain_outside_the_pool_is_an_error():
         solve(pool, sq, force_captain={8: 999})
 
 
-# --------------------------------------------------------------------------- D3: forced squad
+# Forced squad
 def test_forced_squad_by_hand():
     """Target DEF 101 with 4 xP in every GW (2 more than a squad DEF), 1 FT.
     No transfer in GW8 (current squad forced): F9 = 2, the target is bought in GW9.
-    Your transfer sq[2] -> 101 in GW8: the same plan one GW earlier -> +2 in GW8 (weight 1).
+    Your transfer sq[2] for 101 in GW8: the same plan one GW earlier, +2 in GW8 (weight 1).
     The free plan does the same as yours. Both plans make 1 transfer, so the tie-breaks cancel."""
     pool = toy_pool(); fill(pool, H3); sq = base_squad(pool)
     add(pool, 101, 2, 5.0, {g: 4.0 for g in H3})
@@ -161,7 +162,7 @@ def test_forced_squad_needs_15_players():
         solve(pool, sq, force_squad={8: sq[:14]})
 
 
-# --------------------------------------------------------------------------- 15c: forced formation
+# Forced formation
 def test_formation_values_by_hand():
     """Fixed squad (2/5/5/3) in GW8, no vice-captain or bench terms: GK 2, every DEF 3, every MID 2.5,
     sq[14] FWD 20 (captain, +20), the other two FWD 2. Formation (d, m, f):

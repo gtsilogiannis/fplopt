@@ -1,8 +1,7 @@
 """Synthetic FPL season and a fake API for offline tests (no network).
 
-Port of harness_offline.py (in the first commit of this repository). The data are generated
-with the same random sequence (seed 7), so every number the harness printed is reproduced
-exactly; the tests compare with those reference values.
+The data are generated from a fixed random sequence (seed 7), so the reference values the tests
+compare with are reproduced exactly.
 
 Season: 20 teams, GW8 is the next gameweek (GW1-7 finished). Small pool: 18 players per
 team (360). big=True: 35 per team (700, the real pool size) with realistic minutes roles.
@@ -30,9 +29,11 @@ class Season:
     """Players, prices, fixtures and per-GW live data of the synthetic season."""
 
     def __init__(self, big=False, chips=True, data_checked=None):
-        """data_checked: None = field absent from the gameweeks (as in the harness), True/False = set
-        for the finished ones (the cache stores only finished AND data_checked gameweeks)."""
-        rng = random.Random(7)             # same sequence as random.seed(7) in the harness
+        """Build the season.
+
+        data_checked: None = field absent from the gameweeks, True/False = set for the finished ones
+        (the cache stores only finished and data_checked gameweeks)."""
+        rng = random.Random(7)             # fixed sequence: the reference values depend on it
         self.big = big
         self.with_chips = chips
         pos_n = POS_N_BIG if big else POS_N_SMALL
@@ -73,8 +74,8 @@ class Season:
         return [e['id'] for e in self.elements if e['element_type'] == pos and e['team'] == team]
 
     def minutes_choices(self, e):
-        # small pool: i.i.d. minutes (as in the original harness); big pool: one nailed GK per
-        # team and outfield players nailed (55%), rotation (25%) or bench (20%)
+        # Small pool: i.i.d. minutes. Big pool: one nailed GK per team and outfield players
+        # nailed (55%), rotation (25%) or bench (20%).
         if not self.big:
             return [0, 0, 25, 90, 90, 90]
         if e['element_type'] == 1:
@@ -100,7 +101,7 @@ class Season:
         return {'elements': out}
 
     def bootstrap(self):
-        # chip sets as in bootstrap-static 2026/27; chips=False -> field missing (rule fallback)
+        # Chip sets as in bootstrap-static 2026/27; chips=False: field missing (rule fallback)
         chips = [] if not self.with_chips else \
             [{'name': n, 'number': k, 'start_event': (s if k == 1 else 20), 'stop_event': (19 if k == 1 else 38)}
              for n, s in (('wildcard', 2), ('freehit', 2), ('bboost', 1), ('3xc', 1)) for k in (1, 2)]
@@ -108,7 +109,7 @@ class Season:
 
 
 def build_manager(season, first_gw=1, fh_last=True, corrupt=False, mix=False):
-    """History of the test manager; returns the API views and the TRUE squad for GW8."""
+    """History of the test manager; returns the API views and the true squad for GW8."""
     by, price = season.by, season.price
     sq = by(1, 1)[:1] + by(1, 2)[:1] + [by(2, t)[0] for t in (3, 4, 5, 6, 7)] + \
         [by(3, t)[0] for t in (8, 9, 10, 11, 12)] + [by(4, t)[0] for t in (13, 14, 15)]
@@ -153,8 +154,9 @@ def build_manager(season, first_gw=1, fh_last=True, corrupt=False, mix=False):
 
 
 class FakeApi:
-    """Answers the FPL API paths the optimizer requests ('/bootstrap-static/', ...) from the
-    synthetic season and manager. Records every path it was asked for."""
+    """Answer the FPL API paths the optimizer requests ('/bootstrap-static/', ...).
+
+    The answers come from the synthetic season and manager. Every path asked for is recorded."""
 
     def __init__(self, season, manager):
         self.season, self.manager = season, manager

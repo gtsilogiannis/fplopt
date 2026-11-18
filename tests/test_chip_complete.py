@@ -1,5 +1,7 @@
-"""C12: chip numbers are either computed in full or left out, so they do not depend on the speed
-of the machine. The time limit is simulated (a solve marked as stopped by time, a pass that is not
+"""Chip numbers are either computed in full or left out, so they do not depend on the speed of
+the machine.
+
+The time limit is simulated (a solve marked as stopped by time, a pass that is not
 done), so these tests do not depend on the speed of the machine either."""
 import pytest
 
@@ -71,9 +73,9 @@ def test_chip_report_leaves_out_cut_solves(monkeypatch):
 
 
 def test_advise_needs_every_number_of_the_window():
-    """TC: exact Delta and an estimate for every GW to the end of the window, best now -> play.
-    BB: best estimate now and positive exact Delta, but GW10 is missing -> no suggestion at all
-    (with the missing GW it could be a 'hold'). FH: exact Delta missing -> no suggestion."""
+    """TC: exact Delta and an estimate for every GW to the end of the window, best now: play.
+    BB: best estimate now and positive exact Delta, but GW10 is missing: no suggestion at all
+    (with the missing GW it could be a 'hold'). FH: exact Delta missing: no suggestion."""
     rep = {'window': {'TC': 10, 'BB': 10, 'FH': 10},
            'exact': {'TC': 5.0, 'BB': 9.0},
            'est': {'TC': {8: 4.0, 9: 3.0, 10: 3.5}, 'BB': {8: 6.0, 9: 2.0}, 'FH': {8: 1.0, 9: 1.0, 10: 1.0}}}
@@ -84,9 +86,9 @@ def test_advise_needs_every_number_of_the_window():
 
 
 def test_chip_report_reuses_a_complete_main_plan(monkeypatch):
-    """N1: with a horizon of <= 3 GWs the 'no chip' solve of the chip analysis is the same model as the main
-    plan, so a complete main plan is used instead of a second solve; the numbers equal those of the second
-    solve. An incomplete main plan is solved again as before."""
+    """With a horizon of at most 3 GWs the 'no chip' solve of the chip analysis is the same model as the
+    main plan, so a complete main plan is used instead of a second solve; the numbers equal those of the
+    second solve. An incomplete main plan is solved again."""
     pool, sq = toy()
     w = weights(H3)
     main = plan_squad(pool, H3, w, sq, 75.0, 1)
@@ -112,10 +114,10 @@ def test_chip_report_reuses_a_complete_main_plan(monkeypatch):
 
 
 def test_chip_report_gives_the_no_chip_solve_the_time_of_the_exact_solves(monkeypatch):
-    """N5: every Delta needs the 'no chip' value, so that solve gets all the time of the exact solves (75% of
-    the time left; the rest stays for the estimates). Simulated: the NONE
-    solve is complete only with more than its old share of the time (0.75 * 4/8 = 37.5% here); with N5 it
-    finishes and both chips are computed, with the same numbers as without any limit."""
+    """Every Delta needs the 'no chip' value, so that solve gets all the time of the exact solves (75% of
+    the time left; the rest stays for the estimates). Simulated: the NONE solve is complete only with more
+    than a proportional share of the time (0.75 * 4/8 = 37.5% here); with all of it, it finishes and both
+    chips are computed, with the same numbers as without any limit."""
     pool, sq = toy()
     w = weights(H3)
     plan = plan_squad(pool, H3, w, sq, 75.0, 1)['plan']
@@ -129,10 +131,10 @@ def test_chip_report_gives_the_no_chip_solve_the_time_of_the_exact_solves(monkey
         if len(a[1]) == len(H3):                                # the exact solves (the estimates are 1 GW)
             limits.setdefault(a[6], k['time_limit'])            # time limit given to each chip's solve
         if a[6] == 'NONE' and len(a[1]) == len(H3) and k['time_limit'] < 0.6 * time_left:
-            res['complete'] = False                             # would be cut with the old share
+            res['complete'] = False                             # would be cut with a proportional share
         return res
     monkeypatch.setattr(chips, 'plan_squad', needs_time)
     rep = chip_report(pool, H3, w, plan, sq, 75.0, 1, windows, None, True, True, time_left)
-    assert limits['NONE'] == pytest.approx(0.75 * time_left, abs=5.0)   # 750 s, not ~375 s
+    assert limits['NONE'] == pytest.approx(0.75 * time_left, abs=5.0)   # 750 s, not 375 s
     assert set(rep['exact']) == {'TC', 'BB'} and not rep['skipped']
     assert rep['exact'] == pytest.approx(full['exact'], abs=1e-9)

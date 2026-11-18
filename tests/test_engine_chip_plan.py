@@ -1,6 +1,8 @@
-"""C13 (chat 16): the plan with the suggested chip. On the synthetic season (GW8 next) the rule suggests no chip,
-so the suggestion is set by the test (engine.advise wrapped); the engine then solves the plan with that chip,
-which must be the plan of a run with --chip X (same solve, same options)."""
+"""The plan with the suggested chip.
+
+On the synthetic season (GW8 next) the rule suggests no chip, so the suggestion is set by the test
+(engine.advise wrapped); the engine then solves the plan with that chip, which must be the plan of a
+run with --chip X (same solve, same options)."""
 import pytest
 
 from fplopt import engine
@@ -46,7 +48,7 @@ def test_chip_plan_switched_off(season, monkeypatch):
 
 
 def test_chip_plan_not_computed_without_time(season, monkeypatch):
-    """C12: with no time left the plan is not solved and nothing of it is shown."""
+    """With no time left the plan is not solved and nothing of it is shown."""
     suggest(monkeypatch, 'BB')
     monkeypatch.setattr(engine, 'MIN_PASS_SECONDS', 10 ** 9)
     cp = run(season).chip_plan
@@ -73,7 +75,7 @@ def test_chip_plan_in_details_and_json(season, monkeypatch):
     assert json.loads(jsonout.dumps(jsonout.optimize_to_dict(run(season, chip_plan=False))))['chip_plan'] is None
 
 
-# --------------------------------------------------------------------------- summary (C13)
+# Summary
 def test_summary_shows_the_chip_plan(season, monkeypatch):
     from fplopt.summary import build_summary
     suggest(monkeypatch, 'TC')
