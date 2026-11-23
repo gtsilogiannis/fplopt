@@ -603,8 +603,9 @@ the code and the test suite. I defined the requirements, approved each modeling 
 decision, reviewed and ran every change against the tests before merging it, and ran the optimizer
 on live data each gameweek.
 
-The C console frontend, under development, is my own code. There, the assistant's role is limited
-to explanations and code review.
+In the C console frontend, under development, the C code and the Makefiles are my own; the
+assistant explains and reviews them. The assistant writes the supporting files around that code:
+ignore rules, CI configuration, test scripts and the frontend's documentation.
 
 ## License
 
