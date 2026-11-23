@@ -1,0 +1,1074 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "0.14.1",
+  "ok": true,
+  "mode": "optimize",
+  "input": {
+    "team_id": 10248663,
+    "ft": null,
+    "chip": "NONE",
+    "min_chance": 75,
+    "lookahead": 5,
+    "override_budget": null,
+    "max_hits": null,
+    "time_limit": 180,
+    "solver": null,
+    "chip_report": true,
+    "write_log": false,
+    "check": null,
+    "check_gw": null,
+    "captain": null,
+    "out": null,
+    "in": null,
+    "squad": null
+  },
+  "context": {
+    "current_gw": 12,
+    "horizon": [
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "weights": [
+      {
+        "gw": 12,
+        "weight": 1.0
+      },
+      {
+        "gw": 13,
+        "weight": 0.85
+      },
+      {
+        "gw": 14,
+        "weight": 0.7224999999999999
+      },
+      {
+        "gw": 15,
+        "weight": 0.6141249999999999
+      },
+      {
+        "gw": 16,
+        "weight": 0.5220062499999999
+      }
+    ],
+    "history_gws": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "history_rows": 6562,
+    "blank_double": [],
+    "free_transfers": {
+      "value": 1,
+      "source": "history",
+      "rebuilt": 1
+    },
+    "budget": {
+      "total": 101.0,
+      "squad_value": 100.0,
+      "bank": 1.0,
+      "source": "computed"
+    }
+  },
+  "solver": {
+    "name": "HiGHS",
+    "seconds": 11.493774652481079,
+    "passes": 1,
+    "proven": true,
+    "gap": 0.11330455228571168,
+    "objective": 240.22438128733788,
+    "bench_weights_change": 1.1102230246251565e-16
+  },
+  "squad": [
+    {
+      "id": 109,
+      "name": "Verbruggen",
+      "team": 5,
+      "position": "GK",
+      "cost": 4.6,
+      "xp_now": 3.16,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 11.088988062499999,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 31,
+      "name": "Konsa",
+      "team": 1,
+      "position": "DEF",
+      "cost": 4.8,
+      "xp_now": 3.62,
+      "papp_now": 0.8804574422100936,
+      "xp_horizon": 13.6026411875,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 115,
+      "name": "De Cuyper",
+      "team": 5,
+      "position": "DEF",
+      "cost": 5.2,
+      "xp_now": 4.2,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 13.928838625,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 334,
+      "name": "Muharemović",
+      "team": 13,
+      "position": "DEF",
+      "cost": 5.0,
+      "xp_now": 3.88,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 12.809499687499997,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 15,
+      "name": "Ødegaard",
+      "team": 1,
+      "position": "MID",
+      "cost": 6.7,
+      "xp_now": 4.34,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 15.879370499999997,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 68,
+      "name": "Tavernier",
+      "team": 3,
+      "position": "MID",
+      "cost": 6.4,
+      "xp_now": 4.47,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 17.123753437499996,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 124,
+      "name": "Groß",
+      "team": 5,
+      "position": "MID",
+      "cost": 5.9,
+      "xp_now": 4.53,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 15.6620505,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 427,
+      "name": "Mbeumo",
+      "team": 16,
+      "position": "MID",
+      "cost": 7.8,
+      "xp_now": 4.57,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 16.456878125,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 249,
+      "name": "Barry",
+      "team": 9,
+      "position": "FWD",
+      "cost": 5.7,
+      "xp_now": 4.42,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 16.06592225,
+      "n_matches_now": 1,
+      "role": "Start",
+      "bench_order": null,
+      "action": "BUY",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 379,
+      "name": "Isak",
+      "team": 14,
+      "position": "FWD",
+      "cost": 9.2,
+      "xp_now": 4.96,
+      "papp_now": 0.8425325165868682,
+      "xp_horizon": 19.142875812499998,
+      "n_matches_now": 1,
+      "role": "Vice",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 411,
+      "name": "Haaland",
+      "team": 15,
+      "position": "FWD",
+      "cost": 15.6,
+      "xp_now": 7.31,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 31.679269437499997,
+      "n_matches_now": 1,
+      "role": "Captain",
+      "bench_order": null,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 572,
+      "name": "Tzolakis",
+      "team": 11,
+      "position": "GK",
+      "cost": 4.7,
+      "xp_now": 3.15,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 11.7286728125,
+      "n_matches_now": 1,
+      "role": "Bench",
+      "bench_order": 0,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 13,
+      "name": "Rice",
+      "team": 1,
+      "position": "MID",
+      "cost": 7.4,
+      "xp_now": 3.86,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 14.181121812499999,
+      "n_matches_now": 1,
+      "role": "Bench",
+      "bench_order": 1,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 112,
+      "name": "Van Hecke",
+      "team": 19,
+      "position": "DEF",
+      "cost": 5.0,
+      "xp_now": 3.49,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 13.541731312499998,
+      "n_matches_now": 1,
+      "role": "Bench",
+      "bench_order": 2,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    },
+    {
+      "id": 579,
+      "name": "Araujo",
+      "team": 14,
+      "position": "DEF",
+      "cost": 5.4,
+      "xp_now": 2.99,
+      "papp_now": 0.8836551371880408,
+      "xp_horizon": 11.721335999999999,
+      "n_matches_now": 1,
+      "role": "Bench",
+      "bench_order": 3,
+      "action": "KEEP",
+      "available": true,
+      "source": "model"
+    }
+  ],
+  "plan": [
+    {
+      "gw": 12,
+      "chip": null,
+      "ft": 1,
+      "ft_unlimited": false,
+      "hits": 0,
+      "transfers": [
+        {
+          "out_id": 79,
+          "out_name": "Evanilson",
+          "in_id": 249,
+          "in_name": "Barry"
+        }
+      ],
+      "captain": {
+        "id": 411,
+        "name": "Haaland"
+      },
+      "vice": {
+        "id": 379,
+        "name": "Isak"
+      },
+      "squad": [
+        13,
+        15,
+        31,
+        68,
+        109,
+        115,
+        124,
+        249,
+        572,
+        334,
+        379,
+        579,
+        411,
+        427,
+        112
+      ],
+      "xi": [
+        15,
+        31,
+        68,
+        109,
+        115,
+        124,
+        249,
+        334,
+        379,
+        411,
+        427
+      ],
+      "bench": [
+        572,
+        13,
+        112,
+        579
+      ]
+    },
+    {
+      "gw": 13,
+      "chip": null,
+      "ft": 1,
+      "ft_unlimited": false,
+      "hits": 0,
+      "transfers": [
+        {
+          "out_id": 13,
+          "out_name": "Rice",
+          "in_id": 40,
+          "in_name": "Rogers"
+        }
+      ],
+      "captain": {
+        "id": 411,
+        "name": "Haaland"
+      },
+      "vice": {
+        "id": 379,
+        "name": "Isak"
+      },
+      "squad": [
+        15,
+        31,
+        68,
+        109,
+        115,
+        124,
+        40,
+        249,
+        572,
+        334,
+        379,
+        579,
+        411,
+        427,
+        112
+      ],
+      "xi": [
+        15,
+        31,
+        68,
+        40,
+        249,
+        572,
+        379,
+        579,
+        411,
+        427,
+        112
+      ],
+      "bench": [
+        109,
+        124,
+        115,
+        334
+      ]
+    },
+    {
+      "gw": 14,
+      "chip": null,
+      "ft": 1,
+      "ft_unlimited": false,
+      "hits": 0,
+      "transfers": [
+        {
+          "out_id": 579,
+          "out_name": "Araujo",
+          "in_id": 60,
+          "in_name": "Hill"
+        }
+      ],
+      "captain": {
+        "id": 411,
+        "name": "Haaland"
+      },
+      "vice": {
+        "id": 379,
+        "name": "Isak"
+      },
+      "squad": [
+        15,
+        31,
+        60,
+        68,
+        109,
+        115,
+        124,
+        40,
+        249,
+        572,
+        334,
+        379,
+        411,
+        427,
+        112
+      ],
+      "xi": [
+        15,
+        31,
+        60,
+        68,
+        40,
+        249,
+        572,
+        334,
+        379,
+        411,
+        427
+      ],
+      "bench": [
+        109,
+        124,
+        112,
+        115
+      ]
+    },
+    {
+      "gw": 15,
+      "chip": null,
+      "ft": 1,
+      "ft_unlimited": false,
+      "hits": 0,
+      "transfers": [
+        {
+          "out_id": 109,
+          "out_name": "Verbruggen",
+          "in_id": 385,
+          "in_name": "Trafford"
+        }
+      ],
+      "captain": {
+        "id": 411,
+        "name": "Haaland"
+      },
+      "vice": {
+        "id": 379,
+        "name": "Isak"
+      },
+      "squad": [
+        15,
+        31,
+        60,
+        68,
+        115,
+        124,
+        40,
+        249,
+        572,
+        334,
+        385,
+        379,
+        411,
+        427,
+        112
+      ],
+      "xi": [
+        15,
+        31,
+        68,
+        115,
+        124,
+        249,
+        385,
+        379,
+        411,
+        427,
+        112
+      ],
+      "bench": [
+        572,
+        40,
+        60,
+        334
+      ]
+    },
+    {
+      "gw": 16,
+      "chip": null,
+      "ft": 1,
+      "ft_unlimited": false,
+      "hits": 0,
+      "transfers": [
+        {
+          "out_id": 427,
+          "out_name": "Mbeumo",
+          "in_id": 542,
+          "in_name": "E.Le Fée"
+        }
+      ],
+      "captain": {
+        "id": 411,
+        "name": "Haaland"
+      },
+      "vice": {
+        "id": 379,
+        "name": "Isak"
+      },
+      "squad": [
+        15,
+        31,
+        60,
+        68,
+        115,
+        124,
+        40,
+        249,
+        572,
+        334,
+        385,
+        379,
+        411,
+        112,
+        542
+      ],
+      "xi": [
+        15,
+        31,
+        60,
+        68,
+        115,
+        124,
+        40,
+        385,
+        379,
+        411,
+        542
+      ],
+      "bench": [
+        572,
+        249,
+        334,
+        112
+      ]
+    }
+  ],
+  "sales_now": [
+    {
+      "id": 79,
+      "name": "Evanilson",
+      "price": 6.3,
+      "available": true
+    }
+  ],
+  "expected_points_now": {
+    "xi": 49.46000000000001,
+    "captain": 7.31,
+    "vice": 0.5770705195473177,
+    "autosubs": 4.69463260235315,
+    "hits": 0,
+    "total": 62.04170312190048,
+    "bench_weights": [
+      0.7242233494809024,
+      0.3447611185418229,
+      0.11017653905960961
+    ]
+  },
+  "chips": {
+    "source": "API (bootstrap-static chips)",
+    "sets": [
+      {
+        "chip": "WC",
+        "start": 2,
+        "stop": 19,
+        "state": "played GW8"
+      },
+      {
+        "chip": "WC",
+        "start": 20,
+        "stop": 38,
+        "state": "available"
+      },
+      {
+        "chip": "FH",
+        "start": 2,
+        "stop": 19,
+        "state": "played GW9"
+      },
+      {
+        "chip": "FH",
+        "start": 20,
+        "stop": 38,
+        "state": "available"
+      },
+      {
+        "chip": "BB",
+        "start": 1,
+        "stop": 19,
+        "state": "available"
+      },
+      {
+        "chip": "BB",
+        "start": 20,
+        "stop": 38,
+        "state": "available"
+      },
+      {
+        "chip": "TC",
+        "start": 1,
+        "stop": 19,
+        "state": "available"
+      },
+      {
+        "chip": "TC",
+        "start": 20,
+        "stop": 38,
+        "state": "available"
+      }
+    ],
+    "status": "computed",
+    "exact": [
+      {
+        "chip": "BB",
+        "window_end": 19,
+        "delta": 8.992266426810517,
+        "error_bound": 0.1440576898895074
+      },
+      {
+        "chip": "TC",
+        "window_end": 19,
+        "delta": 7.887070519547336,
+        "error_bound": 0.15131979660321804
+      }
+    ],
+    "estimates": [
+      {
+        "chip": "BB",
+        "gw": 12,
+        "delta": 8.795367397646842
+      },
+      {
+        "chip": "BB",
+        "gw": 13,
+        "delta": 8.223223719669477
+      },
+      {
+        "chip": "BB",
+        "gw": 14,
+        "delta": 8.903578120179958
+      },
+      {
+        "chip": "BB",
+        "gw": 15,
+        "delta": 8.970550249807644
+      },
+      {
+        "chip": "BB",
+        "gw": 16,
+        "delta": 9.147619735462413
+      },
+      {
+        "chip": "BB",
+        "gw": 17,
+        "delta": 9.16471551512383
+      },
+      {
+        "chip": "BB",
+        "gw": 18,
+        "delta": 9.470957024341146
+      },
+      {
+        "chip": "BB",
+        "gw": 19,
+        "delta": 9.061361185864726
+      },
+      {
+        "chip": "TC",
+        "gw": 12,
+        "delta": 7.887070519547322
+      },
+      {
+        "chip": "TC",
+        "gw": 13,
+        "delta": 9.561060194093898
+      },
+      {
+        "chip": "TC",
+        "gw": 14,
+        "delta": 9.095214659944148
+      },
+      {
+        "chip": "TC",
+        "gw": 15,
+        "delta": 10.013829837994066
+      },
+      {
+        "chip": "TC",
+        "gw": 16,
+        "delta": 9.906849146225355
+      },
+      {
+        "chip": "TC",
+        "gw": 17,
+        "delta": 9.450560865431683
+      },
+      {
+        "chip": "TC",
+        "gw": 18,
+        "delta": 9.026627772903382
+      },
+      {
+        "chip": "TC",
+        "gw": 19,
+        "delta": 9.429425707812726
+      }
+    ],
+    "suggestion": null,
+    "also_best_now": [],
+    "holds": [
+      {
+        "chip": "BB",
+        "now": 8.795367397646842,
+        "best_gw": 18,
+        "best": 9.470957024341146,
+        "window_end": 19
+      },
+      {
+        "chip": "TC",
+        "now": 7.887070519547322,
+        "best_gw": 15,
+        "best": 10.013829837994066,
+        "window_end": 19
+      }
+    ],
+    "incomplete": [],
+    "wc_note": null,
+    "not_computed": [],
+    "seconds": 12.114284753799438
+  },
+  "decision_check": null,
+  "formations": [
+    {
+      "formation": "3-4-3",
+      "def": 3,
+      "mid": 4,
+      "fwd": 3,
+      "points": 62.04170312190048
+    },
+    {
+      "formation": "3-5-2",
+      "def": 3,
+      "mid": 5,
+      "fwd": 2,
+      "points": 61.887268197609785
+    },
+    {
+      "formation": "4-3-3",
+      "def": 4,
+      "mid": 3,
+      "fwd": 3,
+      "points": 61.66689194351178
+    },
+    {
+      "formation": "4-4-2",
+      "def": 4,
+      "mid": 4,
+      "fwd": 2,
+      "points": 61.64482981147025
+    },
+    {
+      "formation": "4-5-1",
+      "def": 4,
+      "mid": 5,
+      "fwd": 1,
+      "points": 61.0836021500767
+    },
+    {
+      "formation": "5-2-3",
+      "def": 5,
+      "mid": 2,
+      "fwd": 3,
+      "points": 60.542379904826234
+    },
+    {
+      "formation": "5-3-2",
+      "def": 5,
+      "mid": 3,
+      "fwd": 2,
+      "points": 60.556168737352195
+    },
+    {
+      "formation": "5-4-1",
+      "def": 5,
+      "mid": 4,
+      "fwd": 1,
+      "points": 60.309455739058556
+    }
+  ],
+  "chip_plan": null,
+  "summary": {
+    "gw": 12,
+    "deadline_utc": "2026-11-27T18:30:00Z",
+    "transfers": {
+      "free_transfers": 1,
+      "unlimited": false,
+      "hits": 0,
+      "hit_points": 0,
+      "moves": [
+        {
+          "out": {
+            "id": 79,
+            "name": "Evanilson"
+          },
+          "in": {
+            "id": 249,
+            "name": "Barry"
+          },
+          "money": 0.6,
+          "pays_for_others": false
+        }
+      ],
+      "bank_before": 1.0,
+      "bank_after": 1.6,
+      "vs_no_transfer": {
+        "this_gw": 0.4000000000000057,
+        "next_gws": 0.4000000000000057,
+        "n_gws": 5
+      }
+    },
+    "captain": {
+      "id": 411,
+      "name": "Haaland",
+      "expected_points": 7.31
+    },
+    "vice": {
+      "id": 379,
+      "name": "Isak"
+    },
+    "lineup": {
+      "GK": [
+        "Verbruggen"
+      ],
+      "DEF": [
+        "Konsa",
+        "De Cuyper",
+        "Muharemović"
+      ],
+      "MID": [
+        "Ødegaard",
+        "Tavernier",
+        "Groß",
+        "Mbeumo"
+      ],
+      "FWD": [
+        "Barry",
+        "Isak",
+        "Haaland"
+      ],
+      "bench": [
+        "Tzolakis",
+        "Rice",
+        "Van Hecke",
+        "Araujo"
+      ]
+    },
+    "chip": {
+      "status": "computed",
+      "playing": null,
+      "play": null,
+      "also": [],
+      "hold": [
+        {
+          "chip": "BB",
+          "now": 8.795367397646842,
+          "best_gw": 18,
+          "best": 9.470957024341146
+        },
+        {
+          "chip": "TC",
+          "now": 7.887070519547322,
+          "best_gw": 15,
+          "best": 10.013829837994066
+        }
+      ],
+      "no_advice": [],
+      "wildcard_now": null,
+      "by_chip": [
+        {
+          "chip": "BB",
+          "status": "hold",
+          "text": "Keep it (now +8.8, best GW18: +9.5)"
+        },
+        {
+          "chip": "TC",
+          "status": "hold",
+          "text": "Keep it (now +7.9, best GW15: +10.0)"
+        },
+        {
+          "chip": "WC",
+          "status": "used",
+          "text": "Used in GW8; the next one from GW20"
+        },
+        {
+          "chip": "FH",
+          "status": "used",
+          "text": "Used in GW9; the next one from GW20"
+        }
+      ]
+    },
+    "expected_points": 62.04170312190048,
+    "expected_range": [
+      36.641703121900484,
+      86.04170312190048
+    ],
+    "alerts": [
+      {
+        "code": "previous_gw_not_final",
+        "message": "GW11 points are not final yet. Run again after they are (usually the morning after its last match) for better advice."
+      }
+    ],
+    "decision": null,
+    "chip_plan": null,
+    "text": [
+      "Fantasy Premier League plan for GW12",
+      "Deadline: Fri 27 Nov, 20:30 (your time)",
+      "",
+      "== TRANSFERS ==",
+      "Free transfers: 1",
+      "    Evanilson -> Barry   (+£0.6m)",
+      "Bank: £1.0m now -> £1.6m after",
+      "Gain: +0.4 points vs no transfer, all of it this gameweek",
+      "",
+      "== STARTING XI (3-4-3) ==",
+      "GK:    Verbruggen",
+      "DEF:   Konsa, De Cuyper, Muharemović",
+      "MID:   Ødegaard, Tavernier, Groß, Mbeumo",
+      "FWD:   Barry, Isak, Haaland",
+      "Bench: Tzolakis (GK), 1. Rice, 2. Van Hecke, 3. Araujo",
+      "",
+      "== CAPTAINS ==",
+      "C:  Haaland (about 7 expected points, about 15 as captain)",
+      "VC: Isak",
+      "",
+      "== CHIPS ==",
+      "Bench Boost:    Keep it (now +8.8, best GW18: +9.5)",
+      "Triple Captain: Keep it (now +7.9, best GW15: +10.0)",
+      "Wildcard:       Used in GW8; the next one from GW20",
+      "Free Hit:       Used in GW9; the next one from GW20",
+      "",
+      "Suggested: No chip this gameweek.",
+      "Chip gains are estimates: differences of a few tenths are within the",
+      "model's error.",
+      "",
+      "== EXPECTED POINTS ==",
+      "About 62 this gameweek",
+      "In 8 of 10 gameweeks: Between 37 and 86",
+      "",
+      "== BEFORE YOU DECIDE ==",
+      "GW11 points are not final yet.",
+      "Run again after they are (usually the morning after its last match) for",
+      "  better advice.",
+      "",
+      "Full numbers: Run again with --details"
+    ]
+  },
+  "explain": [],
+  "explain_not_found": [],
+  "fallback_players": 2,
+  "predictions_log": null,
+  "warnings": [
+    {
+      "code": "previous_gw_not_final",
+      "message": "GW11 is not final yet: the minutes model uses data up to GW10 (its estimates are shrunk more towards the prior)."
+    }
+  ],
+  "timings": {
+    "data_s": 0.807746171951294,
+    "solve_s": 11.493774652481079,
+    "no_transfer_s": 8.617548704147339,
+    "formations_s": 0.05767560005187988,
+    "chips_s": 12.114359617233276,
+    "chip_plan_s": 0.0,
+    "total_s": 33.092328786849976
+  },
+  "api": {
+    "requests": 22,
+    "retries": 0,
+    "cache_hits": 10,
+    "cache_writes": 0
+  }
+}

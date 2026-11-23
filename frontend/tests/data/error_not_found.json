@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "engine_version": "0.14.1",
+  "ok": false,
+  "mode": "optimize",
+  "error": {
+    "exit_code": 4,
+    "type": "not_found",
+    "message": "404 Not Found: Verify Team ID or Target Gameweek.\nEndpoint: https://fantasy.premierleague.com/api/entry/999999999/history/"
+  },
+  "warnings": [
+    {
+      "code": "previous_gw_not_final",
+      "message": "GW11 is not final yet: the minutes model uses data up to GW10 (its estimates are shrunk more towards the prior)."
+    }
+  ]
+}
